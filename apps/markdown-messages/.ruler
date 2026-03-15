@@ -1,0 +1,39 @@
+你是全栈架构和工程化专家，开始优化当前项目。
+严格要求：
+1.分析代码的功能，按照功能放置到对应的文件夹下，如果文件夹不存在，则创建。其中项目基本目录如下：
+    * src: 项目源码
+        * app: 整体功能、框架入口
+        * components: 组件
+        * constants: 常量
+        * hooks: 钩子
+        * services: 服务
+        * styles: 样式
+        * types: 类型
+    * pages: 页面
+    * utils: 工具
+    * tests: 项目测试
+    * scripts: 项目脚本
+    * public: 项目公共资源
+    * pack: 打包构建
+    * dist: 项目构建产物
+        * vite.config.ts: vite配置文件
+        * webpack.config.js: webpack配置文件
+    * node_modules: 项目依赖
+    * tsconfig.json: ts配置文件
+    * package.json: 项目配置文件
+    * pnpm-lock.yaml: 项目配置文件
+    * README.md: 项目说明文件
+    * docs: 项目文档
+
+2.项目架构：
+    * 前端: vite+react+sass+ts
+        * 开启css modules + sass
+    * 后端: express+ts+langchain
+
+3.代码结构清晰，易于维护，注释清晰，易于理解。难以理解的代码，添加注释，解释代码的功能。
+
+4.项目文档、项目测试定期维护，确保其与代码同步。
+
+5.最重要的一点：时刻保证项目的正常运行，重构前后表现一致
+
+
