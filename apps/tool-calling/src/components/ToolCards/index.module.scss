@@ -1,0 +1,321 @@
+/* ═══════════════════════════════════════════════════
+   ToolCards — 工具卡片组件样式
+   使用 CSS Modules，替代原有的内联样式
+═══════════════════════════════════════════════════ */
+
+/* ── 通用卡片基础 ── */
+.card-base {
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    padding: 20px;
+    margin-top: 12px;
+    margin-bottom: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Loading 卡片 ── */
+.loading-card {
+    composes: card-base;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(139, 132, 255, 0.3);
+    background: rgba(30, 34, 53, 0.6);
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid #8b84ff;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.loading-text {
+    color: #e8eaf6;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* ── Error 卡片 ── */
+.error-card {
+    border-radius: 12px;
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    background-color: rgba(127, 29, 29, 0.2);
+    backdrop-filter: blur(8px);
+    padding: 16px;
+    margin-top: 12px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.error-title {
+    margin: 0;
+    font-weight: 600;
+    color: #fca5a5;
+    font-size: 15px;
+}
+
+.error-message {
+    margin: 0;
+    margin-top: 6px;
+    font-size: 13px;
+    color: #f87171;
+}
+
+/* ── Weather 卡片 ── */
+.weather-card {
+    composes: card-base;
+    border: 1px solid rgba(139, 132, 255, 0.2);
+    background: linear-gradient(135deg, rgba(30, 34, 53, 0.9), rgba(46, 51, 72, 0.8));
+}
+
+.weather-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.weather-label {
+    margin: 0;
+    font-weight: 600;
+    color: #8b84ff;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.weather-location {
+    font-size: 24px;
+    font-weight: 700;
+    color: #e8eaf6;
+    margin-top: 4px;
+}
+
+.weather-icon {
+    font-size: 32px;
+}
+
+.weather-temp-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.weather-temp {
+    font-size: 36px;
+    font-weight: 800;
+    color: #fff;
+}
+
+.weather-unit {
+    font-size: 14px;
+    color: #7b82a0;
+}
+
+.weather-condition {
+    margin: 0;
+    margin-top: 8px;
+    color: #8b84ff;
+    font-weight: 500;
+}
+
+/* ── Calculator 卡片 ── */
+.calculator-card {
+    composes: card-base;
+    border: 1px solid rgba(236, 72, 153, 0.2);
+    background: linear-gradient(135deg, rgba(30, 34, 53, 0.9), rgba(63, 28, 59, 0.7));
+}
+
+.calculator-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.calculator-icon {
+    font-size: 20px;
+}
+
+.calculator-label {
+    margin: 0;
+    font-weight: 600;
+    color: #f472b6;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.calculator-body {
+    margin-top: 16px;
+    border-left: 3px solid #f472b6;
+    padding-left: 12px;
+}
+
+.calculator-field-label {
+    color: #7b82a0;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.calculator-expression {
+    font-size: 16px;
+    font-family: var(--font-mono);
+    color: #e8eaf6;
+}
+
+.calculator-result-label {
+    margin-top: 12px;
+    color: #7b82a0;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.calculator-result {
+    font-size: 24px;
+    font-weight: 700;
+    color: #fff;
+}
+
+/* ── Search 卡片 ── */
+.search-card {
+    composes: card-base;
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    background: linear-gradient(135deg, rgba(30, 34, 53, 0.9), rgba(20, 50, 40, 0.7));
+}
+
+.search-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.search-icon {
+    font-size: 20px;
+}
+
+.search-label {
+    margin: 0;
+    font-weight: 600;
+    color: #4ade80;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.search-query {
+    margin-top: 6px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #e8eaf6;
+}
+
+.search-results {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.search-result-item {
+    border-left: 2px solid rgba(74, 222, 128, 0.3);
+    padding-left: 12px;
+}
+
+.search-result-title {
+    color: #4ade80;
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 4px;
+    cursor: pointer;
+}
+
+.search-result-snippet {
+    color: #7b82a0;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* ── Generic 卡片 ── */
+.generic-card {
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    padding: 16px;
+    margin-top: 12px;
+    margin-bottom: 12px;
+}
+
+.generic-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.generic-icon {
+    font-size: 18px;
+}
+
+.generic-name {
+    margin: 0;
+    font-weight: 600;
+    color: var(--text);
+    font-size: 14px;
+}
+
+.generic-section {
+    margin-top: 12px;
+}
+
+.generic-section-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+}
+
+.generic-pre {
+    margin: 0;
+    padding: 10px;
+    background-color: var(--bg);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--accent-light);
+    overflow-x: auto;
+    border: 1px solid var(--border);
+}
+
+.generic-result-section {
+    margin-top: 16px;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+}
+
+.generic-result-pre {
+    composes: generic-pre;
+    color: #4ade80;
+    max-height: 150px;
+}
+
+/* ── 动画关键帧 ── */
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
