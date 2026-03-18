@@ -3,6 +3,7 @@
 1.分析代码的功能，按照功能放置到对应的文件夹下，如果文件夹不存在，则创建。其中项目基本目录如下：
     * src: 项目源码
         * app: 整体功能、框架入口
+        * store: 全局状态
         * components: 组件
         * constants: 常量
         * hooks: 钩子
@@ -26,8 +27,13 @@
     * docs: 项目文档
 
 2.项目架构：
-    * 前端: vite+react+sass+ts
-        * 开启css modules + sass
+    * 前端:
+        * 组件库：react、react-dom
+        * 样式：sass、css modules
+        * 状态管理：useState + zustand。单一的内部状态用useState，多处复用的状态量统一到src/store
+        * 打包构建：vite
+        * 类型：typescript
+        * 大模型：langchain、langgraph、langsmith
     * 后端: express+ts+langchain
 
 3.代码结构清晰，易于维护，注释清晰，易于理解。难以理解的代码，添加注释，解释代码的功能。
