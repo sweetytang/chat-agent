@@ -192,11 +192,16 @@ async function handleResume(
             break;
 
         case DecisionEnum.EDIT:
-            // ── 编辑：用修改后的参数执行 ──
-            const editedArgs = resumePayload.args || {};
-            if (toolCalls.length > 0) {
-                toolCalls[0].args = editedArgs;
-            }
+            // ── 编辑：按工具顺序使用修改后的参数执行；未传入的项保留原参数 ──
+            const editedArgsList = Array.isArray(resumePayload.argsList)
+                ? resumePayload.argsList
+                : [];
+
+            toolCalls.forEach((toolCall, index) => {
+                if (editedArgsList[index]) {
+                    toolCall.args = editedArgsList[index];
+                }
+            });
             await executeAndContinue(threadId, allMessages, toolCalls, sendEvent);
             break;
 

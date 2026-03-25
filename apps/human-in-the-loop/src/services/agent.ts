@@ -4,11 +4,11 @@
  */
 import { createAgent } from "langchain";
 import { model } from "./model.js";
-import { allTools } from "./tools.js";
+import { registeredTools } from "./tools.js";
 
 /** 简单的工具调用 Agent */
 export const simpleAgent = createAgent({
     model,
-    tools: allTools,
+    tools: registeredTools,
     systemPrompt: `You are a helpful assistant with access to several specialized tools.`,
 });

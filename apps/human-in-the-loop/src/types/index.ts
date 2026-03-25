@@ -40,8 +40,8 @@ export interface HITLResponse {
     decision: "approve" | "reject" | "edit";
     /** reject 时的拒绝原因 */
     reason?: string;
-    /** edit 时修改后的参数 */
-    args?: Record<string, unknown>;
+    /** edit 时，按工具顺序提交的参数列表；未修改项保持原参数即可 */
+    argsList?: Record<string, unknown>[];
 }
 
 export type SendEvent = (event: string, data: IObj | null) => void;

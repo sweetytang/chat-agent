@@ -16,6 +16,12 @@ export function SearchCard({ args, result }: { args: { query: string }; result?:
         return <ErrorCard name="web_search" error={{ content: "Failed to parse result" }} />;
     }
 
+    if (data?.error) {
+        return <ErrorCard name="web_search" error={{ content: data.error }} />;
+    }
+
+    const results = Array.isArray(data.results) ? data.results : [];
+
     return (
         <div className={styles.searchCard}>
             <div className={styles.searchHeader}>
@@ -24,13 +30,35 @@ export function SearchCard({ args, result }: { args: { query: string }; result?:
             </div>
             <div className={styles.searchQuery}>"{args.query}"</div>
 
+            {data.answer && (
+                <div className={styles.searchAnswer}>
+                    <div className={styles.searchAnswerLabel}>Quick Answer</div>
+                    <div className={styles.searchAnswerText}>{data.answer}</div>
+                </div>
+            )}
+
             <div className={styles.searchResults}>
-                {data.results?.map((r: any, i: number) => (
+                {results.map((r: any, i: number) => (
                     <div key={i} className={styles.searchResultItem}>
-                        <div className={styles.searchResultTitle}>{r.title}</div>
-                        <div className={styles.searchResultSnippet}>{r.snippet}</div>
+                        {r.url ? (
+                            <a
+                                className={styles.searchResultTitle}
+                                href={r.url}
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                {r.title}
+                            </a>
+                        ) : (
+                            <div className={styles.searchResultTitle}>{r.title}</div>
+                        )}
+                        {r.url && <div className={styles.searchResultUrl}>{r.url}</div>}
+                        <div className={styles.searchResultSnippet}>{r.content ?? r.snippet}</div>
                     </div>
                 ))}
+                {results.length === 0 && (
+                    <div className={styles.searchEmpty}>No search results returned.</div>
+                )}
             </div>
         </div>
     );

@@ -3,11 +3,12 @@
  * 负责渲染聊天消息列表（Human 消息、AI 消息、工具调用卡片、HITL 审核卡片、加载指示器）
  * 状态从 Zustand chatStore 读取。
  */
-import { useRef, useCallback } from 'react';
+import { useCallback } from 'react';
 import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import Markdown from '../Markdown';
 import { ToolCard } from '../ToolCards';
 import ApprovalCard from '../ApprovalCard';
+import CollapsibleBox from '../CollapsibleBox';
 import PresetCards from './PresetCards';
 import { useChatStore } from '../../store';
 import { useAutoScroll } from '../../hooks/useAutoScroll';
@@ -86,11 +87,23 @@ export default function MessageList() {
             {/* 消息列表 */}
             {messages.map((msg, idx) => {
                 const msgId = msg.id || `msg-${idx}`;
+                const isStreamingAiMessage =
+                    isLoading &&
+                    idx === messages.length - 1 &&
+                    AIMessage.isInstance(msg);
+
                 if (HumanMessage.isInstance(msg)) {
                     return (
                         <div key={msgId} className={`${styles.bubbleRow} ${styles.bubbleRowHuman}`}>
                             <div className={`${styles.bubble} ${styles.bubbleHuman}`}>
-                                <Markdown>{msg.text}</Markdown>
+                                <CollapsibleBox
+                                    collapseKey={msgId}
+                                    tone="light"
+                                    fade="human"
+                                    maxCollapsedHeight={240}
+                                >
+                                    <Markdown>{msg.text}</Markdown>
+                                </CollapsibleBox>
                             </div>
                         </div>
                     );
@@ -101,7 +114,15 @@ export default function MessageList() {
                         <div key={msgId} className={`${styles.bubbleRow} ${styles.bubbleRowAi}`}>
                             <div className={styles.bubbleAvatar}>✦</div>
                             <div className={`${styles.bubble} ${styles.bubbleAi}`}>
-                                {msg.text && <Markdown>{msg.text}</Markdown>}
+                                {msg.text && (
+                                    <CollapsibleBox
+                                        collapseKey={msgId}
+                                        freezeAutoCollapse={isStreamingAiMessage}
+                                        maxCollapsedHeight={240}
+                                    >
+                                        <Markdown>{msg.text}</Markdown>
+                                    </CollapsibleBox>
+                                )}
                                 {messageToolCalls.length > 0 && (
                                     <div className={styles.toolCallsWrapper}>
                                         {messageToolCalls.map((tc: any, tcIdx: number) => (
@@ -121,13 +142,20 @@ export default function MessageList() {
                 <div className={`${styles.bubbleRow} ${styles.bubbleRowAi}`}>
                     <div className={styles.bubbleAvatar}>⚠</div>
                     <div className={styles.approvalWrapper}>
-                        <ApprovalCard
-                            interrupt={interrupt}
-                            onRespond={(response) => {
-                                submitReview(response);
-                                forceScroll();
-                            }}
-                        />
+                        <CollapsibleBox
+                            collapseKey={`approval-${interrupt.value.requestId}`}
+                            maxCollapsedHeight={360}
+                            expandLabel="展开审核卡片"
+                            collapseLabel="收起审核卡片"
+                        >
+                            <ApprovalCard
+                                interrupt={interrupt}
+                                onRespond={(response) => {
+                                    submitReview(response);
+                                    forceScroll();
+                                }}
+                            />
+                        </CollapsibleBox>
                     </div>
                 </div>
             )}

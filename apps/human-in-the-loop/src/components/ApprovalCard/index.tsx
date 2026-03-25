@@ -1,7 +1,7 @@
 /**
  * ApprovalCard — HITL 人机交互审核卡片
  * 当 Agent 发出工具调用并需要用户审核时显示。
- * 支持批量查看工具请求；当仅有一个工具请求时允许编辑参数。
+ * 支持批量查看工具请求，并可逐个编辑每个工具的参数后统一执行。
  */
 import { useEffect, useMemo, useState } from 'react';
 import type { HITLRequest, HITLResponse } from '../../types';
@@ -17,43 +17,59 @@ interface ApprovalCardProps {
 /** 卡片操作模式 */
 type CardMode = "review" | "edit" | "reject";
 
+function formatArgs(args: Record<string, unknown> | undefined) {
+    return JSON.stringify(args ?? {}, null, 2);
+}
+
 export default function ApprovalCard({ interrupt, onRespond }: ApprovalCardProps) {
     const request = interrupt.value;
     const actions = request.actionRequests;
     const firstAction = actions[0];
-    const config = request.reviewConfigs[0];
-    const canEdit = Boolean(
-        actions.length === 1 &&
-        config &&
-        request.reviewConfigs.every((item) => item.allowedDecisions.includes('edit'))
-    );
+    const canApprove = request.reviewConfigs.every((item) => item.allowedDecisions.includes('approve'));
+    const canReject = request.reviewConfigs.every((item) => item.allowedDecisions.includes('reject'));
+    const canEdit = request.reviewConfigs.every((item) => item.allowedDecisions.includes('edit'));
 
     const [mode, setMode] = useState<CardMode>("review");
-    const [editedArgs, setEditedArgs] = useState<Record<string, unknown>>(
-        firstAction?.args ?? {}
+    const [editedArgsList, setEditedArgsList] = useState<Record<string, unknown>[]>(
+        actions.map((action) => action.args ?? {})
     );
-    const [editDraft, setEditDraft] = useState(
-        JSON.stringify(firstAction?.args ?? {}, null, 2)
+    const [editDrafts, setEditDrafts] = useState<string[]>(
+        actions.map((action) => formatArgs(action.args))
     );
     const [rejectReason, setRejectReason] = useState("");
-    const [jsonError, setJsonError] = useState("");
+    const [jsonErrors, setJsonErrors] = useState<string[]>(
+        actions.map(() => "")
+    );
 
     useEffect(() => {
         setMode("review");
-        setEditedArgs(firstAction?.args ?? {});
-        setEditDraft(JSON.stringify(firstAction?.args ?? {}, null, 2));
+        setEditedArgsList(actions.map((action) => action.args ?? {}));
+        setEditDrafts(actions.map((action) => formatArgs(action.args)));
         setRejectReason("");
-        setJsonError("");
-    }, [interrupt, firstAction]);
+        setJsonErrors(actions.map(() => ""));
+    }, [interrupt, actions]);
+
+    const originalDrafts = useMemo(
+        () => actions.map((action) => formatArgs(action.args)),
+        [actions]
+    );
+
+    const dirtyStates = useMemo(
+        () => actions.map((_, index) => editDrafts[index] !== originalDrafts[index]),
+        [actions, editDrafts, originalDrafts]
+    );
+
+    const hasAnyEdits = dirtyStates.some(Boolean);
+    const hasJsonErrors = jsonErrors.some(Boolean);
 
     const summaryText = useMemo(() => {
         if (actions.length === 1) {
             return firstAction?.description ?? `Agent 请求执行操作: ${firstAction?.action}`;
         }
-        return `Agent 请求执行 ${actions.length} 个工具操作，请统一审核后继续。`;
+        return `Agent 请求执行 ${actions.length} 个工具操作，你可以逐个编辑参数后再统一执行。`;
     }, [actions, firstAction]);
 
-    if (!firstAction || !config) return null;
+    if (!firstAction) return null;
 
     /** 提交批准 */
     const handleApprove = () => {
@@ -67,21 +83,43 @@ export default function ApprovalCard({ interrupt, onRespond }: ApprovalCardProps
 
     /** 提交编辑后的参数 */
     const handleEditSubmit = () => {
-        if (jsonError) return;
-        onRespond({ decision: "edit", args: editedArgs });
+        if (jsonErrors.some(Boolean)) return;
+        onRespond({ decision: "edit", argsList: editedArgsList });
     };
 
     /** 解析编辑区的 JSON 输入 */
-    const handleEditChange = (value: string) => {
-        setEditDraft(value);
+    const handleEditChange = (index: number, value: string) => {
+        setEditDrafts((current) => current.map((draft, currentIndex) => (
+            currentIndex === index ? value : draft
+        )));
         try {
             const parsed = JSON.parse(value);
-            setEditedArgs(parsed);
-            setJsonError("");
+            setEditedArgsList((current) => current.map((args, currentIndex) => (
+                currentIndex === index ? parsed : args
+            )));
+            setJsonErrors((current) => current.map((error, currentIndex) => (
+                currentIndex === index ? "" : error
+            )));
         } catch {
             // JSON 格式不正确时仅提示，不阻止输入
-            setJsonError("JSON 格式不正确");
+            setJsonErrors((current) => current.map((error, currentIndex) => (
+                currentIndex === index ? "JSON 格式不正确" : error
+            )));
         }
+    };
+
+    const handleResetArgs = (index: number) => {
+        const originalArgs = actions[index]?.args ?? {};
+        const originalDraft = formatArgs(originalArgs);
+        setEditedArgsList((current) => current.map((args, currentIndex) => (
+            currentIndex === index ? originalArgs : args
+        )));
+        setEditDrafts((current) => current.map((draft, currentIndex) => (
+            currentIndex === index ? originalDraft : draft
+        )));
+        setJsonErrors((current) => current.map((error, currentIndex) => (
+            currentIndex === index ? "" : error
+        )));
     };
 
     return (
@@ -97,30 +135,86 @@ export default function ApprovalCard({ interrupt, onRespond }: ApprovalCardProps
                 {summaryText}
             </p>
 
+            {canEdit && (
+                <div className={styles.approvalHint}>
+                    <span className={styles.approvalHintTitle}>提示</span>
+                    <span>只改你想调整的工具即可，未修改的工具会保留原参数执行。</span>
+                </div>
+            )}
+
             {actions.map((action, index) => (
-                <div key={`${action.action}-${index}`} className={styles.approvalArgsBox}>
-                    <div className={styles.approvalActionTag}>
-                        <span className={styles.approvalActionLabel}>
-                            {actions.length > 1 ? `工具 ${index + 1}` : '工具'}
-                        </span>
-                        <span className={styles.approvalActionName}>{action.action}</span>
-                    </div>
+                <div
+                    key={`${action.action}-${index}`}
+                    className={`${styles.approvalArgsBox} ${mode === "edit" ? styles.approvalArgsBoxEditing : ""}`}
+                >
+                    {mode === "edit" ? (
+                        <div className={styles.approvalEditHeader}>
+                            <div className={styles.approvalActionTag}>
+                                <span className={styles.approvalActionLabel}>
+                                    {actions.length > 1 ? `工具 ${index + 1}` : '工具'}
+                                </span>
+                                <span className={styles.approvalActionName}>{action.action}</span>
+                            </div>
+                            <div className={styles.approvalEditMeta}>
+                                <span
+                                    className={`${styles.approvalEditState} ${
+                                        dirtyStates[index] ? styles.approvalEditStateChanged : styles.approvalEditStateOriginal
+                                    }`}
+                                >
+                                    {dirtyStates[index] ? '已修改' : '沿用原参数'}
+                                </span>
+                                <button
+                                    type="button"
+                                    className={styles.approvalResetBtn}
+                                    onClick={() => handleResetArgs(index)}
+                                    disabled={!dirtyStates[index]}
+                                >
+                                    恢复原参数
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className={styles.approvalActionTag}>
+                            <span className={styles.approvalActionLabel}>
+                                {actions.length > 1 ? `工具 ${index + 1}` : '工具'}
+                            </span>
+                            <span className={styles.approvalActionName}>{action.action}</span>
+                        </div>
+                    )}
+
+                    <span className={styles.approvalArgsLabel}>
+                        {mode === "edit" ? "原参数" : "参数"}
+                    </span>
                     <pre className={styles.approvalArgsPre}>
                         {JSON.stringify(action.args, null, 2)}
                     </pre>
+
+                    {mode === "edit" && (
+                        <>
+                            <p className={styles.approvalEditHint}>
+                                {dirtyStates[index]
+                                    ? '将使用下面的执行参数运行该工具。'
+                                    : '当前未修改，执行时会沿用上面的原参数。'}
+                            </p>
+                            <span className={styles.approvalArgsLabel}>执行参数</span>
+                            <textarea
+                                className={`${styles.approvalTextarea} ${styles.approvalTextareaMono}`}
+                                value={editDrafts[index] ?? ""}
+                                onChange={(e) => handleEditChange(index, e.target.value)}
+                                rows={6}
+                            />
+                            {jsonErrors[index] && (
+                                <p className={styles.approvalJsonError}>{jsonErrors[index]}</p>
+                            )}
+                        </>
+                    )}
                 </div>
             ))}
-
-            {!canEdit && actions.length > 1 && (
-                <p className={styles.approvalDesc}>
-                    当前批量审核支持统一批准或拒绝。若要编辑参数，请让 Agent 逐个发起工具调用。
-                </p>
-            )}
 
             {/* ── 审核模式：显示三个按钮 ── */}
             {mode === "review" && (
                 <div className={styles.approvalActions}>
-                    {config.allowedDecisions.includes("approve") && (
+                    {canApprove && (
                         <button
                             className={`${styles.approvalBtn} ${styles.approvalBtnApprove}`}
                             onClick={handleApprove}
@@ -128,7 +222,7 @@ export default function ApprovalCard({ interrupt, onRespond }: ApprovalCardProps
                             ✓ 批准执行
                         </button>
                     )}
-                    {config.allowedDecisions.includes("reject") && (
+                    {canReject && (
                         <button
                             className={`${styles.approvalBtn} ${styles.approvalBtnReject}`}
                             onClick={() => setMode("reject")}
@@ -174,24 +268,19 @@ export default function ApprovalCard({ interrupt, onRespond }: ApprovalCardProps
                 </div>
             )}
 
-            {/* ── 编辑模式：修改参数 JSON ── */}
+            {/* ── 编辑模式：统一提交修改后的各工具参数 ── */}
             {mode === "edit" && (
                 <div className={styles.approvalExpandArea}>
-                    <textarea
-                        className={`${styles.approvalTextarea} ${styles.approvalTextareaMono}`}
-                        value={editDraft}
-                        onChange={(e) => handleEditChange(e.target.value)}
-                        rows={6}
-                    />
-                    {jsonError && (
-                        <p className={styles.approvalJsonError}>{jsonError}</p>
-                    )}
+                    <div className={styles.approvalHint}>
+                        <span className={styles.approvalHintTitle}>执行说明</span>
+                        <span>每张工具卡片中的“执行参数”都会按顺序提交；未改动的卡片会继续使用原参数。</span>
+                    </div>
                     <div className={styles.approvalExpandActions}>
                         <button
                             className={`${styles.approvalBtn} ${styles.approvalBtnSecondary}`}
                             onClick={() => {
                                 setMode("review");
-                                setJsonError("");
+                                setJsonErrors(actions.map(() => ""));
                             }}
                         >
                             返回
@@ -199,9 +288,9 @@ export default function ApprovalCard({ interrupt, onRespond }: ApprovalCardProps
                         <button
                             className={`${styles.approvalBtn} ${styles.approvalBtnEdit}`}
                             onClick={handleEditSubmit}
-                            disabled={!!jsonError}
+                            disabled={hasJsonErrors}
                         >
-                            提交修改
+                            {hasAnyEdits ? '保存修改并执行' : '按原参数执行'}
                         </button>
                     </div>
                 </div>

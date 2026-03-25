@@ -3,6 +3,7 @@
  * 根据工具名称自动分发到对应的专用卡片组件。
  */
 import React from "react";
+import CollapsibleBox from "../CollapsibleBox";
 import { LoadingCard } from "./LoadingCard";
 import { ErrorCard } from "./ErrorCard";
 import { WeatherCard } from "./WeatherCard";
@@ -18,21 +19,37 @@ export { LoadingCard, ErrorCard, WeatherCard, CalculatorCard, SearchCard, Generi
  * 根据 toolCall 的状态和名称，自动选择合适的展示卡片
  */
 export function ToolCard({ toolCall }: { toolCall: any }) {
+    let content: React.ReactNode;
+
     if (toolCall.state === "pending") {
-        return <LoadingCard name={toolCall.call.name} />;
-    }
-    if (toolCall.state === "error") {
-        return <ErrorCard name={toolCall.call.name} error={toolCall.result} />;
+        content = <LoadingCard name={toolCall.call.name} />;
+    } else if (toolCall.state === "error") {
+        content = <ErrorCard name={toolCall.call.name} error={toolCall.result} />;
+    } else {
+        switch (toolCall.call.name) {
+            case "get_weather":
+                content = <WeatherCard args={toolCall.call.args as any} result={toolCall.result} />;
+                break;
+            case "calculator":
+                content = <CalculatorCard args={toolCall.call.args as any} result={toolCall.result} />;
+                break;
+            case "web_search":
+                content = <SearchCard args={toolCall.call.args as any} result={toolCall.result} />;
+                break;
+            default:
+                content = <GenericToolCard toolCall={toolCall} />;
+                break;
+        }
     }
 
-    switch (toolCall.call.name) {
-        case "get_weather":
-            return <WeatherCard args={toolCall.call.args as any} result={toolCall.result} />;
-        case "calculator":
-            return <CalculatorCard args={toolCall.call.args as any} result={toolCall.result} />;
-        case "web_search":
-            return <SearchCard args={toolCall.call.args as any} result={toolCall.result} />;
-        default:
-            return <GenericToolCard toolCall={toolCall} />;
-    }
+    return (
+        <CollapsibleBox
+            collapseKey={`tool-${toolCall.id ?? toolCall.call?.id ?? toolCall.call?.name}-${toolCall.state ?? "unknown"}`}
+            maxCollapsedHeight={300}
+            expandLabel="展开工具卡片"
+            collapseLabel="收起工具卡片"
+        >
+            {content}
+        </CollapsibleBox>
+    );
 }

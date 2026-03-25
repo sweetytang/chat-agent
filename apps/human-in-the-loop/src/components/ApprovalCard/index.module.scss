@@ -62,6 +62,32 @@
     line-height: 1.5;
 }
 
+.approval-hint {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 16px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    color: #dbeafe;
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+.approval-hint-title {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(59, 130, 246, 0.18);
+    color: #93c5fd;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
 /* ── 动作标签 ── */
 .approval-action-tag {
     display: inline-flex;
@@ -93,6 +119,13 @@
 /* ── 参数预览 ── */
 .approval-args-box {
     margin-bottom: 16px;
+}
+
+.approval-args-box-editing {
+    padding: 14px;
+    border-radius: 12px;
+    background: rgba(15, 17, 23, 0.3);
+    border: 1px solid rgba(148, 163, 184, 0.14);
 }
 
 .approval-args-label {
@@ -252,4 +285,71 @@
     font-size: 12px;
     color: #f87171;
     padding-left: 4px;
+}
+
+.approval-edit-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.approval-edit-header .approval-action-tag {
+    margin-bottom: 0;
+}
+
+.approval-edit-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.approval-edit-state {
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+.approval-edit-state-original {
+    background: rgba(148, 163, 184, 0.14);
+    color: #cbd5f5;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.approval-edit-state-changed {
+    background: rgba(16, 185, 129, 0.14);
+    color: #a7f3d0;
+    border: 1px solid rgba(16, 185, 129, 0.24);
+}
+
+.approval-reset-btn {
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: #93c5fd;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.approval-reset-btn:hover:not(:disabled) {
+    color: #bfdbfe;
+    text-decoration: underline;
+}
+
+.approval-reset-btn:disabled {
+    color: #64748b;
+    cursor: not-allowed;
+}
+
+.approval-edit-hint {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: #cbd5f5;
+    line-height: 1.5;
 }
