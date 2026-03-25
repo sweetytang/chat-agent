@@ -4,6 +4,9 @@
  */
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
+import { ToolMessage } from '@langchain/core/messages';
+import { createToolMessage } from '../../utils';
+import { SendEvent, MessageTypeEnum } from '../types';
 
 /** 天气查询工具（Mock） */
 export const getWeather = tool(
@@ -69,4 +72,53 @@ export const webSearch = tool(
 );
 
 /** 所有工具列表，方便 Agent 统一引用 */
-export const allTools = [getWeather, calculator, webSearch];
+export const registeredTools = [getWeather, calculator, webSearch];
+
+
+
+function sendToolMessage(sendEvent: SendEvent, message: ToolMessage) {
+    sendEvent("messages", [{
+        type: MessageTypeEnum.TOOL,
+        id: message.id,
+        content: message.content,
+        tool_call_id: message.tool_call_id,
+    }, {}]);
+}
+
+/**
+ * 执行工具调用
+ * 返回 ToolMessage 数组
+ */
+export async function executeTools(
+    toolCalls: any[],
+    sendEvent: SendEvent,
+): Promise<ToolMessage[]> {
+    const results: ToolMessage[] = [];
+
+    for (const tc of toolCalls) {
+        const tool = registeredTools.find((candidate: any) => candidate.name === tc.name);
+
+        if (!tool) {
+            const errorMessage = createToolMessage(`Tool "${tc.name}" not found`, tc.id);
+            results.push(errorMessage);
+            sendToolMessage(sendEvent, errorMessage);
+            continue;
+        }
+
+        try {
+            const result = await (tool as any).invoke(tc.args);
+            const toolMessage = createToolMessage(
+                typeof result === "string" ? result : JSON.stringify(result),
+                tc.id,
+            );
+            results.push(toolMessage);
+            sendToolMessage(sendEvent, toolMessage);
+        } catch (err: any) {
+            const errorMessage = createToolMessage(`Error: ${err.message}`, tc.id);
+            results.push(errorMessage);
+            sendToolMessage(sendEvent, errorMessage);
+        }
+    }
+
+    return results;
+}

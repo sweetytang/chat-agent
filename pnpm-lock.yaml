@@ -76,6 +76,15 @@ importers:
         specifier: ^6.0.0
         version: 6.4.1(@types/node@25.5.0)(sass@1.98.0)(tsx@4.21.0)
 
+  apps/human-in-the-loop:
+    dependencies:
+      react-markdown:
+        specifier: ^10.1.0
+        version: 10.1.0(@types/react@19.2.14)(react@19.2.4)
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
+
   apps/markdown-messages:
     dependencies:
       react-markdown:

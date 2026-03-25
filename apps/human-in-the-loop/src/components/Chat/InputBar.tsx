@@ -9,13 +9,16 @@ import styles from './index.module.scss';
 
 export default function InputBar() {
     const isLoading = useChatStore((s) => s.isLoading);
+    const interrupt = useChatStore((s) => s.interrupt);
     const submitMessage = useChatStore((s) => s.submitMessage);
     const stopMessage = useChatStore((s) => s.stopMessage);
 
     const [input, setInput] = useState('');
+    const isAwaitingReview = Boolean(interrupt);
+    const isDisabled = isLoading || isAwaitingReview;
 
     const handleSubmit = (text: string) => {
-        if (!text.trim() || isLoading) return;
+        if (!text.trim() || isDisabled) return;
         setInput('');
         submitMessage(text);
     };
@@ -37,7 +40,7 @@ export default function InputBar() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    disabled={isLoading}
+                    disabled={isDisabled}
                 />
                 {isLoading ? (
                     <button
@@ -51,14 +54,18 @@ export default function InputBar() {
                     <button
                         className={styles.sendBtn}
                         onClick={() => handleSubmit(input)}
-                        disabled={!input.trim()}
+                        disabled={!input.trim() || isAwaitingReview}
                         aria-label="Send"
                     >
                         ↑
                     </button>
                 )}
             </div>
-            <p className={styles.chatHint}>Powered by TenaSourcing</p>
+            <p className={styles.chatHint}>
+                {isAwaitingReview
+                    ? '请先完成当前工具审核，再继续发送消息'
+                    : 'Powered by TenaSourcing'}
+            </p>
         </footer>
     );
 }

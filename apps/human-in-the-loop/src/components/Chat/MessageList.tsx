@@ -1,12 +1,13 @@
 /**
  * MessageList — 消息列表组件
- * 负责渲染聊天消息列表（Human 消息、AI 消息、工具调用卡片、加载指示器）
+ * 负责渲染聊天消息列表（Human 消息、AI 消息、工具调用卡片、HITL 审核卡片、加载指示器）
  * 状态从 Zustand chatStore 读取。
  */
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useCallback } from 'react';
 import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import Markdown from '../Markdown';
 import { ToolCard } from '../ToolCards';
+import ApprovalCard from '../ApprovalCard';
 import PresetCards from './PresetCards';
 import { useChatStore } from '../../store';
 import { useAutoScroll } from '../../hooks/useAutoScroll';
@@ -26,7 +27,7 @@ function getToolCallsForMessage(
     const msgToolCallDefs = msg.tool_calls || [];
     if (msgToolCallDefs.length === 0) return [];
 
-    // 1. 先从 stream.toolCalls 中查找（当前流式期间，仅包含当前 run 的 tool calls）
+    // 1. 先从 stream.toolCalls 中查找
     const fromStream = (toolCalls || []).filter((tc: any) =>
         msgToolCallDefs.some((t: any) => t.id === tc.call.id)
     );
@@ -59,14 +60,16 @@ export default function MessageList() {
     const messages = useChatStore((s) => s.messages);
     const toolCalls = useChatStore((s) => s.toolCalls);
     const isLoading = useChatStore((s) => s.isLoading);
+    const interrupt = useChatStore((s) => s.interrupt);
     const submitMessage = useChatStore((s) => s.submitMessage);
+    const submitReview = useChatStore((s) => s.submitReview);
 
     // 使用封装好的通用滚动 Hook
     const { bottomRef, onScroll, onTouchOrWheel, forceScroll } = useAutoScroll([messages]);
 
     const submit = useCallback((text: string) => {
         submitMessage(text);
-        forceScroll(); // 强制触发滚动
+        forceScroll();
     }, [submitMessage, forceScroll]);
 
 
@@ -113,6 +116,21 @@ export default function MessageList() {
                 return null;
             })}
 
+            {/* ── HITL 审核卡片：当存在中断时显示 ── */}
+            {interrupt && (
+                <div className={`${styles.bubbleRow} ${styles.bubbleRowAi}`}>
+                    <div className={styles.bubbleAvatar}>⚠</div>
+                    <div className={styles.approvalWrapper}>
+                        <ApprovalCard
+                            interrupt={interrupt}
+                            onRespond={(response) => {
+                                submitReview(response);
+                                forceScroll();
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
 
             {/* 加载中指示器 */}
             {isLoading && (

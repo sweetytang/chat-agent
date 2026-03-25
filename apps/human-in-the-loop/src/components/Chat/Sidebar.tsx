@@ -61,17 +61,21 @@ export default function Sidebar() {
                     const {
                         thread_id,
                         title = '新对话',
-                        updated_at
+                        updated_at,
+                        status,
                     } = thread || {};
+                    const itemTitle = status === 'interrupted'
+                        ? `${title} · 待审核`
+                        : title;
                     return (
                         <div
                             key={thread_id}
                             className={`${styles.threadItem} ${activeThreadId === thread_id ? styles.threadItemActive : ""}`}
                             onClick={() => switchThread(thread_id)}
-                            title={title || new Date(updated_at).toLocaleString()}
+                            title={itemTitle || new Date(updated_at).toLocaleString()}
                         >
                             <div className={styles.threadContent}>
-                                {isCollapsed ? "●" : (title)}
+                                {isCollapsed ? "●" : itemTitle}
                             </div>
                             {!isCollapsed && (
                                 <button

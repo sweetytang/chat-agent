@@ -2,12 +2,14 @@
  * useChat.ts — 聊天初始化 Hook
  * 负责初始化 useStream 并将状态同步到 Zustand store。
  * 所有子组件通过 store 消费状态，不再需要 prop drilling。
+ * 支持 Human-in-the-Loop（HITL）中断状态同步。
  */
 import { useEffect, useCallback } from 'react';
 import { useStream } from '@langchain/react';
 import { simpleAgent } from '../services/agent';
 import { SERVER_URL, ASSISTANT_ID } from '../constants';
 import { useThreadStore, syncStreamData, syncStreamActions } from '../store';
+import type { HITLRequest } from '../types';
 
 /**
  * 初始化聊天流，并将状态同步到 Zustand store。
@@ -40,14 +42,14 @@ export function useChat(): void {
         fetchThreads();
     }, [fetchThreads]);
 
-    // ── 同步流式数据到 chatStore（带依赖，仅在数据变化时执行）──
     useEffect(() => {
         syncStreamData({
             messages: stream.messages,
             toolCalls: stream.toolCalls,
             isLoading: stream.isLoading,
+            interrupt: stream.interrupt ? { value: stream.interrupt.value as HITLRequest } : null,
         });
-    }, [stream.messages, stream.toolCalls, stream.isLoading]);
+    }, [stream.messages, stream.toolCalls, stream.isLoading, stream.interrupt]);
 
     // ── 同步 action refs（不触发 re-render，在每次渲染时更新到最新引用）──
     syncStreamActions({

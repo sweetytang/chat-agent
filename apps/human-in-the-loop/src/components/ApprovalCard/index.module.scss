@@ -1,0 +1,255 @@
+/* ═══════════════════════════════════════════════════
+   ApprovalCard — HITL 审核卡片样式
+   使用 CSS Modules，匹配项目深色主题风格
+═══════════════════════════════════════════════════ */
+
+/* ── 卡片容器 ── */
+.approval-card {
+    border-radius: 16px;
+    border: 2px solid rgba(251, 191, 36, 0.4);
+    background: linear-gradient(135deg, rgba(30, 34, 53, 0.95), rgba(55, 48, 30, 0.6));
+    backdrop-filter: blur(12px);
+    padding: 20px;
+    margin: 12px 0;
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(251, 191, 36, 0.1) inset;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── 头部 ── */
+.approval-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.approval-icon {
+    font-size: 20px;
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.approval-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: #fbbf24;
+    letter-spacing: 0.02em;
+}
+
+/* ── 描述 ── */
+.approval-desc {
+    margin: 0 0 14px;
+    font-size: 13.5px;
+    color: #d4c5a0;
+    line-height: 1.5;
+}
+
+/* ── 动作标签 ── */
+.approval-action-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.approval-action-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #7b82a0;
+}
+
+.approval-action-name {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: rgba(251, 191, 36, 0.15);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    color: #fbbf24;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--font-mono);
+}
+
+/* ── 参数预览 ── */
+.approval-args-box {
+    margin-bottom: 16px;
+}
+
+.approval-args-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #7b82a0;
+    margin-bottom: 6px;
+}
+
+.approval-args-pre {
+    margin: 0;
+    padding: 12px 14px;
+    background: rgba(15, 17, 23, 0.6);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 12.5px;
+    font-family: var(--font-mono);
+    color: #e8eaf6;
+    overflow-x: auto;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* ── 操作按钮组 ── */
+.approval-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.approval-btn {
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: none;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.approval-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* 批准按钮 */
+.approval-btn-approve {
+    background: linear-gradient(135deg, #059669, #10b981);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.approval-btn-approve:hover:not(:disabled) {
+    background: linear-gradient(135deg, #047857, #059669);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+/* 拒绝按钮 */
+.approval-btn-reject {
+    background: linear-gradient(135deg, #dc2626, #ef4444);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.approval-btn-reject:hover:not(:disabled) {
+    background: linear-gradient(135deg, #b91c1c, #dc2626);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+/* 编辑按钮 */
+.approval-btn-edit {
+    background: linear-gradient(135deg, #2563eb, #3b82f6);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.approval-btn-edit:hover:not(:disabled) {
+    background: linear-gradient(135deg, #1d4ed8, #2563eb);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+/* 次要按钮（返回） */
+.approval-btn-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    color: #e8eaf6;
+    border: 1px solid var(--border);
+}
+
+.approval-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: var(--accent);
+}
+
+/* ── 展开区域（拒绝/编辑模式） ── */
+.approval-expand-area {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.approval-textarea {
+    width: 100%;
+    padding: 12px 14px;
+    background: rgba(15, 17, 23, 0.6);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: #e8eaf6;
+    font-size: 13.5px;
+    font-family: var(--font);
+    line-height: 1.5;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.approval-textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.15);
+}
+
+/* 等宽字体样式（用于 JSON 编辑） */
+.approval-textarea-mono {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+}
+
+.approval-textarea::placeholder {
+    color: var(--text-muted);
+}
+
+.approval-expand-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+/* ── JSON 错误提示 ── */
+.approval-json-error {
+    margin: 0;
+    font-size: 12px;
+    color: #f87171;
+    padding-left: 4px;
+}
