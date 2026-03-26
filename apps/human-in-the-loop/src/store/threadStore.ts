@@ -4,11 +4,12 @@
  */
 import { create } from 'zustand';
 import { SERVER_URL } from '../constants';
-import type { IThread } from '../types';
+import { getAuthHeaders } from '../utils/authClient';
+import type { IThreadDTO } from '../types/thread';
 
 interface ThreadState {
     /** 线程列表 */
-    threadsList: IThread[];
+    threadsList: IThreadDTO[];
     /** 当前激活的线程 ID */
     activeThreadId: string | null;
     /** 从服务端拉取线程列表 */
@@ -27,7 +28,13 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
 
     fetchThreads: async () => {
         try {
-            const res = await fetch(`${SERVER_URL}/allthreads`);
+            const res = await fetch(`${SERVER_URL}/allthreads`, {
+                headers: getAuthHeaders(),
+            });
+            if (res.status === 401) {
+                set({ threadsList: [], activeThreadId: null });
+                return;
+            }
             const data = await res.json();
             set({ threadsList: data });
         } catch (e) {
@@ -48,16 +55,19 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
 
     deleteThread: async (id: string) => {
         try {
-            const res = await fetch(`${SERVER_URL}/threads/${id}`, { method: 'DELETE' });
+            const res = await fetch(`${SERVER_URL}/threads/${id}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders(),
+            });
             if (res.ok) {
                 // Remove from local list
                 const current = get();
                 const updatedList = current.threadsList.filter(t => t.thread_id !== id);
-                
+
                 // Clear active thread if it was deleted
                 const newActiveId = current.activeThreadId === id ? null : current.activeThreadId;
-                
-                set({ 
+
+                set({
                     threadsList: updatedList,
                     activeThreadId: newActiveId
                 });
@@ -67,3 +77,10 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
         }
     }
 }));
+
+export function resetThreadStore() {
+    useThreadStore.setState({
+        threadsList: [],
+        activeThreadId: null,
+    });
+}

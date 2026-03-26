@@ -25,6 +25,16 @@
     * pnpm-lock.yaml: 项目配置文件
     * README.md: 项目说明文件
     * docs: 项目文档
+    * backend: 后端
+        * config: 配置
+        * controllers: 控制器
+        * middlewares: 中间件
+        * models: 大模型
+        * routes: 路由
+        * services: 服务
+        * utils: 方法
+        * app.js: 应用
+        * server.js: 服务器
 
 2.项目架构：
     * 前端:
@@ -34,12 +44,18 @@
         * 打包构建：vite
         * 类型：typescript
         * 大模型：langchain、langgraph、langsmith
-    * 后端: express+ts+langchain
+    * 后端:
+        * 数据库：sqlite、postgresql
+        * ORM：prisma
+        * 服务器: express
+        * 大模型：langchain、langgraph、langsmith
 
 3.代码结构清晰，易于维护，注释清晰，易于理解。难以理解的代码，添加注释，解释代码的功能。
 
-4.项目文档、项目测试定期维护，确保其与代码同步。
+4.对于行数大于150行的单文件，遵循单一职责原则和可读性，尝试进行拆分
 
-5.最重要的一点：时刻保证项目的正常运行，重构前后表现一致
+5.项目文档、项目测试定期维护，确保其与代码同步。
+
+6.最重要的一点：时刻保证项目的正常运行，重构前后表现一致
 
 

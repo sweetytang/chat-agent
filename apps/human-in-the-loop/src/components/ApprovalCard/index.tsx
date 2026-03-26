@@ -4,7 +4,7 @@
  * 支持批量查看工具请求，并可逐个编辑每个工具的参数后统一执行。
  */
 import { useEffect, useMemo, useState } from 'react';
-import type { HITLRequest, HITLResponse } from '../../types';
+import type { HITLRequest, HITLResponse } from '../../types/interrupt';
 import styles from './index.module.scss';
 
 interface ApprovalCardProps {
@@ -157,9 +157,8 @@ export default function ApprovalCard({ interrupt, onRespond }: ApprovalCardProps
                             </div>
                             <div className={styles.approvalEditMeta}>
                                 <span
-                                    className={`${styles.approvalEditState} ${
-                                        dirtyStates[index] ? styles.approvalEditStateChanged : styles.approvalEditStateOriginal
-                                    }`}
+                                    className={`${styles.approvalEditState} ${dirtyStates[index] ? styles.approvalEditStateChanged : styles.approvalEditStateOriginal
+                                        }`}
                                 >
                                     {dirtyStates[index] ? '已修改' : '沿用原参数'}
                                 </span>

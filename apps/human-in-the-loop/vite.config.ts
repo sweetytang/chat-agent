@@ -1,9 +1,15 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import path from "path";
 
 export default defineConfig({
     // root: "../", // 修正 Vite 项目的根目录，让它回到 package.json 这一级来寻找 index.html
     plugins: [react()],
+    resolve: {
+        alias: {
+            "@": path.resolve(__dirname, "../../"),
+        },
+    },
     server: {
         port: 8002,
         open: true,

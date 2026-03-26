@@ -5,3 +5,4 @@
 export { useThreadStore } from './threadStore';
 export { useChatStore, syncStreamData, syncStreamActions } from './chatStore';
 export { useScrollStore } from './scroll';
+export { useAuthStore } from './authStore';

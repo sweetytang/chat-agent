@@ -10,7 +10,7 @@
 import { create } from 'zustand';
 import type { BaseMessage } from '@langchain/core/messages';
 import type { ToolCallWithResult } from '@langchain/react';
-import type { HITLRequest, HITLResponse } from '../types';
+import type { HITLRequest, HITLResponse } from '../types/interrupt';
 
 /* ── 模块级 action refs（不在 Zustand state 中，更新不触发 re-render） ── */
 let _submit: ((input: any, options?: any) => void) | null = null;
@@ -115,4 +115,14 @@ export function syncStreamActions(actions: {
     _submit = actions.submit;
     _stop = actions.stop;
     _switchThread = actions.switchThread;
+}
+
+export function resetChatStore() {
+    _dismissedInterruptRequestId = null;
+    useChatStore.setState({
+        messages: [],
+        toolCalls: [],
+        isLoading: false,
+        interrupt: null,
+    });
 }

@@ -6,8 +6,10 @@
   "scripts": {
     "start": "pnpm run dev:server & pnpm run dev",
     "dev": "vite",
-    "dev:server": "tsx --watch src/services/server.ts",
-    "build": "tsc && vite build",
+    "db:push": "prisma db push --config ../../prisma.config.ts",
+    "prisma:generate": "prisma generate --config ../../prisma.config.ts",
+    "dev:server": "pnpm run db:push && tsx --watch src/backend/server.ts",
+    "build": "pnpm run prisma:generate && tsc && vite build",
     "preview": "vite preview"
   },
   "dependencies": {

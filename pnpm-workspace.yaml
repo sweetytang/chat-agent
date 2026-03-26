@@ -1,6 +1,8 @@
 packages:
   - "packages/*"
   - "apps/*"
+allowBuilds:
+  better-sqlite3: true
 
 # 告诉 pnpm 哪些目录可以被视为独立的包
 # 这对于 monorepo 结构至关重要

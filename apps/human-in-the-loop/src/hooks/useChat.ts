@@ -6,10 +6,10 @@
  */
 import { useEffect, useCallback } from 'react';
 import { useStream } from '@langchain/react';
-import { simpleAgent } from '../services/agent';
+import type { simpleAgent } from '../backend/services/ai/agent';
 import { SERVER_URL, ASSISTANT_ID } from '../constants';
-import { useThreadStore, syncStreamData, syncStreamActions } from '../store';
-import type { HITLRequest } from '../types';
+import { useAuthStore, useThreadStore, syncStreamData, syncStreamActions } from '../store';
+import type { HITLRequest } from '../types/interrupt';
 
 /**
  * 初始化聊天流，并将状态同步到 Zustand store。
@@ -18,6 +18,8 @@ import type { HITLRequest } from '../types';
 export function useChat(): void {
     const fetchThreads = useThreadStore((s) => s.fetchThreads);
     const setActiveThreadId = useThreadStore((s) => s.setActiveThreadId);
+    const logout = useAuthStore((s) => s.logout);
+    const token = useAuthStore((s) => s.token);
 
     // ── 新线程创建时，自动选中并刷新侧边栏 ──
     const onThreadId = useCallback((threadId: string) => {
@@ -33,8 +35,14 @@ export function useChat(): void {
     const stream = useStream<typeof simpleAgent>({
         apiUrl: SERVER_URL,
         assistantId: ASSISTANT_ID,
+        defaultHeaders: token ? { Authorization: `Bearer ${token}` } : undefined,
         onThreadId,
         onFinish,
+        onError: async (error) => {
+            if (error instanceof Error && /401|unauthorized/i.test(error.message)) {
+                await logout();
+            }
+        },
     });
 
     // ── 初次加载时拉取线程列表 ──
