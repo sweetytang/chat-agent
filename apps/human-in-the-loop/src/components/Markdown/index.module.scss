@@ -7,6 +7,11 @@
     line-height: 1.7;
 }
 
+.markdown-content-streaming {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
 .markdown-content p {
     margin: 0.45em 0;
 }

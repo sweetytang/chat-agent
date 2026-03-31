@@ -66,7 +66,12 @@ export default function MessageList() {
     const submitReview = useChatStore((s) => s.submitReview);
 
     // 使用封装好的通用滚动 Hook
-    const { bottomRef, onScroll, onTouchOrWheel, forceScroll } = useAutoScroll([messages]);
+    const { containerRef, onScroll, onTouchOrWheel, onPointerDownCapture, forceScroll } = useAutoScroll([
+        messages,
+        toolCalls,
+        interrupt,
+        isLoading,
+    ]);
 
     const submit = useCallback((text: string) => {
         submitMessage(text);
@@ -76,10 +81,12 @@ export default function MessageList() {
 
     return (
         <main
+            ref={containerRef}
             className={styles.chatMessages}
             onScroll={onScroll}
             onTouchStart={onTouchOrWheel}
             onWheel={onTouchOrWheel}
+            onPointerDownCapture={onPointerDownCapture}
         >
             {/* 空消息时显示预设提示 */}
             {messages.length === 0 && <PresetCards onSubmit={submit} />}
@@ -120,7 +127,7 @@ export default function MessageList() {
                                         freezeAutoCollapse={isStreamingAiMessage}
                                         maxCollapsedHeight={240}
                                     >
-                                        <Markdown>{msg.text}</Markdown>
+                                        <Markdown streaming={isStreamingAiMessage}>{msg.text}</Markdown>
                                     </CollapsibleBox>
                                 )}
                                 {messageToolCalls.length > 0 && (
@@ -169,8 +176,6 @@ export default function MessageList() {
                     </div>
                 </div>
             )}
-
-            <div ref={bottomRef} />
         </main>
     );
 }

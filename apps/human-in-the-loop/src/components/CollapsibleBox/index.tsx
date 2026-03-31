@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { ReactNode, useLayoutEffect, useRef, useState, useId } from "react";
 import styles from "./index.module.scss";
 
 type CollapsibleTone = "accent" | "light";
@@ -29,49 +29,75 @@ export default function CollapsibleBox({
     tone = "accent",
     fade = "default",
 }: CollapsibleBoxProps) {
+    const contentId = useId();
     const contentInnerRef = useRef<HTMLDivElement | null>(null);
     const [contentHeight, setContentHeight] = useState(0);
     const [isExpanded, setIsExpanded] = useState(true);
     const [hasManualToggle, setHasManualToggle] = useState(false);
-    const [hasAutoCollapsedForKey, setHasAutoCollapsedForKey] = useState(false);
 
     const isCollapsible = contentHeight > maxCollapsedHeight + 4;
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         setHasManualToggle(false);
         setIsExpanded(true);
-        setHasAutoCollapsedForKey(false);
     }, [collapseKey]);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
+        if (freezeAutoCollapse) {
+            setContentHeight((currentHeight) => (currentHeight === 0 ? currentHeight : 0));
+            return;
+        }
+
         const node = contentInnerRef.current;
         if (!node) return;
 
         const updateHeight = () => {
-            setContentHeight(node.scrollHeight);
+            const nextHeight = node.scrollHeight;
+            setContentHeight((currentHeight) => (
+                currentHeight === nextHeight ? currentHeight : nextHeight
+            ));
         };
 
         updateHeight();
 
         if (typeof ResizeObserver === "undefined") return;
 
+        let frameId: number | null = null;
+        const scheduleHeightUpdate = () => {
+            if (frameId !== null) {
+                cancelAnimationFrame(frameId);
+            }
+            frameId = requestAnimationFrame(() => {
+                frameId = null;
+                updateHeight();
+            });
+        };
+
         const observer = new ResizeObserver(() => {
-            updateHeight();
+            scheduleHeightUpdate();
         });
         observer.observe(node);
 
-        return () => observer.disconnect();
-    }, [collapseKey, children]);
+        return () => {
+            observer.disconnect();
+            if (frameId !== null) {
+                cancelAnimationFrame(frameId);
+            }
+        };
+    }, [collapseKey, freezeAutoCollapse]);
 
-    useEffect(() => {
-        if (freezeAutoCollapse || hasManualToggle || hasAutoCollapsedForKey || contentHeight === 0) return;
-        setIsExpanded(!isCollapsible);
-        setHasAutoCollapsedForKey(true);
-    }, [freezeAutoCollapse, hasManualToggle, hasAutoCollapsedForKey, isCollapsible, contentHeight]);
+    useLayoutEffect(() => {
+        if (freezeAutoCollapse || hasManualToggle || contentHeight === 0) return;
+        const nextExpanded = !isCollapsible;
+        setIsExpanded((currentExpanded) => (
+            currentExpanded === nextExpanded ? currentExpanded : nextExpanded
+        ));
+    }, [freezeAutoCollapse, hasManualToggle, isCollapsible, contentHeight]);
 
     return (
         <div className={`${styles.collapsibleBox} ${className}`}>
             <div
+                id={contentId}
                 className={`${styles.collapsibleContent} ${
                     !isExpanded && isCollapsible ? styles.collapsibleContentCollapsed : ""
                 } ${contentClassName}`}
@@ -91,6 +117,8 @@ export default function CollapsibleBox({
             {isCollapsible && !freezeAutoCollapse && (
                 <button
                     type="button"
+                    aria-controls={contentId}
+                    aria-expanded={isExpanded}
                     className={`${styles.collapsibleToggleBtn} ${
                         tone === "light" ? styles.collapsibleToggleBtnLight : styles.collapsibleToggleBtnAccent
                     }`}
