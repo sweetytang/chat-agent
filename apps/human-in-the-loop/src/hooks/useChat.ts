@@ -8,8 +8,8 @@ import { useEffect, useCallback } from 'react';
 import { useStream } from '@langchain/react';
 import type { simpleAgent } from '../backend/services/ai/agent';
 import { SERVER_URL, ASSISTANT_ID } from '../constants';
-import { useAuthStore, useThreadStore, syncStreamData, syncStreamActions } from '../store';
-import type { HITLRequest } from '../types/interrupt';
+import { useAuthStore, useChatStore, useThreadStore, syncStreamData, syncStreamActions } from '../store';
+import type { HITLRequest, HITLResponse } from '../types/interrupt';
 
 /**
  * 初始化聊天流，并将状态同步到 Zustand store。
@@ -17,15 +17,22 @@ import type { HITLRequest } from '../types/interrupt';
  */
 export function useChat(): void {
     const fetchThreads = useThreadStore((s) => s.fetchThreads);
-    const setActiveThreadId = useThreadStore((s) => s.setActiveThreadId);
+    const selectedThreadId = useThreadStore((s) => s.selectedThreadId);
+    const setSelectedThreadId = useThreadStore((s) => s.setSelectedThreadId);
+    const ensureThreadSession = useChatStore((s) => s.ensureThreadSession);
+    const moveDraftSessionToThread = useChatStore((s) => s.moveDraftSessionToThread);
+    const streamThreadId = useChatStore((s) => s.streamThreadId);
+    const pendingStreamCommand = useChatStore((s) => s.pendingStreamCommand);
+    const clearPendingStreamCommand = useChatStore((s) => s.clearPendingStreamCommand);
     const logout = useAuthStore((s) => s.logout);
     const token = useAuthStore((s) => s.token);
 
     // ── 新线程创建时，自动选中并刷新侧边栏 ──
     const onThreadId = useCallback((threadId: string) => {
-        setActiveThreadId(threadId);
+        moveDraftSessionToThread(threadId);
+        setSelectedThreadId(threadId);
         fetchThreads();
-    }, [setActiveThreadId, fetchThreads]);
+    }, [moveDraftSessionToThread, setSelectedThreadId, fetchThreads]);
 
     // ── 流式输出完成后，刷新线程列表（更新标题等信息）──
     const onFinish = useCallback(() => {
@@ -35,6 +42,7 @@ export function useChat(): void {
     const stream = useStream<typeof simpleAgent>({
         apiUrl: SERVER_URL,
         assistantId: ASSISTANT_ID,
+        threadId: streamThreadId,
         defaultHeaders: token ? { Authorization: `Bearer ${token}` } : undefined,
         onThreadId,
         onFinish,
@@ -51,22 +59,43 @@ export function useChat(): void {
     }, [fetchThreads]);
 
     useEffect(() => {
-        syncStreamData({
+        if (!selectedThreadId || selectedThreadId === streamThreadId) {
+            return;
+        }
+
+        void ensureThreadSession(selectedThreadId);
+    }, [ensureThreadSession, selectedThreadId, streamThreadId]);
+
+    useEffect(() => {
+        syncStreamData(streamThreadId, {
             messages: stream.messages,
             toolCalls: stream.toolCalls,
             isLoading: stream.isLoading,
             interrupt: stream.interrupt ? { value: stream.interrupt.value as HITLRequest } : null,
         });
-    }, [stream.messages, stream.toolCalls, stream.isLoading, stream.interrupt]);
+    }, [streamThreadId, stream.messages, stream.toolCalls, stream.isLoading, stream.interrupt]);
 
-    // ── 同步 action refs（不触发 re-render，在每次渲染时更新到最新引用）──
-    syncStreamActions({
-        submit: stream.submit,
-        stop: stream.stop,
-        switchThread: (id: string | null) => {
-            stream.switchThread(id);
-            setActiveThreadId(id);
-            fetchThreads();
-        },
-    });
+    useEffect(() => {
+        if (!pendingStreamCommand || pendingStreamCommand.threadId !== streamThreadId) {
+            return;
+        }
+
+        switch (pendingStreamCommand.type) {
+            case 'submitMessage':
+                stream.submit({ messages: [{ type: 'human', content: pendingStreamCommand.text }] });
+                break;
+            case 'submitReview':
+                stream.submit(null, { command: { resume: pendingStreamCommand.response as HITLResponse } });
+                break;
+        }
+
+        clearPendingStreamCommand();
+    }, [clearPendingStreamCommand, pendingStreamCommand, stream, streamThreadId]);
+
+    useEffect(() => {
+        syncStreamActions({
+            submit: stream.submit,
+            stop: stream.stop,
+        });
+    }, [stream.submit, stream.stop]);
 }

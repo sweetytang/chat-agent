@@ -8,24 +8,25 @@ import styles from "./index.module.scss";
 
 export default function Sidebar() {
     const threadsList = useThreadStore(s => s.threadsList);
-    const activeThreadId = useThreadStore(s => s.activeThreadId);
+    const selectedThreadId = useThreadStore(s => s.selectedThreadId);
+    const setSelectedThreadId = useThreadStore((s) => s.setSelectedThreadId);
     const deleteThread = useThreadStore((s) => s.deleteThread);
-    const switchThread = useChatStore((s) => s.switchThread);
+    const clearThreadSession = useChatStore((s) => s.clearThreadSession);
 
     // 侧边栏收起状态
     const [isCollapsed, setIsCollapsed] = useState(false);
 
-    const onNewChat = useCallback(() => switchThread(null), [switchThread]);
+    const onNewChat = useCallback(() => setSelectedThreadId(null), [setSelectedThreadId]);
 
     const handleDeleteThread = useCallback(async (id: string) => {
         if (window.confirm("确定要删除这条对话记录吗？")) {
             await deleteThread(id);
-            // 如果删除的是当前激活的线程，switchThread(null) 以重置聊天界面流状态
-            if (activeThreadId === id) {
+            clearThreadSession(id);
+            if (selectedThreadId === id) {
                 onNewChat();
             }
         }
-    }, [deleteThread, activeThreadId, onNewChat]);
+    }, [clearThreadSession, deleteThread, selectedThreadId, onNewChat]);
 
     return (
         <aside className={`${styles.sidebar} ${isCollapsed ? styles.sidebarCollapsed : ""}`}>
@@ -70,8 +71,8 @@ export default function Sidebar() {
                     return (
                         <div
                             key={thread_id}
-                            className={`${styles.threadItem} ${activeThreadId === thread_id ? styles.threadItemActive : ""}`}
-                            onClick={() => switchThread(thread_id)}
+                            className={`${styles.threadItem} ${selectedThreadId === thread_id ? styles.threadItemActive : ""}`}
+                            onClick={() => setSelectedThreadId(thread_id)}
                             title={itemTitle || new Date(updated_at).toLocaleString()}
                         >
                             <div className={styles.threadContent}>

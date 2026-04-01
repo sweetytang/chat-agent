@@ -10,12 +10,12 @@ import type { IThreadDTO } from '../types/thread';
 interface ThreadState {
     /** 线程列表 */
     threadsList: IThreadDTO[];
-    /** 当前激活的线程 ID */
-    activeThreadId: string | null;
+    /** 当前选中的线程 ID */
+    selectedThreadId: string | null;
     /** 从服务端拉取线程列表 */
     fetchThreads: () => Promise<void>;
-    /** 设置当前激活线程 */
-    setActiveThreadId: (id: string | null) => void;
+    /** 设置当前选中的线程 */
+    setSelectedThreadId: (id: string | null) => void;
     /** 自动选中第一个线程（在首次创建对话后使用） */
     autoSelectFirstThread: () => void;
     /** 删除一个线程 */
@@ -24,7 +24,7 @@ interface ThreadState {
 
 export const useThreadStore = create<ThreadState>((set, get) => ({
     threadsList: [],
-    activeThreadId: null,
+    selectedThreadId: null,
 
     fetchThreads: async () => {
         try {
@@ -32,7 +32,7 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
                 headers: getAuthHeaders(),
             });
             if (res.status === 401) {
-                set({ threadsList: [], activeThreadId: null });
+                set({ threadsList: [], selectedThreadId: null });
                 return;
             }
             const data = await res.json();
@@ -42,14 +42,14 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
         }
     },
 
-    setActiveThreadId: (id) => {
-        set({ activeThreadId: id });
+    setSelectedThreadId: (id) => {
+        set({ selectedThreadId: id });
     },
 
     autoSelectFirstThread: () => {
-        const { activeThreadId, threadsList } = get();
-        if (activeThreadId === null && threadsList.length > 0) {
-            set({ activeThreadId: threadsList[0].thread_id });
+        const { selectedThreadId, threadsList } = get();
+        if (selectedThreadId === null && threadsList.length > 0) {
+            set({ selectedThreadId: threadsList[0].thread_id });
         }
     },
 
@@ -64,12 +64,12 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
                 const current = get();
                 const updatedList = current.threadsList.filter(t => t.thread_id !== id);
 
-                // Clear active thread if it was deleted
-                const newActiveId = current.activeThreadId === id ? null : current.activeThreadId;
+                // Clear selected thread if it was deleted
+                const newSelectedId = current.selectedThreadId === id ? null : current.selectedThreadId;
 
                 set({
                     threadsList: updatedList,
-                    activeThreadId: newActiveId
+                    selectedThreadId: newSelectedId
                 });
             }
         } catch (e) {
@@ -81,6 +81,6 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
 export function resetThreadStore() {
     useThreadStore.setState({
         threadsList: [],
-        activeThreadId: null,
+        selectedThreadId: null,
     });
 }

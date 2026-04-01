@@ -10,7 +10,7 @@ import { ToolCard } from '../ToolCards';
 import ApprovalCard from '../ApprovalCard';
 import CollapsibleBox from '../CollapsibleBox';
 import PresetCards from './PresetCards';
-import { useChatStore } from '../../store';
+import { getThreadSessionSnapshot, useChatStore, useThreadStore } from '../../store';
 import { useAutoScroll } from '../../hooks/useAutoScroll';
 import styles from './index.module.scss';
 
@@ -58,10 +58,9 @@ function getToolCallsForMessage(
 }
 
 export default function MessageList() {
-    const messages = useChatStore((s) => s.messages);
-    const toolCalls = useChatStore((s) => s.toolCalls);
-    const isLoading = useChatStore((s) => s.isLoading);
-    const interrupt = useChatStore((s) => s.interrupt);
+    const selectedThreadId = useThreadStore((s) => s.selectedThreadId);
+    const session = useChatStore((state) => getThreadSessionSnapshot(state, selectedThreadId));
+    const { messages, toolCalls, isLoading, interrupt, isHydrating } = session;
     const submitMessage = useChatStore((s) => s.submitMessage);
     const submitReview = useChatStore((s) => s.submitReview);
 
@@ -74,9 +73,9 @@ export default function MessageList() {
     ]);
 
     const submit = useCallback((text: string) => {
-        submitMessage(text);
+        submitMessage(selectedThreadId, text);
         forceScroll();
-    }, [submitMessage, forceScroll]);
+    }, [submitMessage, selectedThreadId, forceScroll]);
 
 
     return (
@@ -89,7 +88,10 @@ export default function MessageList() {
             onPointerDownCapture={onPointerDownCapture}
         >
             {/* 空消息时显示预设提示 */}
-            {messages.length === 0 && <PresetCards onSubmit={submit} />}
+            {isHydrating && messages.length === 0 && (
+                <div className={styles.presetsWrapper}>正在加载会话内容...</div>
+            )}
+            {messages.length === 0 && !isHydrating && selectedThreadId === null && <PresetCards onSubmit={submit} />}
 
             {/* 消息列表 */}
             {messages.map((msg, idx) => {
@@ -158,7 +160,7 @@ export default function MessageList() {
                             <ApprovalCard
                                 interrupt={interrupt}
                                 onRespond={(response) => {
-                                    submitReview(response);
+                                    submitReview(selectedThreadId, response);
                                     forceScroll();
                                 }}
                             />
