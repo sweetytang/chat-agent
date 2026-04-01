@@ -1,4 +1,4 @@
-import { fetchCurrentQWeather, GetWeatherInput, QWeatherLocation } from "./qweatherApi.js";
+import { fetchCurrentQWeather, fetchForecastQWeather, GetWeatherInput, QWeatherLocation } from "./qweatherApi.js";
 
 function toOptionalNumber(value?: string | null) {
     if (value === undefined || value === null || value === "") {
@@ -50,6 +50,55 @@ export async function getCurrentWeather(input: GetWeatherInput) {
         cloudCover: toOptionalNumber(current.cloud),
         dewPoint: toOptionalNumber(current.dew),
         observedAt: current.obsTime ?? null,
+        updatedAt: weather.updateTime ?? null,
+        fxLink: weather.fxLink ?? matchedLocation.fxLink ?? null,
+        ambiguityNote: matchCount > 1
+            ? `Matched the top QWeather location for "${input.location}". Add adm or range to narrow ambiguous city names.`
+            : null,
+        refer: weather.refer ?? locationRefer ?? null,
+    };
+}
+
+export async function getForecastWeather(input: GetWeatherInput) {
+    const dayOffset = input.dayOffset ?? 1;
+    const { matchedLocation, matchCount, locationRefer, weather } = await fetchForecastQWeather(input);
+    const forecast = weather.daily?.[dayOffset];
+
+    if (!forecast) {
+        throw new Error(`QWeather returned no daily forecast for day offset ${dayOffset} at "${input.location}"`);
+    }
+
+    return {
+        source: "QWeather",
+        mode: "forecast",
+        dayOffset,
+        locationQuery: input.location,
+        locationName: matchedLocation.name,
+        resolvedLocation: formatResolvedLocation(matchedLocation),
+        locationId: matchedLocation.id,
+        forecastDate: forecast.fxDate ?? null,
+        conditionDay: forecast.textDay ?? "Unknown",
+        conditionNight: forecast.textNight ?? null,
+        iconDay: forecast.iconDay ?? null,
+        iconNight: forecast.iconNight ?? null,
+        temperatureMin: toOptionalNumber(forecast.tempMin),
+        temperatureMax: toOptionalNumber(forecast.tempMax),
+        temperatureUnit: "Celsius",
+        temperatureSymbol: "°C",
+        humidity: toOptionalNumber(forecast.humidity),
+        precipitation: toOptionalNumber(forecast.precip),
+        pressure: toOptionalNumber(forecast.pressure),
+        visibility: toOptionalNumber(forecast.vis),
+        cloudCover: toOptionalNumber(forecast.cloud),
+        uvIndex: toOptionalNumber(forecast.uvIndex),
+        windDirectionDay: forecast.windDirDay ?? null,
+        windScaleDay: forecast.windScaleDay ?? null,
+        windSpeedDay: toOptionalNumber(forecast.windSpeedDay),
+        windDirectionNight: forecast.windDirNight ?? null,
+        windScaleNight: forecast.windScaleNight ?? null,
+        windSpeedNight: toOptionalNumber(forecast.windSpeedNight),
+        sunrise: forecast.sunrise ?? null,
+        sunset: forecast.sunset ?? null,
         updatedAt: weather.updateTime ?? null,
         fxLink: weather.fxLink ?? matchedLocation.fxLink ?? null,
         ambiguityNote: matchCount > 1

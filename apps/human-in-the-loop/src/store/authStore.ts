@@ -4,6 +4,7 @@ import { getAuthHeaders, loadStoredAuthSession, saveStoredAuthSession } from "..
 import type { IUser } from "../types";
 import { AuthMode, AuthResponse, AuthStatus, AuthState } from "../types/auth";
 import { resetChatStore } from "./chatStore";
+import { resetStreamStore } from "./streamStore";
 import { resetThreadStore } from "./threadStore";
 
 
@@ -41,6 +42,7 @@ async function requestAuth(pathname: string, payload?: Record<string, unknown>) 
 function applyAuthenticatedState(user: IUser, token: string) {
     saveStoredAuthSession({ user, token });
     resetChatStore();
+    resetStreamStore();
     resetThreadStore();
     useAuthStore.setState({
         currentUser: user,
@@ -84,6 +86,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         } catch {
             saveStoredAuthSession(null);
             resetChatStore();
+            resetStreamStore();
             resetThreadStore();
             set({
                 currentUser: null,
@@ -140,6 +143,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         } finally {
             saveStoredAuthSession(null);
             resetChatStore();
+            resetStreamStore();
             resetThreadStore();
             set({
                 currentUser: null,

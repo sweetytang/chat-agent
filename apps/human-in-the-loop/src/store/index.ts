@@ -4,11 +4,14 @@
  */
 export { useThreadStore } from './threadStore';
 export {
-    getHasForeignActiveStreamSnapshot,
     getThreadSessionSnapshot,
     useChatStore,
     syncStreamData,
-    syncStreamActions,
 } from './chatStore';
+export {
+    getActiveWorkerIdsSnapshot,
+    getThreadRuntimeSnapshot,
+    useStreamStore,
+} from './streamStore';
 export { useScrollStore } from './scroll';
 export { useAuthStore } from './authStore';

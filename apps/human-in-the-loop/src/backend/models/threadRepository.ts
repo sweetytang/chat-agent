@@ -110,7 +110,7 @@ class ThreadRepository {
         await this.ready;
         const records = await prisma.thread.findMany({
             where: { userId },
-            orderBy: { updatedAt: "desc" },
+            orderBy: { createdAt: "desc" },
         });
 
         return records.map((record) => toThread(record));

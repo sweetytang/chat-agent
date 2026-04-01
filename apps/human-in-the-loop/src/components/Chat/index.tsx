@@ -1,5 +1,6 @@
 import { useChat } from '../../hooks/useChat';
 import { useEffect } from 'react';
+import ChatStreamHub from './ChatStreamHub';
 import Sidebar from './Sidebar';
 import UserPanel from './UserPanel';
 import MessageList from './MessageList';
@@ -10,11 +11,12 @@ import { AuthStatus } from '../../types/auth';
 import styles from './index.module.scss';
 
 function ChatShell() {
-    // 初始化流式连接并同步状态到 store
+    // 初始化线程列表和线程 hydrate
     useChat();
 
     return (
         <div className={styles.chatRoot}>
+            <ChatStreamHub />
             {/* ── 侧边栏 ── */}
             <Sidebar />
 

@@ -12,6 +12,8 @@ interface ApprovalCardProps {
     interrupt: { value: HITLRequest };
     /** 用户做出决策后的回调 */
     onRespond: (response: HITLResponse) => void;
+    /** 是否正在提交审核 */
+    submitting?: boolean;
 }
 
 /** 卡片操作模式 */
@@ -21,7 +23,7 @@ function formatArgs(args: Record<string, unknown> | undefined) {
     return JSON.stringify(args ?? {}, null, 2);
 }
 
-export default function ApprovalCard({ interrupt, onRespond }: ApprovalCardProps) {
+export default function ApprovalCard({ interrupt, onRespond, submitting = false }: ApprovalCardProps) {
     const request = interrupt.value;
     const actions = request.actionRequests;
     const firstAction = actions[0];
@@ -73,17 +75,19 @@ export default function ApprovalCard({ interrupt, onRespond }: ApprovalCardProps
 
     /** 提交批准 */
     const handleApprove = () => {
+        if (submitting) return;
         onRespond({ decision: "approve" });
     };
 
     /** 确认拒绝 */
     const handleReject = () => {
+        if (submitting) return;
         onRespond({ decision: "reject", reason: rejectReason });
     };
 
     /** 提交编辑后的参数 */
     const handleEditSubmit = () => {
-        if (jsonErrors.some(Boolean)) return;
+        if (submitting || jsonErrors.some(Boolean)) return;
         onRespond({ decision: "edit", argsList: editedArgsList });
     };
 
@@ -142,6 +146,13 @@ export default function ApprovalCard({ interrupt, onRespond }: ApprovalCardProps
                 </div>
             )}
 
+            {submitting && (
+                <div className={styles.approvalHint}>
+                    <span className={styles.approvalHintTitle}>执行中</span>
+                    <span>审核已提交，正在继续执行工具，请稍候。</span>
+                </div>
+            )}
+
             {actions.map((action, index) => (
                 <div
                     key={`${action.action}-${index}`}
@@ -166,7 +177,7 @@ export default function ApprovalCard({ interrupt, onRespond }: ApprovalCardProps
                                     type="button"
                                     className={styles.approvalResetBtn}
                                     onClick={() => handleResetArgs(index)}
-                                    disabled={!dirtyStates[index]}
+                                    disabled={submitting || !dirtyStates[index]}
                                 >
                                     恢复原参数
                                 </button>
@@ -201,6 +212,7 @@ export default function ApprovalCard({ interrupt, onRespond }: ApprovalCardProps
                                 value={editDrafts[index] ?? ""}
                                 onChange={(e) => handleEditChange(index, e.target.value)}
                                 rows={6}
+                                disabled={submitting}
                             />
                             {jsonErrors[index] && (
                                 <p className={styles.approvalJsonError}>{jsonErrors[index]}</p>
@@ -217,6 +229,7 @@ export default function ApprovalCard({ interrupt, onRespond }: ApprovalCardProps
                         <button
                             className={`${styles.approvalBtn} ${styles.approvalBtnApprove}`}
                             onClick={handleApprove}
+                            disabled={submitting}
                         >
                             ✓ 批准执行
                         </button>
@@ -225,6 +238,7 @@ export default function ApprovalCard({ interrupt, onRespond }: ApprovalCardProps
                         <button
                             className={`${styles.approvalBtn} ${styles.approvalBtnReject}`}
                             onClick={() => setMode("reject")}
+                            disabled={submitting}
                         >
                             ✕ 拒绝
                         </button>
@@ -233,6 +247,7 @@ export default function ApprovalCard({ interrupt, onRespond }: ApprovalCardProps
                         <button
                             className={`${styles.approvalBtn} ${styles.approvalBtnEdit}`}
                             onClick={() => setMode("edit")}
+                            disabled={submitting}
                         >
                             ✎ 编辑参数
                         </button>
@@ -249,17 +264,20 @@ export default function ApprovalCard({ interrupt, onRespond }: ApprovalCardProps
                         value={rejectReason}
                         onChange={(e) => setRejectReason(e.target.value)}
                         rows={3}
+                        disabled={submitting}
                     />
                     <div className={styles.approvalExpandActions}>
                         <button
                             className={`${styles.approvalBtn} ${styles.approvalBtnSecondary}`}
                             onClick={() => setMode("review")}
+                            disabled={submitting}
                         >
                             返回
                         </button>
                         <button
                             className={`${styles.approvalBtn} ${styles.approvalBtnReject}`}
                             onClick={handleReject}
+                            disabled={submitting}
                         >
                             确认拒绝
                         </button>
@@ -281,13 +299,14 @@ export default function ApprovalCard({ interrupt, onRespond }: ApprovalCardProps
                                 setMode("review");
                                 setJsonErrors(actions.map(() => ""));
                             }}
+                            disabled={submitting}
                         >
                             返回
                         </button>
                         <button
                             className={`${styles.approvalBtn} ${styles.approvalBtnEdit}`}
                             onClick={handleEditSubmit}
-                            disabled={hasJsonErrors}
+                            disabled={submitting || hasJsonErrors}
                         >
                             {hasAnyEdits ? '保存修改并执行' : '按原参数执行'}
                         </button>

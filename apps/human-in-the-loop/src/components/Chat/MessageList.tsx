@@ -10,9 +10,13 @@ import { ToolCard } from '../ToolCards';
 import ApprovalCard from '../ApprovalCard';
 import CollapsibleBox from '../CollapsibleBox';
 import PresetCards from './PresetCards';
-import { getThreadSessionSnapshot, useChatStore, useThreadStore } from '../../store';
+import { getThreadSessionSnapshot, useChatStore, useStreamStore, useThreadStore } from '../../store';
 import { useAutoScroll } from '../../hooks/useAutoScroll';
 import styles from './index.module.scss';
+
+function createClientMessageId() {
+    return `client-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 /**
  * 获取某条 AI 消息关联的工具调用列表。
@@ -61,8 +65,10 @@ export default function MessageList() {
     const selectedThreadId = useThreadStore((s) => s.selectedThreadId);
     const session = useChatStore((state) => getThreadSessionSnapshot(state, selectedThreadId));
     const { messages, toolCalls, isLoading, interrupt, isHydrating } = session;
-    const submitMessage = useChatStore((s) => s.submitMessage);
-    const submitReview = useChatStore((s) => s.submitReview);
+    const prepareMessage = useChatStore((s) => s.prepareMessage);
+    const prepareReview = useChatStore((s) => s.prepareReview);
+    const enqueueMessage = useStreamStore((s) => s.enqueueMessage);
+    const enqueueReview = useStreamStore((s) => s.enqueueReview);
 
     // 使用封装好的通用滚动 Hook
     const { containerRef, onScroll, onTouchOrWheel, onPointerDownCapture, forceScroll } = useAutoScroll([
@@ -73,9 +79,11 @@ export default function MessageList() {
     ]);
 
     const submit = useCallback((text: string) => {
-        submitMessage(selectedThreadId, text);
+        const messageId = createClientMessageId();
+        prepareMessage(selectedThreadId, text, messageId);
+        enqueueMessage(selectedThreadId, text, messageId);
         forceScroll();
-    }, [submitMessage, selectedThreadId, forceScroll]);
+    }, [enqueueMessage, forceScroll, prepareMessage, selectedThreadId]);
 
 
     return (
@@ -159,8 +167,10 @@ export default function MessageList() {
                         >
                             <ApprovalCard
                                 interrupt={interrupt}
+                                submitting={isLoading}
                                 onRespond={(response) => {
-                                    submitReview(selectedThreadId, response);
+                                    prepareReview(selectedThreadId);
+                                    enqueueReview(selectedThreadId, response);
                                     forceScroll();
                                 }}
                             />

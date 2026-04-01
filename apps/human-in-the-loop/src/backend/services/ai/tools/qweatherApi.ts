@@ -3,6 +3,8 @@ export type GetWeatherInput = {
     adm?: string;
     range?: string;
     lang?: string;
+    mode?: "current" | "forecast";
+    dayOffset?: 0 | 1 | 2;
 };
 
 export type QWeatherLocation = {
@@ -52,8 +54,47 @@ type QWeatherNowResponse = {
     };
 };
 
+type QWeatherForecastDay = {
+    fxDate?: string;
+    sunrise?: string;
+    sunset?: string;
+    moonrise?: string;
+    moonset?: string;
+    moonPhase?: string;
+    moonPhaseIcon?: string;
+    tempMax?: string;
+    tempMin?: string;
+    iconDay?: string;
+    textDay?: string;
+    iconNight?: string;
+    textNight?: string;
+    windDirDay?: string;
+    windScaleDay?: string;
+    windSpeedDay?: string;
+    windDirNight?: string;
+    windScaleNight?: string;
+    windSpeedNight?: string;
+    humidity?: string;
+    precip?: string;
+    pressure?: string;
+    vis?: string;
+    cloud?: string;
+    uvIndex?: string;
+};
+
+type QWeatherForecastResponse = {
+    code: string;
+    updateTime?: string;
+    fxLink?: string;
+    daily?: QWeatherForecastDay[];
+    refer?: {
+        sources?: string[];
+        license?: string[];
+    };
+};
+
 function getQWeatherApiHost() {
-    const apiHost = process.env.QWEATHER_API_HOST?.trim();
+    const apiHost = process.env.QWEATHER_API_HOST?.trim().replace(/^"(.*)"$/, "$1");
     if (!apiHost) {
         throw new Error("Missing QWEATHER_API_HOST in .env");
     }
@@ -63,7 +104,7 @@ function getQWeatherApiHost() {
 }
 
 function getQWeatherApiKey() {
-    const apiKey = process.env.QWEATHER_API_KEY?.trim();
+    const apiKey = process.env.QWEATHER_API_KEY?.trim().replace(/^"(.*)"$/, "$1");
     if (!apiKey) {
         throw new Error("Missing QWEATHER_API_KEY in .env");
     }
@@ -97,7 +138,23 @@ async function requestQWeather<T>(pathname: string, params: Record<string, strin
     }
 
     if (!response.ok) {
-        throw new Error(`QWeather request failed with HTTP ${response.status}${data?.code ? ` (code ${data.code})` : ""}`);
+        const detailParts: string[] = [];
+        if (data?.code) {
+            detailParts.push(`code ${data.code}`);
+        }
+        if (typeof data?.error?.type === "string") {
+            detailParts.push(data.error.type);
+        }
+        if (Array.isArray(data?.error?.invalidParams) && data.error.invalidParams.length > 0) {
+            detailParts.push(`invalid params: ${data.error.invalidParams.join(", ")}`);
+        }
+        if (typeof data?.message === "string" && data.message.trim()) {
+            detailParts.push(data.message.trim());
+        }
+
+        throw new Error(
+            `QWeather request failed with HTTP ${response.status}${detailParts.length > 0 ? ` (${detailParts.join("; ")})` : ""}`,
+        );
     }
 
     if (data?.code && data.code !== "200") {
@@ -122,6 +179,34 @@ export async function fetchCurrentQWeather(input: GetWeatherInput) {
     }
 
     const weather = await requestQWeather<QWeatherNowResponse>("/v7/weather/now", {
+        location: matchedLocation.id,
+        lang: input.lang ?? "zh",
+        unit: "m",
+    });
+
+    return {
+        matchedLocation,
+        matchCount: lookup.location?.length ?? 0,
+        locationRefer: lookup.refer,
+        weather,
+    };
+}
+
+export async function fetchForecastQWeather(input: GetWeatherInput) {
+    const lookup = await requestQWeather<QWeatherLookupResponse>("/geo/v2/city/lookup", {
+        location: input.location,
+        adm: input.adm,
+        range: input.range,
+        number: "3",
+        lang: input.lang ?? "zh",
+    });
+
+    const matchedLocation = lookup.location?.[0];
+    if (!matchedLocation) {
+        throw new Error(`QWeather could not resolve location "${input.location}"`);
+    }
+
+    const weather = await requestQWeather<QWeatherForecastResponse>("/v7/weather/3d", {
         location: matchedLocation.id,
         lang: input.lang ?? "zh",
         unit: "m",

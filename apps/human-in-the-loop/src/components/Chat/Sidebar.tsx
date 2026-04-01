@@ -3,7 +3,7 @@
  * 包含新建对话按钮和历史线程列表
  */
 import { useState, useCallback } from "react";
-import { useThreadStore, useChatStore } from '../../store';
+import { useThreadStore, useChatStore, useStreamStore } from '../../store';
 import styles from "./index.module.scss";
 
 export default function Sidebar() {
@@ -12,6 +12,7 @@ export default function Sidebar() {
     const setSelectedThreadId = useThreadStore((s) => s.setSelectedThreadId);
     const deleteThread = useThreadStore((s) => s.deleteThread);
     const clearThreadSession = useChatStore((s) => s.clearThreadSession);
+    const clearThreadRuntime = useStreamStore((s) => s.clearThreadRuntime);
 
     // 侧边栏收起状态
     const [isCollapsed, setIsCollapsed] = useState(false);
@@ -22,11 +23,12 @@ export default function Sidebar() {
         if (window.confirm("确定要删除这条对话记录吗？")) {
             await deleteThread(id);
             clearThreadSession(id);
+            clearThreadRuntime(id);
             if (selectedThreadId === id) {
                 onNewChat();
             }
         }
-    }, [clearThreadSession, deleteThread, selectedThreadId, onNewChat]);
+    }, [clearThreadRuntime, clearThreadSession, deleteThread, selectedThreadId, onNewChat]);
 
     return (
         <aside className={`${styles.sidebar} ${isCollapsed ? styles.sidebarCollapsed : ""}`}>

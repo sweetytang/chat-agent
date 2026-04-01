@@ -1,15 +1,16 @@
 /**
  * chatStore.ts — Chat 会话状态管理
- * 一期将聊天状态改为按线程缓存，拆开“当前正在看哪个线程”和“当前流绑定哪个线程”。
+ * 二期开始只负责“每个线程显示什么”，不再承担流运行时控制。
  */
 import type { BaseMessage } from "@langchain/core/messages";
+import { HumanMessage } from "@langchain/core/messages";
 import type { ToolCallWithResult } from "@langchain/react";
 import { create } from "zustand";
+import { DRAFT_THREAD_ID } from "../constants";
 import { fetchThreadSession } from "../services/chat/threadSession";
 import type { ThreadSession } from "../types/chat";
-import type { HITLRequest, HITLResponse } from "../types/interrupt";
+import type { HITLRequest } from "../types/interrupt";
 
-const DRAFT_THREAD_ID = "__draft__";
 const EMPTY_THREAD_SESSION: ThreadSession = {
     messages: [],
     toolCalls: [],
@@ -20,31 +21,18 @@ const EMPTY_THREAD_SESSION: ThreadSession = {
     isHydrating: false,
 };
 
-let submitRef: ((input: any, options?: any) => void) | null = null;
-let stopRef: (() => void) | null = null;
-
-type PendingStreamCommand =
-    | { type: "submitMessage"; threadId: string | null; text: string }
-    | { type: "submitReview"; threadId: string | null; response: HITLResponse };
-
 interface ChatState {
     sessionsByThreadId: Record<string, ThreadSession>;
-    streamThreadId: string | null;
-    pendingStreamCommand: PendingStreamCommand | null;
     ensureThreadSession: (threadId: string) => Promise<void>;
     clearThreadSession: (threadId: string | null) => void;
     moveDraftSessionToThread: (threadId: string) => void;
-    submitMessage: (threadId: string | null, text: string) => void;
-    stopMessage: (threadId: string | null) => void;
-    submitReview: (threadId: string | null, response: HITLResponse) => void;
-    clearPendingStreamCommand: () => void;
+    prepareMessage: (threadId: string | null, text: string, messageId: string) => void;
+    prepareReview: (threadId: string | null) => void;
 }
 
 function createEmptyThreadSession(): ThreadSession {
     return {
         ...EMPTY_THREAD_SESSION,
-        messages: [],
-        toolCalls: [],
     };
 }
 
@@ -60,13 +48,11 @@ function getSessionOrEmpty(
     sessionsByThreadId: Record<string, ThreadSession>,
     threadId: string | null,
 ): ThreadSession {
-    return sessionsByThreadId[getThreadSessionKey(threadId)] ?? createEmptyThreadSession();
+    return sessionsByThreadId[getThreadSessionKey(threadId)] ?? EMPTY_THREAD_SESSION;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
     sessionsByThreadId: {},
-    streamThreadId: null,
-    pendingStreamCommand: null,
 
     ensureThreadSession: async (threadId: string) => {
         const threadKey = getThreadSessionKey(threadId);
@@ -127,6 +113,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     clearThreadSession: (threadId: string | null) => {
         const threadKey = getThreadSessionKey(threadId);
+
         set((state) => {
             if (!(threadKey in state.sessionsByThreadId)) {
                 return state;
@@ -137,11 +124,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
             return {
                 sessionsByThreadId: nextSessions,
-                streamThreadId: state.streamThreadId === threadId ? null : state.streamThreadId,
-                pendingStreamCommand:
-                    state.pendingStreamCommand?.threadId === threadId
-                        ? null
-                        : state.pendingStreamCommand,
             };
         });
     },
@@ -174,97 +156,54 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
             return {
                 sessionsByThreadId: nextSessions,
-                streamThreadId: threadId,
-                pendingStreamCommand: null,
             };
         });
     },
 
-    submitMessage: (threadId: string | null, text: string) => {
-        if (!text.trim()) {
-            return;
-        }
-
-        const state = get();
-        const currentStreamSession = getSessionOrEmpty(state.sessionsByThreadId, state.streamThreadId);
-        const hasForeignActiveStream =
-            state.streamThreadId !== null &&
-            state.streamThreadId !== threadId &&
-            currentStreamSession.isLoading;
-        if (hasForeignActiveStream) {
-            return;
-        }
-
+    prepareMessage: (threadId: string | null, text: string, messageId: string) => {
         const threadKey = getThreadSessionKey(threadId);
-        set((currentState) => ({
+        const optimisticMessage = new HumanMessage({
+            id: messageId,
+            content: text,
+        });
+
+        set((state) => ({
             sessionsByThreadId: {
-                ...currentState.sessionsByThreadId,
+                ...state.sessionsByThreadId,
                 [threadKey]: {
-                    ...(currentState.sessionsByThreadId[threadKey] ?? createEmptyThreadSession()),
+                    ...(state.sessionsByThreadId[threadKey] ?? createEmptyThreadSession()),
+                    messages: [
+                        ...((state.sessionsByThreadId[threadKey] ?? createEmptyThreadSession()).messages),
+                        optimisticMessage,
+                    ],
                     dismissedInterruptRequestId: null,
-                },
-            },
-            streamThreadId: threadId,
-            pendingStreamCommand:
-                state.streamThreadId !== threadId
-                    ? { type: "submitMessage", threadId, text }
-                    : null,
-        }));
-
-        if (state.streamThreadId !== threadId) {
-            return;
-        }
-
-        submitRef?.({ messages: [{ type: "human", content: text }] });
-    },
-
-    stopMessage: (threadId: string | null) => {
-        if (threadId !== get().streamThreadId) {
-            return;
-        }
-
-        stopRef?.();
-    },
-
-    submitReview: (threadId: string | null, response: HITLResponse) => {
-        const state = get();
-        const currentStreamSession = getSessionOrEmpty(state.sessionsByThreadId, state.streamThreadId);
-        const hasForeignActiveStream =
-            state.streamThreadId !== null &&
-            state.streamThreadId !== threadId &&
-            currentStreamSession.isLoading;
-        if (hasForeignActiveStream) {
-            return;
-        }
-
-        const threadKey = getThreadSessionKey(threadId);
-        const currentSession = state.sessionsByThreadId[threadKey] ?? createEmptyThreadSession();
-        set((currentState) => ({
-            sessionsByThreadId: {
-                ...currentState.sessionsByThreadId,
-                [threadKey]: {
-                    ...currentSession,
-                    dismissedInterruptRequestId: getInterruptRequestId(currentSession.interrupt),
-                    interrupt: null,
+                    hydrated: true,
+                    isHydrating: false,
                     isLoading: true,
                 },
             },
-            streamThreadId: threadId,
-            pendingStreamCommand:
-                state.streamThreadId !== threadId
-                    ? { type: "submitReview", threadId, response }
-                    : null,
         }));
-
-        if (state.streamThreadId !== threadId) {
-            return;
-        }
-
-        submitRef?.(null, { command: { resume: response } });
     },
 
-    clearPendingStreamCommand: () => {
-        set({ pendingStreamCommand: null });
+    prepareReview: (threadId: string | null) => {
+        const threadKey = getThreadSessionKey(threadId);
+
+        set((state) => {
+            const currentSession = state.sessionsByThreadId[threadKey] ?? createEmptyThreadSession();
+
+            return {
+                sessionsByThreadId: {
+                    ...state.sessionsByThreadId,
+                    [threadKey]: {
+                        ...currentSession,
+                        dismissedInterruptRequestId: getInterruptRequestId(currentSession.interrupt),
+                        hydrated: true,
+                        isHydrating: false,
+                        isLoading: true,
+                    },
+                },
+            };
+        });
     },
 }));
 
@@ -274,21 +213,6 @@ export function getThreadSessionSnapshot(
 ): ThreadSession {
     return getSessionOrEmpty(state.sessionsByThreadId, threadId);
 }
-
-export function getHasForeignActiveStreamSnapshot(
-    state: ChatState,
-    threadId: string | null,
-) {
-    const currentStreamSession = getSessionOrEmpty(state.sessionsByThreadId, state.streamThreadId);
-    return (
-        state.streamThreadId !== null &&
-        state.streamThreadId !== threadId &&
-        currentStreamSession.isLoading
-    );
-}
-
-
-
 
 export function syncStreamData(
     threadId: string | null,
@@ -303,21 +227,29 @@ export function syncStreamData(
 
     useChatStore.setState((state) => {
         const current = state.sessionsByThreadId[threadKey] ?? createEmptyThreadSession();
+        const shouldKeepPendingUiState =
+            current.isLoading &&
+            current.messages.length > 0 &&
+            data.messages.length === 0 &&
+            data.toolCalls.length === 0 &&
+            data.interrupt === null;
         const nextInterruptRequestId = getInterruptRequestId(data.interrupt);
         const nextDismissedInterruptRequestId =
             nextInterruptRequestId && nextInterruptRequestId !== current.dismissedInterruptRequestId
                 ? null
                 : current.dismissedInterruptRequestId;
         const nextInterrupt =
-            nextInterruptRequestId && nextInterruptRequestId === current.dismissedInterruptRequestId
+            shouldKeepPendingUiState && current.interrupt
+                ? current.interrupt
+                : nextInterruptRequestId && nextInterruptRequestId === current.dismissedInterruptRequestId
                 ? null
                 : data.interrupt;
 
         const nextSession: ThreadSession = {
             ...current,
-            messages: data.messages,
+            messages: shouldKeepPendingUiState ? current.messages : data.messages,
             toolCalls: data.toolCalls,
-            isLoading: data.isLoading,
+            isLoading: shouldKeepPendingUiState ? current.isLoading : data.isLoading,
             interrupt: nextInterrupt,
             dismissedInterruptRequestId: nextDismissedInterruptRequestId,
             hydrated: true,
@@ -345,23 +277,8 @@ export function syncStreamData(
     });
 }
 
-
-
-
-export function syncStreamActions(actions: {
-    submit: (input: any, options?: any) => void;
-    stop: () => void;
-}) {
-    submitRef = actions.submit;
-    stopRef = actions.stop;
-}
-
 export function resetChatStore() {
-    submitRef = null;
-    stopRef = null;
     useChatStore.setState({
         sessionsByThreadId: {},
-        streamThreadId: null,
-        pendingStreamCommand: null,
     });
 }

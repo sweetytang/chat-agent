@@ -41,7 +41,7 @@ export const webSearch = tool(
     },
     {
         name: "web_search",
-        description: "Search the live web for current and factual information. Prefer this for recent events, changing facts, or when citations from web results are helpful.",
+        description: "Search the live web for current and factual information. Use this for news, general live facts, or when web citations are needed. Do not use this for routine weather queries when get_weather can answer directly.",
         schema: z.object({
             query: z.string().describe("The search query"),
             includeDomains: z.array(z.string()).optional().describe("Optional list of domains to include in results"),
