@@ -1,4 +1,5 @@
-import type { AuthSessionSnapshot } from '../types/auth';
+import { SERVER_URL } from '../constants';
+import type { AuthSessionSnapshot, AuthResponse } from '../types/auth';
 
 const AUTH_STORAGE_KEY = "hitl-auth-session";
 
@@ -32,4 +33,35 @@ export function getAuthHeaders(token?: string | null): HeadersInit {
     const session = token ? null : loadStoredAuthSession();
     const resolvedToken = token ?? session?.token ?? null;
     return resolvedToken ? { Authorization: `Bearer ${resolvedToken}` } : {};
+}
+
+export async function requestAuth(pathname: string, payload?: Record<string, unknown>) {
+    try {
+        const requestInit: RequestInit = {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...getAuthHeaders(),
+            },
+        };
+
+        if (payload) {
+            requestInit.body = JSON.stringify(payload);
+        }
+
+        const response = await fetch(`${SERVER_URL}${pathname}`, requestInit);
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(data?.message || data?.error || "Authentication request failed");
+        }
+
+        return data as AuthResponse | { success: true };
+    } catch (error: any) {
+        if (error instanceof TypeError) {
+            throw new Error("Cannot reach the backend service. Please make sure the server is running.");
+        }
+
+        throw error;
+    }
 }
