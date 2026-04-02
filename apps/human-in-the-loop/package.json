@@ -5,12 +5,12 @@
   "type": "module",
   "scripts": {
     "start": "pnpm run dev:server & pnpm run dev",
-    "dev": "vite",
+    "dev": "vite --config frontend/pack/vite.config.ts",
     "db:push": "prisma db push --config ../../prisma.config.ts",
     "prisma:generate": "prisma generate --config ../../prisma.config.ts",
-    "dev:server": "pnpm run db:push && tsx --watch src/backend/server.ts",
-    "build": "pnpm run prisma:generate && tsc && vite build",
-    "preview": "vite preview"
+    "dev:server": "pnpm run db:push && tsx --watch backend/server.ts",
+    "build": "pnpm run prisma:generate && tsc && vite build --config frontend/vite.config.ts",
+    "preview": "vite preview --config frontend/pack/vite.config.ts"
   },
   "dependencies": {
     "react-markdown": "^10.1.0",
