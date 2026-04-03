@@ -86,21 +86,12 @@ export default function CollapsibleBox({
         };
     }, [collapseKey, freezeAutoCollapse]);
 
-    useLayoutEffect(() => {
-        if (freezeAutoCollapse || hasManualToggle || contentHeight === 0) return;
-        const nextExpanded = !isCollapsible;
-        setIsExpanded((currentExpanded) => (
-            currentExpanded === nextExpanded ? currentExpanded : nextExpanded
-        ));
-    }, [freezeAutoCollapse, hasManualToggle, isCollapsible, contentHeight]);
-
     return (
         <div className={`${styles.collapsibleBox} ${className}`}>
             <div
                 id={contentId}
-                className={`${styles.collapsibleContent} ${
-                    !isExpanded && isCollapsible ? styles.collapsibleContentCollapsed : ""
-                } ${contentClassName}`}
+                className={`${styles.collapsibleContent} ${!isExpanded && isCollapsible ? styles.collapsibleContentCollapsed : ""
+                    } ${contentClassName}`}
                 style={!isExpanded && isCollapsible ? { maxHeight: `${maxCollapsedHeight}px` } : undefined}
             >
                 <div ref={contentInnerRef}>
@@ -108,9 +99,8 @@ export default function CollapsibleBox({
                 </div>
                 {!isExpanded && isCollapsible && (
                     <div
-                        className={`${styles.collapsibleFade} ${
-                            fade === "human" ? styles.collapsibleFadeHuman : styles.collapsibleFadeDefault
-                        }`}
+                        className={`${styles.collapsibleFade} ${fade === "human" ? styles.collapsibleFadeHuman : styles.collapsibleFadeDefault
+                            }`}
                     />
                 )}
             </div>
@@ -119,9 +109,8 @@ export default function CollapsibleBox({
                     type="button"
                     aria-controls={contentId}
                     aria-expanded={isExpanded}
-                    className={`${styles.collapsibleToggleBtn} ${
-                        tone === "light" ? styles.collapsibleToggleBtnLight : styles.collapsibleToggleBtnAccent
-                    }`}
+                    className={`${styles.collapsibleToggleBtn} ${tone === "light" ? styles.collapsibleToggleBtnLight : styles.collapsibleToggleBtnAccent
+                        }`}
                     onClick={() => {
                         setHasManualToggle(true);
                         setIsExpanded((current) => !current);

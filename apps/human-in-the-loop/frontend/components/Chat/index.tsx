@@ -5,11 +5,12 @@ import UserPanel from './UserPanel';
 import MessageList from './MessageList';
 import InputBar from './InputBar';
 import AuthScreen from './Auth';
-import { useAuthStore } from '../../store';
+import { useAuthStore, useThreadStore } from '@frontend/store';
 import { AuthStatus } from '@common/types/auth';
 import styles from './index.module.scss';
 
 function ChatShell() {
+    const selectedThreadId = useThreadStore((s) => s.selectedThreadId);
 
     return (
         <div className={styles.chatRoot}>
@@ -29,7 +30,7 @@ function ChatShell() {
                 </header>
 
                 {/* ── 消息列表 ── */}
-                <MessageList />
+                <MessageList key={selectedThreadId} />
 
                 {/* ── 输入栏 ── */}
                 <InputBar />

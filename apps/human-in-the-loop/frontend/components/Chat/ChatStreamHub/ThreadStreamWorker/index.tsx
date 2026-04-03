@@ -64,6 +64,8 @@ export default function ThreadStreamWorker({ workerId }: ThreadStreamWorkerProps
     });
 
 
+    // useStream hook 需要知道跟哪个线程通信。当 runtime 的 threadId 变化时（比如新对话获得了真实 ID），更新给 useStream。
+    // 但如果 stream 正在传输中（isLoading），就不更新——等当前流结束再说。
     useEffect(() => {
         if (!runtime) {
             return;

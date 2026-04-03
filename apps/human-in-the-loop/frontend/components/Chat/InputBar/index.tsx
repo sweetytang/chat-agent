@@ -4,7 +4,7 @@
  * 当前线程的显示状态来自 chatStore，发送/停止命令交给 streamStore。
  */
 import React, { useState } from 'react';
-import { getThreadRuntimeSnapshot, getThreadSessionSnapshot, useChatStore, useStreamStore, useThreadStore } from '@frontend/store';
+import { getThreadRuntimeSnapshot, getThreadSessionSnapshot, useChatStore, useStreamStore, useThreadStore, useScrollStore } from '@frontend/store';
 import { ThreadStreamStatus } from '@frontend/types/stream';
 import styles from './index.module.scss';
 
@@ -19,6 +19,7 @@ export default function InputBar() {
     const prepareMessage = useChatStore((s) => s.prepareMessage);
     const enqueueMessage = useStreamStore((s) => s.enqueueMessage);
     const stopThread = useStreamStore((s) => s.stopThread);
+    const setAutoScroll = useScrollStore((s) => s.setAutoScroll);
     const { isLoading, interrupt, isHydrating } = session;
 
     const [input, setInput] = useState('');
@@ -32,6 +33,7 @@ export default function InputBar() {
         setInput('');
         prepareMessage(selectedThreadId, text, messageId);
         enqueueMessage(selectedThreadId, text, messageId);
+        setAutoScroll(true);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
