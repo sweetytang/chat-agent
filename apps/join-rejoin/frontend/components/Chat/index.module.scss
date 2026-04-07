@@ -1,0 +1,128 @@
+/* ═══════════════════════════════════════════════════════
+   Chat 布局样式（仅 Shell / Header / Loading）
+   各子组件样式已独立到对应的 *.module.scss
+═══════════════════════════════════════════════════════ */
+.chat-root {
+    display: flex;
+    flex-direction: row;
+    height: 100vh;
+    width: 100%;
+    margin: 0;
+    overflow: hidden;
+}
+
+/* ── Main Chat Container ── */
+.chat-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    max-width: 860px;
+    margin: 0 auto;
+    position: relative;
+    width: 100%;
+}
+
+/* ── Header ── */
+.chat-header {
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+    background: rgba(15, 17, 23, 0.85);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.chat-header-inner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 24px;
+    min-width: 0;
+}
+
+.chat-logo {
+    font-size: 22px;
+    color: var(--accent-light);
+    animation: spin-slow 8s linear infinite;
+}
+
+@keyframes spin-slow {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.chat-title {
+    font-size: 18px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent-light), #c084fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    flex: 1;
+    min-width: 0;
+}
+
+.branch-pill-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 8px;
+}
+
+.branch-pill {
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: var(--text);
+    background: rgba(139, 132, 255, 0.16);
+    border: 1px solid rgba(139, 132, 255, 0.22);
+    white-space: nowrap;
+}
+
+.branch-reset-button {
+    border: none;
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.08);
+    white-space: nowrap;
+}
+
+/* ── Loading Shell ── */
+.chat-loading-shell {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    background:
+        radial-gradient(circle at top, rgba(108, 99, 255, 0.18), transparent 30%),
+        linear-gradient(180deg, #0f1117, #141827);
+}
+
+.chat-loading-card {
+    border-radius: 18px;
+    border: 1px solid rgba(139, 132, 255, 0.2);
+    background: rgba(26, 29, 39, 0.88);
+    padding: 18px 22px;
+    color: var(--text);
+    font-size: 14px;
+    box-shadow: var(--shadow);
+}
+
+@media (max-width: 720px) {
+    .chat-header-inner {
+        gap: 8px;
+        padding: 12px 14px;
+    }
+
+    .branch-pill-group {
+        display: none;
+    }
+}
