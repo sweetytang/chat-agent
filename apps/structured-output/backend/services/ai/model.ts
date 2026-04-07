@@ -1,5 +1,4 @@
 import { ChatOpenAI } from "@langchain/openai";
-import { registeredTools } from "./tools/index.js";
 import {
     buildReasoningConfig,
     getConfiguredBaseUrl,
@@ -11,6 +10,7 @@ import {
     type ModelRuntimeOptions,
     shouldUseResponsesApi,
 } from "./providerConfig.js";
+import { getRuntimeTools } from "./tools/index.js";
 
 const modelInstances = new Map<string, ChatOpenAI>();
 const modelWithToolsInstances = new WeakMap<ChatOpenAI, ReturnType<ChatOpenAI["bindTools"]>>();
@@ -29,6 +29,7 @@ function getModelCacheKey(runtimeOptions: ModelRuntimeOptions) {
         modelName,
         reasoning,
         reasoningModel,
+        structuredOutputEnabled: runtimeOptions.structuredOutputEnabled === true,
         useResponsesApi,
     });
 }
@@ -85,7 +86,7 @@ export function getModelWithTools(runtimeOptions: ModelRuntimeOptions = {}) {
         return cachedModelWithTools;
     }
 
-    const modelWithToolsInstance = model.bindTools(registeredTools);
+    const modelWithToolsInstance = model.bindTools(getRuntimeTools(runtimeOptions));
     modelWithToolsInstances.set(model, modelWithToolsInstance);
 
     return modelWithToolsInstance;

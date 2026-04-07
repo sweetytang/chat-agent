@@ -72,6 +72,7 @@ export default function ThreadStreamWorker({ workerId }: ThreadStreamWorkerProps
     const logout = useAuthStore((s) => s.logout);
     const token = useAuthStore((s) => s.token);
     const deepThinkingEnabled = useChatPreferencesStore((s) => s.deepThinkingEnabled);
+    const structuredOutputEnabled = useChatPreferencesStore((s) => s.structuredOutputEnabled);
 
     const runtimeThreadId = runtime?.threadId ?? null;
     const session = useChatStore((state) => getThreadSessionSnapshot(state, runtimeThreadId));
@@ -238,7 +239,10 @@ export default function ThreadStreamWorker({ workerId }: ThreadStreamWorkerProps
             latestSessionBranchRef.current,
         );
         latestOperationCheckpointRef.current = getCommandCheckpointId(pendingCommand);
-        const metadata = getCommandMetadata(pendingCommand) ?? { deepThinkingEnabled };
+        const metadata = getCommandMetadata(pendingCommand) ?? {
+            deepThinkingEnabled,
+            structuredOutputEnabled,
+        };
 
         switch (pendingCommand.type) {
             case 'submitMessage':
@@ -265,7 +269,7 @@ export default function ThreadStreamWorker({ workerId }: ThreadStreamWorkerProps
                 stream.stop();
                 break;
         }
-    }, [consumePendingCommand, deepThinkingEnabled, runtime, stream, workerId]);
+    }, [consumePendingCommand, deepThinkingEnabled, runtime, stream, structuredOutputEnabled, workerId]);
 
 
     // 清除不活跃的 worker

@@ -5,7 +5,7 @@ import type { SendEvent } from "@backend/types";
 import { uuid } from "@backend/utils/uuid.js";
 import { finalizeAiMessage, sendAiChunkEvent } from "../../chat/aiMessageStream.js";
 import { getConfiguredBaseUrl, getConfiguredModelName, isDeepSeekReasonerModel, type ModelRuntimeOptions } from "../providerConfig.js";
-import { registeredTools } from "../tools/index.js";
+import { getRuntimeTools } from "../tools/index.js";
 
 type DeepSeekToolDelta = {
     id?: string;
@@ -221,9 +221,10 @@ function toNormalizedChunk(chunk: DeepSeekStreamChunk, fallbackId: string) {
     } as any);
 }
 
-async function createStreamingResponse(messages: BaseMessage[]) {
+async function createStreamingResponse(messages: BaseMessage[], runtimeOptions: ModelRuntimeOptions = {}) {
     const baseUrl = getConfiguredBaseUrl();
     const modelName = getConfiguredModelName();
+    const runtimeTools = getRuntimeTools(runtimeOptions);
 
     const response = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
@@ -240,7 +241,7 @@ async function createStreamingResponse(messages: BaseMessage[]) {
                     thinking: {
                         type: "enabled",
                     },
-                    tools: registeredTools.map(toDeepSeekToolSchema),
+                    tools: runtimeTools.map(toDeepSeekToolSchema),
                 }
                 : {}),
         }),
@@ -257,9 +258,9 @@ async function createStreamingResponse(messages: BaseMessage[]) {
 export async function streamDeepSeekThinkingModel(
     messages: BaseMessage[],
     sendEvent: SendEvent,
-    _runtimeOptions: ModelRuntimeOptions = {},
+    runtimeOptions: ModelRuntimeOptions = {},
 ): Promise<AIMessage> {
-    const response = await createStreamingResponse(messages);
+    const response = await createStreamingResponse(messages, runtimeOptions);
     const fallbackId = uuid();
     let mergedChunk: AIMessageChunk | null = null;
 

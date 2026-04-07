@@ -5,6 +5,7 @@ import { streamModelCall } from "./streamModelCall.js";
 import { interruptRepository } from "../../models/interruptRepository.js";
 import { threadRepository } from "../../models/threadRepository.js";
 import type { ModelRuntimeOptions } from "../ai/providerConfig.js";
+import { getExecutableToolCalls } from "../ai/tools/index.js";
 import { SendEvent } from "@backend/types";
 import { ThreadStatus } from '@common/types/thread';
 
@@ -31,7 +32,7 @@ export async function modelCallAgent(params: ModelRunParams) {
         throw new Error(`Thread ${threadId} not found while persisting model output`);
     }
 
-    const toolCalls = getToolCalls(aiResponse);
+    const toolCalls = getExecutableToolCalls(getToolCalls(aiResponse));
     const persistedThread = await threadRepository.set({
         ...thread,
         values: {

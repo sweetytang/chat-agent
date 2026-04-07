@@ -105,9 +105,14 @@ export default function MessageList() {
     const enqueueRegenerate = useStreamStore((state) => state.enqueueRegenerate);
     const enqueueReview = useStreamStore((state) => state.enqueueReview);
     const deepThinkingEnabled = useChatPreferencesStore((state) => state.deepThinkingEnabled);
+    const structuredOutputEnabled = useChatPreferencesStore((state) => state.structuredOutputEnabled);
     const autoScroll = useScrollStore((state) => state.autoScroll);
     const setAutoScroll = useScrollStore((state) => state.setAutoScroll);
     const virtuosoRef = useRef<VirtuosoHandle>(null);
+    const runMetadata = useMemo(() => ({
+        deepThinkingEnabled,
+        structuredOutputEnabled,
+    }), [deepThinkingEnabled, structuredOutputEnabled]);
 
     useEffect(() => {
         if (!selectedThreadId) {
@@ -138,11 +143,9 @@ export default function MessageList() {
     const submit = useCallback((text: string) => {
         const messageId = createClientMessageId();
         prepareMessage(selectedThreadId, text, messageId);
-        enqueueMessage(selectedThreadId, text, messageId, headCheckpoint, activeBranch, {
-            deepThinkingEnabled,
-        });
+        enqueueMessage(selectedThreadId, text, messageId, headCheckpoint, activeBranch, runMetadata);
         setAutoScroll(true);
-    }, [activeBranch, deepThinkingEnabled, enqueueMessage, headCheckpoint, prepareMessage, selectedThreadId, setAutoScroll]);
+    }, [activeBranch, enqueueMessage, headCheckpoint, prepareMessage, runMetadata, selectedThreadId, setAutoScroll]);
 
     const handleFollowOutput = useCallback(() => (
         autoScroll ? 'auto' : false
@@ -188,9 +191,7 @@ export default function MessageList() {
                                         ...response,
                                         requestId: interrupt!.value.requestId,
                                         checkpointId: headCheckpoint?.checkpoint_id ?? null,
-                                    }, {
-                                        deepThinkingEnabled,
-                                    });
+                                    }, runMetadata);
                                     setAutoScroll(true);
                                 }}
                             />
@@ -246,9 +247,7 @@ export default function MessageList() {
                         messages: optimisticMessages,
                         toolCalls: [],
                     });
-                    enqueueMessage(selectedThreadId, text, msgId, checkpoint, preferredBranch, {
-                        deepThinkingEnabled,
-                    });
+                    enqueueMessage(selectedThreadId, text, msgId, checkpoint, preferredBranch, runMetadata);
                     setAutoScroll(true);
                 }}
                 onRegenerate={() => {
@@ -267,9 +266,7 @@ export default function MessageList() {
                         messages: baseMessages,
                         toolCalls: [],
                     });
-                    enqueueRegenerate(selectedThreadId, checkpoint, preferredBranch, {
-                        deepThinkingEnabled,
-                    });
+                    enqueueRegenerate(selectedThreadId, checkpoint, preferredBranch, runMetadata);
                     setAutoScroll(true);
                 }}
             />
@@ -282,13 +279,13 @@ export default function MessageList() {
         isHydrating,
         isLoading,
         activeBranch,
-        deepThinkingEnabled,
         headCheckpoint,
         history,
         messageMetadataById,
         messages,
         prepareBranchRun,
         prepareReview,
+        runMetadata,
         selectedThreadId,
         selectBranch,
         setAutoScroll,

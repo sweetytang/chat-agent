@@ -21,7 +21,9 @@ export default function InputBar() {
     const stopThread = useStreamStore((s) => s.stopThread);
     const setAutoScroll = useScrollStore((s) => s.setAutoScroll);
     const deepThinkingEnabled = useChatPreferencesStore((s) => s.deepThinkingEnabled);
+    const structuredOutputEnabled = useChatPreferencesStore((s) => s.structuredOutputEnabled);
     const toggleDeepThinking = useChatPreferencesStore((s) => s.toggleDeepThinking);
+    const toggleStructuredOutput = useChatPreferencesStore((s) => s.toggleStructuredOutput);
     const { activeBranch, headCheckpoint, isLoading, interrupt, isHydrating } = session;
 
     const [input, setInput] = useState('');
@@ -41,7 +43,10 @@ export default function InputBar() {
             messageId,
             headCheckpoint,
             activeBranch,
-            { deepThinkingEnabled },
+            {
+                deepThinkingEnabled,
+                structuredOutputEnabled,
+            },
         );
         setAutoScroll(true);
     };
@@ -80,6 +85,20 @@ export default function InputBar() {
                             </span>
                             <span className={styles.modeBtnLabel}>深度思考</span>
                         </button>
+                        <button
+                            className={styles.modeBtn}
+                            type="button"
+                            onClick={toggleStructuredOutput}
+                            disabled={isModeToggleDisabled}
+                            aria-pressed={structuredOutputEnabled}
+                            data-active={structuredOutputEnabled ? 'true' : 'false'}
+                            data-variant="structured"
+                        >
+                            <span className={styles.modeBtnIcon} aria-hidden="true">
+                                <span className={styles.modeBtnIconCore} />
+                            </span>
+                            <span className={styles.modeBtnLabel}>结构化输出</span>
+                        </button>
                     </div>
                     {isLoading ? (
                         <button
@@ -109,7 +128,9 @@ export default function InputBar() {
                         ? '当前正在分支上继续对话，新消息会沿当前分支继续，不会覆盖其他版本'
                         : isAwaitingReview
                             ? '请先完成当前工具审核，再继续发送消息'
-                            : 'Enter 发送，Shift + Enter 换行'}
+                            : structuredOutputEnabled
+                                ? '结构化输出已开启，回复会优先以卡片、表格和步骤形式渲染'
+                                : 'Enter 发送，Shift + Enter 换行'}
             </p>
         </footer>
     );

@@ -1,14 +1,14 @@
 import { Request, Response } from "express";
 import { BaseMessage, SystemMessage } from "@langchain/core/messages";
 import { createToolMessage } from "../utils/createToolMessage.js";
-import { SYSTEM_PROMPT } from "@backend/constants";
+import { getSystemPrompt } from "@backend/constants";
 import { THREAD_START_CHECKPOINT_ID } from "@common/constants";
 import type { RunMetadata } from "@common/types/run";
 import { requireAuthenticatedUser } from "../middlewares/auth.js";
 import { interruptRepository } from "../models/interruptRepository.js";
 import { threadCheckpointRepository } from "../models/threadCheckpointRepository.js";
 import { threadRepository } from "../models/threadRepository.js";
-import { executeTools } from "../services/ai/tools/index.js";
+import { executeTools, getExecutableToolCalls } from "../services/ai/tools/index.js";
 import type { ModelRuntimeOptions } from "../services/ai/providerConfig.js";
 import { getToolCalls, parseInputMessages, rebuildHistory } from "../services/chat/messageState.js";
 import { deserializeMessages, serializeMessages } from "../services/chat/messageSerde.js";
@@ -34,16 +34,32 @@ function getRequestedCheckpointId(body: any): string | null {
 
 function getRunMetadata(body: any): RunMetadata {
     const deepThinkingEnabled = body?.metadata?.deepThinkingEnabled;
+    const structuredOutputEnabled = body?.metadata?.structuredOutputEnabled;
+    const metadata: RunMetadata = {};
 
-    return typeof deepThinkingEnabled === "boolean"
-        ? { deepThinkingEnabled }
-        : {};
+    if (typeof deepThinkingEnabled === "boolean") {
+        metadata.deepThinkingEnabled = deepThinkingEnabled;
+    }
+
+    if (typeof structuredOutputEnabled === "boolean") {
+        metadata.structuredOutputEnabled = structuredOutputEnabled;
+    }
+
+    return metadata;
 }
 
 function toRuntimeOptions(metadata: RunMetadata): ModelRuntimeOptions {
-    return typeof metadata.deepThinkingEnabled === "boolean"
-        ? { deepThinkingEnabled: metadata.deepThinkingEnabled }
-        : {};
+    const runtimeOptions: ModelRuntimeOptions = {};
+
+    if (typeof metadata.deepThinkingEnabled === "boolean") {
+        runtimeOptions.deepThinkingEnabled = metadata.deepThinkingEnabled;
+    }
+
+    if (typeof metadata.structuredOutputEnabled === "boolean") {
+        runtimeOptions.structuredOutputEnabled = metadata.structuredOutputEnabled;
+    }
+
+    return runtimeOptions;
 }
 
 async function resolveRunBaseState(userId: string, threadId: string, checkpointId: string | null) {
@@ -119,7 +135,7 @@ async function handleNewMessage(
     }
 
     await modelCallAgent({
-        messages: [new SystemMessage(SYSTEM_PROMPT), ...allMessages],
+        messages: [new SystemMessage(getSystemPrompt(runtimeOptions)), ...allMessages],
         threadId,
         parentCheckpointId,
         runtimeOptions,
@@ -226,7 +242,7 @@ async function handleResume(
     await threadRepository.updateStatus(threadId, ThreadStatus.IDLE);
 
     const { aiMessage, allMessages } = cachedInterrupt;
-    const toolCalls = getToolCalls(aiMessage);
+    const toolCalls = getExecutableToolCalls(getToolCalls(aiMessage));
 
     switch (resumePayload.decision) {
         case DecisionEnum.APPROVE:

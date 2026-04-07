@@ -4,9 +4,11 @@ import { getMessageText } from '@common/utils/messageContent';
 import CollapsibleBox from '@frontend/components/CollapsibleBox';
 import Markdown from '@frontend/components/Markdown';
 import { extractAiDisplayContent } from '@frontend/services/chat/reasoning';
+import { extractStructuredOutputPayload, hasStructuredOutputContent, isStructuredOutputToolCall } from '@frontend/services/chat/structuredOutput';
 import type { ThreadMessageBranchMetadata } from '@frontend/types/chat';
 import BranchSwitcher from '../BranchSwitcher';
 import ReasoningBubble from '../ReasoningBubble';
+import StructuredOutputCard from '../StructuredOutputCard';
 import { ToolCard } from '../ToolCards';
 import styles from './index.module.scss';
 
@@ -46,7 +48,10 @@ export default function MessageBubble({
     const aiDisplayContent = isAiMessage ? extractAiDisplayContent(message) : null;
     const aiMessageText = aiDisplayContent?.text ?? getMessageText(message);
     const reasoningText = aiDisplayContent?.reasoningText ?? '';
-    const isToolInvocationMessage = isAiMessage && messageToolCalls.length > 0;
+    const structuredOutput = extractStructuredOutputPayload(message, messageToolCalls);
+    const actionableToolCalls = messageToolCalls.filter((toolCall) => !isStructuredOutputToolCall(toolCall));
+    const hasStructuredContent = hasStructuredOutputContent(structuredOutput);
+    const isToolInvocationMessage = isAiMessage && actionableToolCalls.length > 0;
     const canEdit = isHumanMessage;
     const canRegenerate =
         isAiMessage &&
@@ -148,9 +153,15 @@ export default function MessageBubble({
                             <Markdown streaming={isStreamingAiMessage}>{aiMessageText}</Markdown>
                         </CollapsibleBox>
                     )}
-                    {messageToolCalls.length > 0 && (
+                    {hasStructuredContent && structuredOutput && (
+                        <StructuredOutputCard
+                            data={structuredOutput}
+                            isStreaming={isStreamingAiMessage}
+                        />
+                    )}
+                    {actionableToolCalls.length > 0 && (
                         <div className={styles.toolCallsWrapper}>
-                            {messageToolCalls.map((toolCall: any, index: number) => (
+                            {actionableToolCalls.map((toolCall: any, index: number) => (
                                 <ToolCard key={toolCall.call?.id || index} toolCall={toolCall} />
                             ))}
                         </div>

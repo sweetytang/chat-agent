@@ -1,12 +1,28 @@
 import { ToolMessage } from "@langchain/core/messages";
 import { createToolMessage } from "@backend/utils/createToolMessage.js";
-import { calculator } from "./calculatorTool.js";
-import { getWeather } from "./weatherTool.js";
-import { webSearch } from "./webSearchTool.js";
 import { MessageTypeEnum } from "@common/types";
 import type { SendEvent } from '@backend/types';
+import type { ModelRuntimeOptions } from "../providerConfig.js";
+import { calculator } from "./calculatorTool.js";
+import { structuredResponseTool, isStructuredOutputToolCall } from "./structuredResponseTool.js";
+import { getWeather } from "./weatherTool.js";
+import { webSearch } from "./webSearchTool.js";
 
-export const registeredTools = [getWeather, calculator, webSearch];
+export const executableTools = [getWeather, calculator, webSearch];
+
+export const allAvailableTools = [...executableTools, structuredResponseTool];
+
+export function getRuntimeTools(runtimeOptions: ModelRuntimeOptions = {}) {
+    if (runtimeOptions.structuredOutputEnabled) {
+        return allAvailableTools;
+    }
+
+    return executableTools;
+}
+
+export function getExecutableToolCalls(toolCalls: any[]): any[] {
+    return toolCalls.filter((toolCall) => !isStructuredOutputToolCall(toolCall));
+}
 
 function sendToolMessage(sendEvent: SendEvent, message: ToolMessage) {
     sendEvent("messages", [{
@@ -21,7 +37,11 @@ export async function executeTools(toolCalls: any[], sendEvent: SendEvent): Prom
     const results: ToolMessage[] = [];
 
     for (const toolCall of toolCalls) {
-        const tool = registeredTools.find((candidate: any) => candidate.name === toolCall.name);
+        if (isStructuredOutputToolCall(toolCall)) {
+            continue;
+        }
+
+        const tool = executableTools.find((candidate: any) => candidate.name === toolCall.name);
 
         if (!tool) {
             const errorMessage = createToolMessage(`Tool "${toolCall.name}" not found`, toolCall.id);
