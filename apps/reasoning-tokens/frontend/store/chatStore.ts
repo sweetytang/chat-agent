@@ -88,8 +88,12 @@ function areMessagesEqual(prev: BaseMessage[], next: BaseMessage[]): boolean {
             && (currentMessage?._getType?.() ?? currentMessage?.type ?? null)
             === (nextMessage?._getType?.() ?? nextMessage?.type ?? null)
             && toComparableContent(currentMessage?.content) === toComparableContent(nextMessage?.content)
+            && toComparableContent(currentMessage?.additional_kwargs) === toComparableContent(nextMessage?.additional_kwargs)
+            && toComparableContent(currentMessage?.response_metadata) === toComparableContent(nextMessage?.response_metadata)
+            && toComparableContent(currentMessage?.usage_metadata) === toComparableContent(nextMessage?.usage_metadata)
             && toComparableContent(currentMessage?.tool_calls) === toComparableContent(nextMessage?.tool_calls)
-            && toComparableContent(currentMessage?.tool_call_id) === toComparableContent(nextMessage?.tool_call_id);
+            && toComparableContent(currentMessage?.tool_call_id) === toComparableContent(nextMessage?.tool_call_id)
+            && toComparableContent(currentMessage?.invalid_tool_calls) === toComparableContent(nextMessage?.invalid_tool_calls);
     });
 }
 

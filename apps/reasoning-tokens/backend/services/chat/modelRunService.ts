@@ -4,6 +4,7 @@ import { buildHITLRequest, emitValues, getToolCalls, withoutSystemMessages } fro
 import { streamModelCall } from "./streamModelCall.js";
 import { interruptRepository } from "../../models/interruptRepository.js";
 import { threadRepository } from "../../models/threadRepository.js";
+import type { ModelRuntimeOptions } from "../ai/providerConfig.js";
 import { SendEvent } from "@backend/types";
 import { ThreadStatus } from '@common/types/thread';
 
@@ -12,14 +13,15 @@ type ModelRunParams = {
     threadId: string;
     status?: ThreadStatus;
     parentCheckpointId?: string | null;
+    runtimeOptions?: ModelRuntimeOptions;
     sendEvent: SendEvent;
 };
 
 export async function modelCallAgent(params: ModelRunParams) {
-    const { messages, threadId, status = ThreadStatus.IDLE, parentCheckpointId, sendEvent } = params;
+    const { messages, threadId, status = ThreadStatus.IDLE, parentCheckpointId, runtimeOptions = {}, sendEvent } = params;
 
     emitValues(messages, sendEvent);
-    const aiResponse = await streamModelCall(messages, sendEvent);
+    const aiResponse = await streamModelCall(messages, sendEvent, runtimeOptions);
     messages.push(aiResponse);
     emitValues(messages, sendEvent);
     sendEvent("end", null);

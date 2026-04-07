@@ -7,7 +7,7 @@ import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import { THREAD_START_CHECKPOINT_ID } from '@common/constants';
 import CollapsibleBox from '@frontend/components/CollapsibleBox';
-import { getThreadSessionSnapshot, useChatStore, useStreamStore, useThreadStore } from '@frontend/store';
+import { getThreadSessionSnapshot, useChatPreferencesStore, useChatStore, useStreamStore, useThreadStore } from '@frontend/store';
 import { useScrollStore } from '@frontend/store';
 import ApprovalCard from './ApprovalCard';
 import MessageBubble from './MessageBubble';
@@ -104,6 +104,7 @@ export default function MessageList() {
     const enqueueMessage = useStreamStore((state) => state.enqueueMessage);
     const enqueueRegenerate = useStreamStore((state) => state.enqueueRegenerate);
     const enqueueReview = useStreamStore((state) => state.enqueueReview);
+    const deepThinkingEnabled = useChatPreferencesStore((state) => state.deepThinkingEnabled);
     const autoScroll = useScrollStore((state) => state.autoScroll);
     const setAutoScroll = useScrollStore((state) => state.setAutoScroll);
     const virtuosoRef = useRef<VirtuosoHandle>(null);
@@ -137,9 +138,11 @@ export default function MessageList() {
     const submit = useCallback((text: string) => {
         const messageId = createClientMessageId();
         prepareMessage(selectedThreadId, text, messageId);
-        enqueueMessage(selectedThreadId, text, messageId, headCheckpoint, activeBranch);
+        enqueueMessage(selectedThreadId, text, messageId, headCheckpoint, activeBranch, {
+            deepThinkingEnabled,
+        });
         setAutoScroll(true);
-    }, [activeBranch, enqueueMessage, headCheckpoint, prepareMessage, selectedThreadId, setAutoScroll]);
+    }, [activeBranch, deepThinkingEnabled, enqueueMessage, headCheckpoint, prepareMessage, selectedThreadId, setAutoScroll]);
 
     const handleFollowOutput = useCallback(() => (
         autoScroll ? 'auto' : false
@@ -185,6 +188,8 @@ export default function MessageList() {
                                         ...response,
                                         requestId: interrupt!.value.requestId,
                                         checkpointId: headCheckpoint?.checkpoint_id ?? null,
+                                    }, {
+                                        deepThinkingEnabled,
                                     });
                                     setAutoScroll(true);
                                 }}
@@ -241,7 +246,9 @@ export default function MessageList() {
                         messages: optimisticMessages,
                         toolCalls: [],
                     });
-                    enqueueMessage(selectedThreadId, text, msgId, checkpoint, preferredBranch);
+                    enqueueMessage(selectedThreadId, text, msgId, checkpoint, preferredBranch, {
+                        deepThinkingEnabled,
+                    });
                     setAutoScroll(true);
                 }}
                 onRegenerate={() => {
@@ -260,7 +267,9 @@ export default function MessageList() {
                         messages: baseMessages,
                         toolCalls: [],
                     });
-                    enqueueRegenerate(selectedThreadId, checkpoint, preferredBranch);
+                    enqueueRegenerate(selectedThreadId, checkpoint, preferredBranch, {
+                        deepThinkingEnabled,
+                    });
                     setAutoScroll(true);
                 }}
             />
@@ -273,6 +282,7 @@ export default function MessageList() {
         isHydrating,
         isLoading,
         activeBranch,
+        deepThinkingEnabled,
         headCheckpoint,
         history,
         messageMetadataById,

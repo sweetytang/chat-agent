@@ -10,8 +10,13 @@ export interface SerializedMessage extends IObj {
     type: string;
     content: unknown;
     id: string;
+    name?: string;
     tool_calls?: IObj[];
+    invalid_tool_calls?: IObj[];
     tool_call_id?: string;
+    additional_kwargs?: IObj;
+    response_metadata?: IObj;
+    usage_metadata?: IObj;
 }
 
 export enum MessageTypeEnum {

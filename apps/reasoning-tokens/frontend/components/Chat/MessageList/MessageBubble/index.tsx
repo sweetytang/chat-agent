@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
+import { getMessageText } from '@common/utils/messageContent';
 import CollapsibleBox from '@frontend/components/CollapsibleBox';
 import Markdown from '@frontend/components/Markdown';
+import { extractAiDisplayContent } from '@frontend/services/chat/reasoning';
 import type { ThreadMessageBranchMetadata } from '@frontend/types/chat';
 import BranchSwitcher from '../BranchSwitcher';
+import ReasoningBubble from '../ReasoningBubble';
 import { ToolCard } from '../ToolCards';
 import styles from './index.module.scss';
 
@@ -17,19 +20,6 @@ interface MessageBubbleProps {
     onBranchSwitch: (branchId: string) => void;
     onEdit: (text: string) => void;
     onRegenerate: () => void;
-}
-
-function getMessageText(message: BaseMessage) {
-    const text = (message as any).text;
-    if (typeof text === 'string') {
-        return text;
-    }
-
-    if (typeof message.content === 'string') {
-        return message.content;
-    }
-
-    return '';
 }
 
 export default function MessageBubble({
@@ -53,6 +43,9 @@ export default function MessageBubble({
 
     const isHumanMessage = HumanMessage.isInstance(message);
     const isAiMessage = AIMessage.isInstance(message);
+    const aiDisplayContent = isAiMessage ? extractAiDisplayContent(message) : null;
+    const aiMessageText = aiDisplayContent?.text ?? getMessageText(message);
+    const reasoningText = aiDisplayContent?.reasoningText ?? '';
     const isToolInvocationMessage = isAiMessage && messageToolCalls.length > 0;
     const canEdit = isHumanMessage;
     const canRegenerate =
@@ -140,13 +133,19 @@ export default function MessageBubble({
             <div className={`${styles.bubbleRow} ${styles.bubbleRowAi}`}>
                 <div className={styles.bubbleAvatar}>✦</div>
                 <div className={`${styles.bubble} ${styles.bubbleAi}`}>
-                    {getMessageText(message) && (
+                    {reasoningText && (
+                        <ReasoningBubble
+                            isStreaming={isStreamingAiMessage}
+                            reasoning={reasoningText}
+                        />
+                    )}
+                    {aiMessageText && (
                         <CollapsibleBox
                             collapseKey={messageId}
                             freezeAutoCollapse={isStreamingAiMessage}
                             maxCollapsedHeight={240}
                         >
-                            <Markdown streaming={isStreamingAiMessage}>{getMessageText(message)}</Markdown>
+                            <Markdown streaming={isStreamingAiMessage}>{aiMessageText}</Markdown>
                         </CollapsibleBox>
                     )}
                     {messageToolCalls.length > 0 && (

@@ -4,6 +4,7 @@ import {
     getThreadSessionSnapshot,
     syncStreamData,
     useAuthStore,
+    useChatPreferencesStore,
     useChatStore,
     useStreamStore,
     useThreadStore,
@@ -48,6 +49,14 @@ function getCommandPreferredBranch(command: ThreadStreamCommand, currentBranch: 
     }
 }
 
+function getCommandMetadata(command: ThreadStreamCommand) {
+    if (command.type === 'stop') {
+        return undefined;
+    }
+
+    return command.metadata;
+}
+
 export default function ThreadStreamWorker({ workerId }: ThreadStreamWorkerProps) {
     const runtime = useStreamStore((state) => state.runtimesById[workerId] ?? null);
     const consumePendingCommand = useStreamStore((s) => s.consumePendingCommand);
@@ -62,6 +71,7 @@ export default function ThreadStreamWorker({ workerId }: ThreadStreamWorkerProps
     const setSelectedThreadId = useThreadStore((s) => s.setSelectedThreadId);
     const logout = useAuthStore((s) => s.logout);
     const token = useAuthStore((s) => s.token);
+    const deepThinkingEnabled = useChatPreferencesStore((s) => s.deepThinkingEnabled);
 
     const runtimeThreadId = runtime?.threadId ?? null;
     const session = useChatStore((state) => getThreadSessionSnapshot(state, runtimeThreadId));
@@ -228,24 +238,34 @@ export default function ThreadStreamWorker({ workerId }: ThreadStreamWorkerProps
             latestSessionBranchRef.current,
         );
         latestOperationCheckpointRef.current = getCommandCheckpointId(pendingCommand);
+        const metadata = getCommandMetadata(pendingCommand) ?? { deepThinkingEnabled };
 
         switch (pendingCommand.type) {
             case 'submitMessage':
                 stream.submit({
                     messages: [{ type: 'human', id: pendingCommand.messageId, content: pendingCommand.text }],
-                }, pendingCommand.checkpoint ? { checkpoint: pendingCommand.checkpoint } : undefined);
+                }, {
+                    ...(pendingCommand.checkpoint ? { checkpoint: pendingCommand.checkpoint } : {}),
+                    metadata,
+                });
                 break;
             case 'regenerate':
-                stream.submit(undefined, { checkpoint: pendingCommand.checkpoint });
+                stream.submit(undefined, {
+                    checkpoint: pendingCommand.checkpoint,
+                    metadata,
+                });
                 break;
             case 'submitReview':
-                stream.submit(null, { command: { resume: pendingCommand.response } });
+                stream.submit(null, {
+                    command: { resume: pendingCommand.response },
+                    metadata,
+                });
                 break;
             case 'stop':
                 stream.stop();
                 break;
         }
-    }, [consumePendingCommand, runtime, stream, workerId]);
+    }, [consumePendingCommand, deepThinkingEnabled, runtime, stream, workerId]);
 
 
     // 清除不活跃的 worker

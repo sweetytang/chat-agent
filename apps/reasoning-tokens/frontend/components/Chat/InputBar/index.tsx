@@ -4,7 +4,7 @@
  * 当前线程的显示状态来自 chatStore，发送/停止命令交给 streamStore。
  */
 import React, { useState } from 'react';
-import { getThreadRuntimeSnapshot, getThreadSessionSnapshot, useChatStore, useStreamStore, useThreadStore, useScrollStore } from '@frontend/store';
+import { getThreadRuntimeSnapshot, getThreadSessionSnapshot, useChatPreferencesStore, useChatStore, useScrollStore, useStreamStore, useThreadStore } from '@frontend/store';
 import { ThreadStreamStatus } from '@frontend/types/stream';
 import styles from './index.module.scss';
 
@@ -20,19 +20,29 @@ export default function InputBar() {
     const enqueueMessage = useStreamStore((s) => s.enqueueMessage);
     const stopThread = useStreamStore((s) => s.stopThread);
     const setAutoScroll = useScrollStore((s) => s.setAutoScroll);
+    const deepThinkingEnabled = useChatPreferencesStore((s) => s.deepThinkingEnabled);
+    const toggleDeepThinking = useChatPreferencesStore((s) => s.toggleDeepThinking);
     const { activeBranch, headCheckpoint, isLoading, interrupt, isHydrating } = session;
 
     const [input, setInput] = useState('');
     const isAwaitingReview = Boolean(interrupt);
     const isPending = runtime?.status === ThreadStreamStatus.PENDING || runtime?.status === ThreadStreamStatus.STOPPING;
     const isDisabled = isLoading || isPending || isAwaitingReview || isHydrating;
+    const isModeToggleDisabled = isLoading || isPending || isHydrating;
 
     const handleSubmit = (text: string) => {
         if (!text.trim() || isDisabled) return;
         const messageId = createClientMessageId();
         setInput('');
         prepareMessage(selectedThreadId, text, messageId);
-        enqueueMessage(selectedThreadId, text, messageId, headCheckpoint, activeBranch);
+        enqueueMessage(
+            selectedThreadId,
+            text,
+            messageId,
+            headCheckpoint,
+            activeBranch,
+            { deepThinkingEnabled },
+        );
         setAutoScroll(true);
     };
 
@@ -49,30 +59,48 @@ export default function InputBar() {
                 <textarea
                     className={styles.chatInput}
                     rows={1}
-                    placeholder="Ask anything… (Enter to send, Shift+Enter for newline)"
+                    placeholder="给助手发送消息"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
                     disabled={isDisabled}
                 />
-                {isLoading ? (
-                    <button
-                        className={styles.sendBtn}
-                        onClick={() => stopThread(selectedThreadId)}
-                        aria-label="Stop"
-                    >
-                        ⏹
-                    </button>
-                ) : (
-                    <button
-                        className={styles.sendBtn}
-                        onClick={() => handleSubmit(input)}
-                        disabled={!input.trim() || isDisabled}
-                        aria-label="Send"
-                    >
-                        ↑
-                    </button>
-                )}
+                <div className={styles.inputActionRow}>
+                    <div className={styles.actionGroup}>
+                        <button
+                            className={styles.modeBtn}
+                            type="button"
+                            onClick={toggleDeepThinking}
+                            disabled={isModeToggleDisabled}
+                            aria-pressed={deepThinkingEnabled}
+                            data-active={deepThinkingEnabled ? 'true' : 'false'}
+                        >
+                            <span className={styles.modeBtnIcon} aria-hidden="true">
+                                <span className={styles.modeBtnIconCore} />
+                            </span>
+                            <span className={styles.modeBtnLabel}>深度思考</span>
+                        </button>
+                    </div>
+                    {isLoading ? (
+                        <button
+                            className={`${styles.sendBtn} ${styles.sendBtnActive}`}
+                            onClick={() => stopThread(selectedThreadId)}
+                            aria-label="Stop"
+                        >
+                            ⏹
+                        </button>
+                    ) : (
+                        <button
+                            className={`${styles.sendBtn} ${input.trim() && !isDisabled ? styles.sendBtnActive : ''}`}
+                            onClick={() => handleSubmit(input)}
+                            disabled={!input.trim() || isDisabled}
+                            aria-label="Send"
+                            title="发送"
+                        >
+                            ↑
+                        </button>
+                    )}
+                </div>
             </div>
             <p className={styles.chatHint}>
                 {isHydrating
@@ -81,7 +109,7 @@ export default function InputBar() {
                         ? '当前正在分支上继续对话，新消息会沿当前分支继续，不会覆盖其他版本'
                         : isAwaitingReview
                             ? '请先完成当前工具审核，再继续发送消息'
-                            : 'Powered by TenaSourcing'}
+                            : 'Enter 发送，Shift + Enter 换行'}
             </p>
         </footer>
     );

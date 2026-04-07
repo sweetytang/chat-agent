@@ -13,5 +13,6 @@ export {
     getThreadRuntimeSnapshot,
     useStreamStore,
 } from './streamStore';
+export { useChatPreferencesStore } from './chatPreferencesStore';
 export { useScrollStore } from './scroll';
 export { useAuthStore } from './authStore';

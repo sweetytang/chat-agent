@@ -3,11 +3,13 @@ import { BaseMessage, SystemMessage } from "@langchain/core/messages";
 import { createToolMessage } from "../utils/createToolMessage.js";
 import { SYSTEM_PROMPT } from "@backend/constants";
 import { THREAD_START_CHECKPOINT_ID } from "@common/constants";
+import type { RunMetadata } from "@common/types/run";
 import { requireAuthenticatedUser } from "../middlewares/auth.js";
 import { interruptRepository } from "../models/interruptRepository.js";
 import { threadCheckpointRepository } from "../models/threadCheckpointRepository.js";
 import { threadRepository } from "../models/threadRepository.js";
 import { executeTools } from "../services/ai/tools/index.js";
+import type { ModelRuntimeOptions } from "../services/ai/providerConfig.js";
 import { getToolCalls, parseInputMessages, rebuildHistory } from "../services/chat/messageState.js";
 import { deserializeMessages, serializeMessages } from "../services/chat/messageSerde.js";
 import { modelCallAgent } from "../services/chat/modelRunService.js";
@@ -28,6 +30,20 @@ function getRequestedCheckpointId(body: any): string | null {
     }
 
     return null;
+}
+
+function getRunMetadata(body: any): RunMetadata {
+    const deepThinkingEnabled = body?.metadata?.deepThinkingEnabled;
+
+    return typeof deepThinkingEnabled === "boolean"
+        ? { deepThinkingEnabled }
+        : {};
+}
+
+function toRuntimeOptions(metadata: RunMetadata): ModelRuntimeOptions {
+    return typeof metadata.deepThinkingEnabled === "boolean"
+        ? { deepThinkingEnabled: metadata.deepThinkingEnabled }
+        : {};
 }
 
 async function resolveRunBaseState(userId: string, threadId: string, checkpointId: string | null) {
@@ -64,7 +80,13 @@ async function resolveRunBaseState(userId: string, threadId: string, checkpointI
     };
 }
 
-async function handleNewMessage(userId: string, threadId: string, payload: any, sendEvent: SendEvent) {
+async function handleNewMessage(
+    userId: string,
+    threadId: string,
+    payload: any,
+    sendEvent: SendEvent,
+    runtimeOptions: ModelRuntimeOptions,
+) {
     const checkpointId = getRequestedCheckpointId(payload);
     const baseState = await resolveRunBaseState(userId, threadId, checkpointId);
 
@@ -100,6 +122,7 @@ async function handleNewMessage(userId: string, threadId: string, payload: any, 
         messages: [new SystemMessage(SYSTEM_PROMPT), ...allMessages],
         threadId,
         parentCheckpointId,
+        runtimeOptions,
         sendEvent,
     });
 }
@@ -133,6 +156,7 @@ async function executeAndContinue(
     toolCalls: any[],
     sendEvent: SendEvent,
     parentCheckpointId: string | null,
+    runtimeOptions: ModelRuntimeOptions,
 ) {
     const toolResults = await executeTools(toolCalls, sendEvent);
     allMessages.push(...toolResults);
@@ -146,11 +170,18 @@ async function executeAndContinue(
         messages: allMessages,
         threadId,
         parentCheckpointId: continuedFromCheckpointId,
+        runtimeOptions,
         sendEvent,
     });
 }
 
-async function handleResume(userId: string, threadId: string, resumePayload: HITLResponse, sendEvent: SendEvent) {
+async function handleResume(
+    userId: string,
+    threadId: string,
+    resumePayload: HITLResponse,
+    sendEvent: SendEvent,
+    runtimeOptions: ModelRuntimeOptions,
+) {
     const thread = await threadRepository.getForUser(threadId, userId);
     if (!thread) {
         sendEvent("error", { error: "Thread not found", message: "线程不存在或无权限访问" });
@@ -199,7 +230,7 @@ async function handleResume(userId: string, threadId: string, resumePayload: HIT
 
     switch (resumePayload.decision) {
         case DecisionEnum.APPROVE:
-            await executeAndContinue(threadId, allMessages, toolCalls, sendEvent, parentCheckpointId);
+            await executeAndContinue(threadId, allMessages, toolCalls, sendEvent, parentCheckpointId, runtimeOptions);
             return;
 
         case DecisionEnum.EDIT: {
@@ -209,7 +240,7 @@ async function handleResume(userId: string, threadId: string, resumePayload: HIT
                     toolCall.args = editedArgsList[index];
                 }
             });
-            await executeAndContinue(threadId, allMessages, toolCalls, sendEvent, parentCheckpointId);
+            await executeAndContinue(threadId, allMessages, toolCalls, sendEvent, parentCheckpointId, runtimeOptions);
             return;
         }
 
@@ -231,6 +262,7 @@ async function handleResume(userId: string, threadId: string, resumePayload: HIT
                 messages: allMessages,
                 threadId,
                 parentCheckpointId: continuedFromCheckpointId,
+                runtimeOptions,
                 sendEvent,
             });
         }
@@ -250,11 +282,12 @@ export async function streamThreadRun(req: Request, res: Response) {
     const sendEvent = createSendEvent(res);
 
     try {
+        const runtimeOptions = toRuntimeOptions(getRunMetadata(req.body));
         const command = req.body?.command;
         if (command?.resume) {
-            await handleResume(user.user_id, threadId, command.resume, sendEvent);
+            await handleResume(user.user_id, threadId, command.resume, sendEvent, runtimeOptions);
         } else {
-            await handleNewMessage(user.user_id, threadId, req.body, sendEvent);
+            await handleNewMessage(user.user_id, threadId, req.body, sendEvent, runtimeOptions);
         }
     } catch (error: any) {
         console.error("Stream 出错:", error);

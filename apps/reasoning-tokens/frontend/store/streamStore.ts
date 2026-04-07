@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { DRAFT_THREAD_ID } from "@common/constants";
 import type { HITLResponse } from "@common/types/interrupt";
+import type { RunMetadata } from "@common/types/run";
 import type { ThreadCheckpoint } from "@common/types/thread";
 import { ThreadRuntime, ThreadStreamCommand, ThreadStreamStatus } from "@frontend/types/stream";
 
@@ -16,9 +17,10 @@ interface StreamState {
         messageId: string,
         checkpoint?: ThreadCheckpoint | null,
         preferredBranch?: string,
+        metadata?: RunMetadata,
     ) => void;
-    enqueueRegenerate: (threadId: string | null, checkpoint: ThreadCheckpoint, preferredBranch?: string) => void;
-    enqueueReview: (threadId: string | null, response: HITLResponse) => void;
+    enqueueRegenerate: (threadId: string | null, checkpoint: ThreadCheckpoint, preferredBranch?: string, metadata?: RunMetadata) => void;
+    enqueueReview: (threadId: string | null, response: HITLResponse, metadata?: RunMetadata) => void;
     stopThread: (threadId: string | null) => void;
     consumePendingCommand: (workerId: string, commandId: string) => void;
     syncRuntimeLoading: (workerId: string, isLoading: boolean) => void;
@@ -44,9 +46,9 @@ function createRuntime(workerId: string, threadId: string | null): ThreadRuntime
 }
 
 type ThreadStreamCommandInput =
-    | { type: "submitMessage"; text: string; messageId: string; checkpoint: ThreadCheckpoint | null; preferredBranch: string }
-    | { type: "regenerate"; checkpoint: ThreadCheckpoint; preferredBranch: string }
-    | { type: "submitReview"; response: HITLResponse }
+    | { type: "submitMessage"; text: string; messageId: string; checkpoint: ThreadCheckpoint | null; preferredBranch: string; metadata: RunMetadata }
+    | { type: "regenerate"; checkpoint: ThreadCheckpoint; preferredBranch: string; metadata: RunMetadata }
+    | { type: "submitReview"; response: HITLResponse; metadata: RunMetadata }
     | { type: "stop" };
 
 function createCommand(command: ThreadStreamCommandInput): ThreadStreamCommand {
@@ -60,6 +62,7 @@ function createCommand(command: ThreadStreamCommandInput): ThreadStreamCommand {
                 messageId: command.messageId,
                 checkpoint: command.checkpoint,
                 preferredBranch: command.preferredBranch,
+                metadata: command.metadata,
             };
         case "regenerate":
             return {
@@ -67,12 +70,14 @@ function createCommand(command: ThreadStreamCommandInput): ThreadStreamCommand {
                 type: "regenerate",
                 checkpoint: command.checkpoint,
                 preferredBranch: command.preferredBranch,
+                metadata: command.metadata,
             };
         case "submitReview":
             return {
                 id: `cmd-${nextCommandId}`,
                 type: "submitReview",
                 response: command.response,
+                metadata: command.metadata,
             };
         case "stop":
             return {
@@ -137,6 +142,7 @@ export const useStreamStore = create<StreamState>((set, get) => ({
         messageId: string,
         checkpoint: ThreadCheckpoint | null = null,
         preferredBranch = "",
+        metadata = {},
     ) => {
         if (!text.trim()) {
             return;
@@ -157,7 +163,7 @@ export const useStreamStore = create<StreamState>((set, get) => ({
                         ...runtime,
                         threadId,
                         status: runtime.status === ThreadStreamStatus.STREAMING ? ThreadStreamStatus.STREAMING : ThreadStreamStatus.PENDING,
-                        pendingCommand: createCommand({ type: "submitMessage", text, messageId, checkpoint, preferredBranch }),
+                        pendingCommand: createCommand({ type: "submitMessage", text, messageId, checkpoint, preferredBranch, metadata }),
                         lastError: null,
                         lastActiveAt: Date.now(),
                     },
@@ -166,7 +172,7 @@ export const useStreamStore = create<StreamState>((set, get) => ({
         });
     },
 
-    enqueueRegenerate: (threadId: string | null, checkpoint: ThreadCheckpoint, preferredBranch = "") => {
+    enqueueRegenerate: (threadId: string | null, checkpoint: ThreadCheckpoint, preferredBranch = "", metadata = {}) => {
         set((state) => {
             const { threadKey, workerId, runtime, nextRuntimeId } = getOrCreateRuntimeState(state, threadId);
 
@@ -182,7 +188,7 @@ export const useStreamStore = create<StreamState>((set, get) => ({
                         ...runtime,
                         threadId,
                         status: runtime.status === ThreadStreamStatus.STREAMING ? ThreadStreamStatus.STREAMING : ThreadStreamStatus.PENDING,
-                        pendingCommand: createCommand({ type: "regenerate", checkpoint, preferredBranch }),
+                        pendingCommand: createCommand({ type: "regenerate", checkpoint, preferredBranch, metadata }),
                         lastError: null,
                         lastActiveAt: Date.now(),
                     },
@@ -191,7 +197,7 @@ export const useStreamStore = create<StreamState>((set, get) => ({
         });
     },
 
-    enqueueReview: (threadId: string | null, response: HITLResponse) => {
+    enqueueReview: (threadId: string | null, response: HITLResponse, metadata = {}) => {
         set((state) => {
             const { threadKey, workerId, runtime, nextRuntimeId } = getOrCreateRuntimeState(state, threadId);
 
@@ -207,7 +213,7 @@ export const useStreamStore = create<StreamState>((set, get) => ({
                         ...runtime,
                         threadId,
                         status: runtime.status === ThreadStreamStatus.STREAMING ? ThreadStreamStatus.STREAMING : ThreadStreamStatus.PENDING,
-                        pendingCommand: createCommand({ type: "submitReview", response }),
+                        pendingCommand: createCommand({ type: "submitReview", response, metadata }),
                         lastError: null,
                         lastActiveAt: Date.now(),
                     },
