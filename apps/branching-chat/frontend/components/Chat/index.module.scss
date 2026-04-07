@@ -68,6 +68,34 @@
     min-width: 0;
 }
 
+.branch-pill-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 8px;
+}
+
+.branch-pill {
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: var(--text);
+    background: rgba(139, 132, 255, 0.16);
+    border: 1px solid rgba(139, 132, 255, 0.22);
+    white-space: nowrap;
+}
+
+.branch-reset-button {
+    border: none;
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.08);
+    white-space: nowrap;
+}
+
 /* ── Loading Shell ── */
 .chat-loading-shell {
     min-height: 100vh;
@@ -92,5 +120,9 @@
     .chat-header-inner {
         gap: 8px;
         padding: 12px 14px;
+    }
+
+    .branch-pill-group {
+        display: none;
     }
 }

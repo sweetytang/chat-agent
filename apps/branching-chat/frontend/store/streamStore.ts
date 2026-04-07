@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { DRAFT_THREAD_ID } from "@common/constants";
 import type { HITLResponse } from "@common/types/interrupt";
+import type { ThreadCheckpoint } from "@common/types/thread";
 import { ThreadRuntime, ThreadStreamCommand, ThreadStreamStatus } from "@frontend/types/stream";
 
 let nextCommandId = 0;
@@ -9,7 +10,14 @@ interface StreamState {
     nextRuntimeId: number;
     runtimeIdByThreadKey: Record<string, string>;
     runtimesById: Record<string, ThreadRuntime>;
-    enqueueMessage: (threadId: string | null, text: string, messageId: string) => void;
+    enqueueMessage: (
+        threadId: string | null,
+        text: string,
+        messageId: string,
+        checkpoint?: ThreadCheckpoint | null,
+        preferredBranch?: string,
+    ) => void;
+    enqueueRegenerate: (threadId: string | null, checkpoint: ThreadCheckpoint, preferredBranch?: string) => void;
     enqueueReview: (threadId: string | null, response: HITLResponse) => void;
     stopThread: (threadId: string | null) => void;
     consumePendingCommand: (workerId: string, commandId: string) => void;
@@ -36,7 +44,8 @@ function createRuntime(workerId: string, threadId: string | null): ThreadRuntime
 }
 
 type ThreadStreamCommandInput =
-    | { type: "submitMessage"; text: string; messageId: string }
+    | { type: "submitMessage"; text: string; messageId: string; checkpoint: ThreadCheckpoint | null; preferredBranch: string }
+    | { type: "regenerate"; checkpoint: ThreadCheckpoint; preferredBranch: string }
     | { type: "submitReview"; response: HITLResponse }
     | { type: "stop" };
 
@@ -49,6 +58,15 @@ function createCommand(command: ThreadStreamCommandInput): ThreadStreamCommand {
                 type: "submitMessage",
                 text: command.text,
                 messageId: command.messageId,
+                checkpoint: command.checkpoint,
+                preferredBranch: command.preferredBranch,
+            };
+        case "regenerate":
+            return {
+                id: `cmd-${nextCommandId}`,
+                type: "regenerate",
+                checkpoint: command.checkpoint,
+                preferredBranch: command.preferredBranch,
             };
         case "submitReview":
             return {
@@ -113,7 +131,13 @@ export const useStreamStore = create<StreamState>((set, get) => ({
     runtimeIdByThreadKey: {},
     runtimesById: {},
 
-    enqueueMessage: (threadId: string | null, text: string, messageId: string) => {
+    enqueueMessage: (
+        threadId: string | null,
+        text: string,
+        messageId: string,
+        checkpoint: ThreadCheckpoint | null = null,
+        preferredBranch = "",
+    ) => {
         if (!text.trim()) {
             return;
         }
@@ -133,7 +157,32 @@ export const useStreamStore = create<StreamState>((set, get) => ({
                         ...runtime,
                         threadId,
                         status: runtime.status === ThreadStreamStatus.STREAMING ? ThreadStreamStatus.STREAMING : ThreadStreamStatus.PENDING,
-                        pendingCommand: createCommand({ type: "submitMessage", text, messageId }),
+                        pendingCommand: createCommand({ type: "submitMessage", text, messageId, checkpoint, preferredBranch }),
+                        lastError: null,
+                        lastActiveAt: Date.now(),
+                    },
+                },
+            };
+        });
+    },
+
+    enqueueRegenerate: (threadId: string | null, checkpoint: ThreadCheckpoint, preferredBranch = "") => {
+        set((state) => {
+            const { threadKey, workerId, runtime, nextRuntimeId } = getOrCreateRuntimeState(state, threadId);
+
+            return {
+                nextRuntimeId,
+                runtimeIdByThreadKey: {
+                    ...state.runtimeIdByThreadKey,
+                    [threadKey]: workerId,
+                },
+                runtimesById: {
+                    ...state.runtimesById,
+                    [workerId]: {
+                        ...runtime,
+                        threadId,
+                        status: runtime.status === ThreadStreamStatus.STREAMING ? ThreadStreamStatus.STREAMING : ThreadStreamStatus.PENDING,
+                        pendingCommand: createCommand({ type: "regenerate", checkpoint, preferredBranch }),
                         lastError: null,
                         lastActiveAt: Date.now(),
                     },

@@ -49,15 +49,19 @@ model Thread {
 }
 
 model ThreadCheckpoint {
-  checkpointId String   @id @map("checkpoint_id")
-  threadId     String   @map("thread_id")
-  createdAt    DateTime @default(now()) @map("created_at")
-  status       String
-  metadataJson String   @map("metadata_json")
-  valuesJson   String   @map("values_json")
-  thread       Thread   @relation(fields: [threadId], references: [threadId], onDelete: Cascade)
+  checkpointId       String             @id @map("checkpoint_id")
+  threadId           String             @map("thread_id")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  status             String
+  metadataJson       String             @map("metadata_json")
+  valuesJson         String             @map("values_json")
+  parentCheckpointId String?            @map("parent_checkpoint_id")
+  thread             Thread             @relation(fields: [threadId], references: [threadId], onDelete: Cascade)
+  parentCheckpoint   ThreadCheckpoint?  @relation("ThreadCheckpointParent", fields: [parentCheckpointId], references: [checkpointId], onDelete: SetNull)
+  childCheckpoints   ThreadCheckpoint[] @relation("ThreadCheckpointParent")
 
   @@index([threadId, createdAt], map: "idx_thread_checkpoints_thread_created_at")
+  @@index([parentCheckpointId], map: "idx_thread_checkpoints_parent_checkpoint_id")
   @@map("thread_checkpoints")
 }
 

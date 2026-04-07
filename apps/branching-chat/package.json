@@ -9,7 +9,7 @@
     "db:push": "prisma db push --config ../../prisma.config.ts",
     "prisma:generate": "prisma generate --config ../../prisma.config.ts",
     "dev:server": "pnpm run db:push && tsx --watch backend/server.ts",
-    "build": "pnpm run prisma:generate && tsc && vite build --config frontend/vite.config.ts",
+    "build": "pnpm run prisma:generate && tsc && vite build --config frontend/pack/vite.config.ts",
     "preview": "vite preview --config frontend/pack/vite.config.ts"
   },
   "dependencies": {

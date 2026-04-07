@@ -1,88 +1,50 @@
-import {
-    AIMessage,
-    BaseMessage,
-    HumanMessage,
-    SystemMessage,
-    ToolMessage,
-} from "@langchain/core/messages";
 import { SERVER_URL } from "@common/constants";
 import { getAuthHeaders } from "../../utils/authClient";
+import type { ThreadStateDTO } from "@common/types/thread";
 import type { ThreadSession } from "@frontend/types/chat";
-import type { HITLRequest } from "@common/types/interrupt";
-import type { SerializedMessage } from "@common/types";
-import { MessageTypeEnum } from "@common/types";
+import { buildBranchingSessionData, sortHistoryChronologically, toThreadHistoryState } from "./branching";
 
-interface ThreadTaskInterrupt {
-    value?: HITLRequest;
-}
+export async function fetchThreadSession(
+    threadId: string,
+    preferredBranch = "",
+): Promise<Pick<ThreadSession, "messages" | "toolCalls" | "isLoading" | "interrupt" | "hydrated" | "isHydrating" | "history" | "activeBranch" | "headCheckpoint" | "messageMetadataById">> {
+    const headers = getAuthHeaders();
+    const [stateResponse, historyResponse] = await Promise.all([
+        fetch(`${SERVER_URL}/threads/${threadId}/state`, {
+            headers,
+        }),
+        fetch(`${SERVER_URL}/threads/${threadId}/history`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...headers,
+            },
+            body: JSON.stringify({ limit: 100 }),
+        }),
+    ]);
 
-interface ThreadTask {
-    interrupts?: ThreadTaskInterrupt[];
-}
-
-interface ThreadStateResponse {
-    values?: {
-        messages?: SerializedMessage[];
-    };
-    tasks?: ThreadTask[];
-}
-
-function toMessageContent(content: unknown) {
-    if (typeof content === "string" || Array.isArray(content)) {
-        return content;
+    if (!stateResponse.ok) {
+        throw new Error(`Failed to load thread state: ${stateResponse.status}`);
     }
 
-    return "";
-}
-
-function deserializeMessages(messages: SerializedMessage[] = []): BaseMessage[] {
-    return messages.map((message) => {
-        const { type, content, id, tool_calls, tool_call_id } = message;
-        const safeToolCalls = Array.isArray(tool_calls) ? tool_calls : [];
-        const safeContent = toMessageContent(content);
-
-        switch (type) {
-            case MessageTypeEnum.SYSTEM:
-                return new SystemMessage({ content: safeContent, id });
-            case MessageTypeEnum.AI:
-                return new AIMessage({ content: safeContent, id, tool_calls: safeToolCalls as any });
-            case MessageTypeEnum.TOOL:
-                return new ToolMessage({ content: safeContent, id, tool_call_id: tool_call_id ?? id });
-            case MessageTypeEnum.HUMAN:
-            default:
-                return new HumanMessage({ content: safeContent, id });
-        }
-    });
-}
-
-function extractInterrupt(tasks: ThreadTask[] = []): { value: HITLRequest } | null {
-    for (const task of tasks) {
-        const interruptValue = task?.interrupts?.find((item) => item?.value)?.value;
-        if (interruptValue) {
-            return { value: interruptValue };
-        }
+    if (!historyResponse.ok) {
+        throw new Error(`Failed to load thread history: ${historyResponse.status}`);
     }
 
-    return null;
-}
-
-export async function fetchThreadSession(threadId: string): Promise<Pick<ThreadSession, "messages" | "toolCalls" | "isLoading" | "interrupt" | "hydrated" | "isHydrating">> {
-    const response = await fetch(`${SERVER_URL}/threads/${threadId}/state`, {
-        headers: getAuthHeaders(),
-    });
-
-    if (!response.ok) {
-        throw new Error(`Failed to load thread state: ${response.status}`);
-    }
-
-    const data = await response.json() as ThreadStateResponse;
+    const historyData = await historyResponse.json() as ThreadStateDTO[];
+    const history = sortHistoryChronologically(historyData.map(toThreadHistoryState));
+    const branchingSession = buildBranchingSessionData(history, preferredBranch);
 
     return {
-        messages: deserializeMessages(data.values?.messages || []),
+        messages: branchingSession.messages,
         toolCalls: [],
         isLoading: false,
-        interrupt: extractInterrupt(data.tasks),
+        interrupt: branchingSession.interrupt,
         hydrated: true,
         isHydrating: false,
+        history,
+        activeBranch: branchingSession.activeBranch,
+        headCheckpoint: branchingSession.headCheckpoint,
+        messageMetadataById: branchingSession.messageMetadataById,
     };
 }

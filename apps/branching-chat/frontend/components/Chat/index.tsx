@@ -5,12 +5,20 @@ import UserPanel from './UserPanel';
 import MessageList from './MessageList';
 import InputBar from './InputBar';
 import AuthScreen from './Auth';
-import { useAuthStore, useThreadStore } from '@frontend/store';
+import { getThreadSessionSnapshot, useAuthStore, useChatStore, useThreadStore } from '@frontend/store';
 import { AuthStatus } from '@common/types/auth';
 import styles from './index.module.scss';
 
 function ChatShell() {
     const selectedThreadId = useThreadStore((s) => s.selectedThreadId);
+    const session = useChatStore((state) => getThreadSessionSnapshot(state, selectedThreadId));
+    const selectBranch = useChatStore((state) => state.selectBranch);
+    const branchDepth = session.activeBranch
+        ? session.activeBranch.split('>').filter(Boolean).length
+        : 0;
+    const branchCheckpointShortId = session.headCheckpoint?.checkpoint_id
+        ? session.headCheckpoint.checkpoint_id.slice(0, 8)
+        : null;
 
     return (
         <div className={styles.chatRoot}>
@@ -25,6 +33,20 @@ function ChatShell() {
                     <div className={styles.chatHeaderInner}>
                         <span className={styles.chatLogo}>✦</span>
                         <h1 className={styles.chatTitle}>AI Chat</h1>
+                        {session.activeBranch && (
+                            <div className={styles.branchPillGroup}>
+                                <span className={styles.branchPill}>
+                                    分支视图 · 深度 {branchDepth}{branchCheckpointShortId ? ` · ${branchCheckpointShortId}` : ''}
+                                </span>
+                                <button
+                                    className={styles.branchResetButton}
+                                    type="button"
+                                    onClick={() => selectBranch(selectedThreadId, '')}
+                                >
+                                    回到最新
+                                </button>
+                            </div>
+                        )}
                         <UserPanel />
                     </div>
                 </header>

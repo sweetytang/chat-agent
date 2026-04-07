@@ -9,7 +9,7 @@ function toThread(record: ThreadRecord): IThreadDTO {
         created_at: record.createdAt,
         updated_at: record.updatedAt,
         metadata: safeParseJSON(record.metadataJson),
-        status: record.status,
+        status: record.status as IThreadDTO["status"],
         values: safeParseJSON(record.valuesJson),
     };
 
@@ -37,8 +37,15 @@ class ThreadRepository {
         console.log(`✅ Prisma 持久化已就绪，线程数据位于 ${process.env.DATABASE_URL}，当前 ${count} 个线程`);
     }
 
-    async set(thread: IThreadDTO, checkpointId = uuid()) {
+    async set(
+        thread: IThreadDTO,
+        options?: {
+            checkpointId?: string;
+            parentCheckpointId?: string | null;
+        },
+    ) {
         await this.ready;
+        const checkpointId = options?.checkpointId ?? uuid();
         const persisted = await prisma.$transaction(async (tx) => {
             await tx.thread.upsert({
                 where: { threadId: thread.thread_id },
@@ -68,6 +75,7 @@ class ThreadRepository {
                     status: thread.status,
                     metadataJson: JSON.stringify(thread.metadata ?? {}),
                     valuesJson: JSON.stringify(thread.values ?? {}),
+                    parentCheckpointId: options?.parentCheckpointId ?? null,
                 },
             });
 
@@ -91,10 +99,10 @@ class ThreadRepository {
     async getForUser(threadId: string, userId: string) {
         await this.ready;
         const record = await prisma.thread.findUnique({
-            where: { threadId, userId },
+            where: { threadId },
         });
 
-        return record ? toThread(record) : undefined;
+        return record && record.userId === userId ? toThread(record) : undefined;
     }
 
     async deleteForUser(threadId: string, userId: string) {
@@ -123,6 +131,16 @@ class ThreadRepository {
         });
 
         return records.map((record) => toThread(record));
+    }
+
+    async updateStatus(threadId: string, status: IThreadDTO["status"]) {
+        await this.ready;
+        const record = await prisma.thread.update({
+            where: { threadId },
+            data: { status },
+        });
+
+        return toThread(record);
     }
 }
 

@@ -1,33 +1,37 @@
 /**
  * MessageList — 消息列表组件（虚拟滚动版）
- * 使用 react-virtuoso 实现虚拟化渲染，只渲染视窗内的消息。
- * 内置 followOutput 替代手动 useAutoScroll。
+ * 使用 react-virtuoso 实现虚拟化渲染，并接入消息分支编辑与切换。
  */
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
-import Markdown from '@frontend/components/Markdown';
-import { ToolCard } from './ToolCards';
-import ApprovalCard from './ApprovalCard';
+import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
+import { THREAD_START_CHECKPOINT_ID } from '@common/constants';
 import CollapsibleBox from '@frontend/components/CollapsibleBox';
-import PresetCards from './PresetCards';
 import { getThreadSessionSnapshot, useChatStore, useStreamStore, useThreadStore } from '@frontend/store';
 import { useScrollStore } from '@frontend/store';
+import ApprovalCard from './ApprovalCard';
+import MessageBubble from './MessageBubble';
+import PresetCards from './PresetCards';
 import styles from './index.module.scss';
 
 function createClientMessageId() {
     return `client-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// ── 虚拟列表的统一数据项 ──
+function getThreadStartCheckpoint(threadId: string | null) {
+    return {
+        thread_id: threadId ?? '',
+        checkpoint_id: THREAD_START_CHECKPOINT_ID,
+        checkpoint_ns: '',
+        checkpoint_map: null,
+    };
+}
+
 type VirtualItem =
     | { type: 'message'; msg: any; idx: number }
     | { type: 'approval' }
     | { type: 'typing' };
 
-/**
- * 获取某条 AI 消息关联的工具调用列表。
- */
 function getToolCallsForMessage(
     msg: any,
     toolCalls: any[],
@@ -37,21 +41,22 @@ function getToolCallsForMessage(
     if (msgToolCallDefs.length === 0) return [];
 
     const fromStream = (toolCalls || []).filter((tc: any) =>
-        msgToolCallDefs.some((t: any) => t.id === tc.call.id)
+        msgToolCallDefs.some((toolCall: any) => toolCall.id === tc.call.id),
     );
-
     const foundIds = new Set(fromStream.map((tc: any) => tc.call.id));
-    const missing = msgToolCallDefs.filter((t: any) => !foundIds.has(t.id));
+    const missing = msgToolCallDefs.filter((toolCall: any) => !foundIds.has(toolCall.id));
 
-    if (missing.length === 0) return fromStream;
+    if (missing.length === 0) {
+        return fromStream;
+    }
 
-    const synthetic = missing.map((t: any, idx: number) => {
+    const synthetic = missing.map((toolCall: any, idx: number) => {
         const resultMsg = messages.find(
-            (m: any) => ToolMessage.isInstance(m) && (m as any).tool_call_id === t.id
+            (message: any) => ToolMessage.isInstance(message) && (message as any).tool_call_id === toolCall.id,
         );
         return {
-            id: t.id || `${msg.id}-tc-${idx}`,
-            call: t,
+            id: toolCall.id || `${msg.id}-tc-${idx}`,
+            call: toolCall,
             result: resultMsg || undefined,
             aiMessage: msg,
             index: idx,
@@ -62,62 +67,84 @@ function getToolCallsForMessage(
     return [...fromStream, ...synthetic];
 }
 
+function getCheckpointMessages(
+    history: any[],
+    checkpointId: string | null | undefined,
+) {
+    if (!checkpointId || checkpointId === THREAD_START_CHECKPOINT_ID) {
+        return [];
+    }
+
+    const state = history.find((item) => item.checkpoint?.checkpoint_id === checkpointId);
+    const messages = Array.isArray(state?.values?.messages) ? state.values.messages : [];
+    return messages.filter((message: any) => (
+        ((message as any)?._getType?.() ?? (message as any)?.type ?? null) !== 'system'
+    ));
+}
+
 export default function MessageList() {
-    const selectedThreadId = useThreadStore((s) => s.selectedThreadId);
+    const selectedThreadId = useThreadStore((state) => state.selectedThreadId);
     const session = useChatStore((state) => getThreadSessionSnapshot(state, selectedThreadId));
-    const { messages, toolCalls, isLoading, interrupt, isHydrating } = session;
-    const prepareMessage = useChatStore((s) => s.prepareMessage);
-    const prepareReview = useChatStore((s) => s.prepareReview);
-    const ensureThreadSession = useChatStore((s) => s.ensureThreadSession);
-    const enqueueMessage = useStreamStore((s) => s.enqueueMessage);
-    const enqueueReview = useStreamStore((s) => s.enqueueReview);
-
-    const autoScroll = useScrollStore((s) => s.autoScroll);
-    const setAutoScroll = useScrollStore((s) => s.setAutoScroll);
-
+    const {
+        activeBranch,
+        headCheckpoint,
+        history,
+        interrupt,
+        isHydrating,
+        isLoading,
+        messageMetadataById,
+        messages,
+        toolCalls,
+    } = session;
+    const ensureThreadSession = useChatStore((state) => state.ensureThreadSession);
+    const prepareBranchRun = useChatStore((state) => state.prepareBranchRun);
+    const prepareMessage = useChatStore((state) => state.prepareMessage);
+    const prepareReview = useChatStore((state) => state.prepareReview);
+    const selectBranch = useChatStore((state) => state.selectBranch);
+    const enqueueMessage = useStreamStore((state) => state.enqueueMessage);
+    const enqueueRegenerate = useStreamStore((state) => state.enqueueRegenerate);
+    const enqueueReview = useStreamStore((state) => state.enqueueReview);
+    const autoScroll = useScrollStore((state) => state.autoScroll);
+    const setAutoScroll = useScrollStore((state) => state.setAutoScroll);
     const virtuosoRef = useRef<VirtuosoHandle>(null);
 
-    // ── 切换线程时加载消息 ──
     useEffect(() => {
-        if (!selectedThreadId) return;
+        if (!selectedThreadId) {
+            return;
+        }
+
         void ensureThreadSession(selectedThreadId);
     }, [ensureThreadSession, selectedThreadId]);
 
-    // ── 构建虚拟列表数据项 ──
     const virtualItems: VirtualItem[] = useMemo(() => {
         const items: VirtualItem[] = messages.map((msg, idx) => ({
-            type: 'message' as const,
+            type: 'message',
             msg,
             idx,
         }));
 
         if (interrupt) {
-            items.push({ type: 'approval' as const });
+            items.push({ type: 'approval' });
         }
 
         if (isLoading) {
-            items.push({ type: 'typing' as const });
+            items.push({ type: 'typing' });
         }
 
         return items;
-    }, [messages, interrupt, isLoading]);
+    }, [interrupt, isLoading, messages]);
 
     const submit = useCallback((text: string) => {
         const messageId = createClientMessageId();
         prepareMessage(selectedThreadId, text, messageId);
-        enqueueMessage(selectedThreadId, text, messageId);
+        enqueueMessage(selectedThreadId, text, messageId, headCheckpoint, activeBranch);
         setAutoScroll(true);
-    }, [enqueueMessage, prepareMessage, selectedThreadId, setAutoScroll]);
+    }, [activeBranch, enqueueMessage, headCheckpoint, prepareMessage, selectedThreadId, setAutoScroll]);
 
+    const handleFollowOutput = useCallback(() => (
+        autoScroll ? 'auto' : false
+    ), [autoScroll]);
 
-
-    // ── followOutput: 新增项时自动跟随 ──
-    const handleFollowOutput = useCallback(() => {
-        return autoScroll ? 'auto' : false;
-    }, [autoScroll]);
-
-    // ── 用户滚动到底部时恢复自动跟随，离开底部时关闭 ──
-    // 注意：loading 期间不关闭 autoScroll，避免程序滚动引起的抖动循环
     const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
         if (atBottom) {
             setAutoScroll(true);
@@ -126,7 +153,6 @@ export default function MessageList() {
         }
     }, [isLoading, setAutoScroll]);
 
-    // ── 渲染单条虚拟列表项 ──
     const renderItem = useCallback((_index: number, item: VirtualItem) => {
         if (item.type === 'typing') {
             return (
@@ -155,7 +181,11 @@ export default function MessageList() {
                                 submitting={isLoading}
                                 onRespond={(response) => {
                                     prepareReview(selectedThreadId);
-                                    enqueueReview(selectedThreadId, response);
+                                    enqueueReview(selectedThreadId, {
+                                        ...response,
+                                        requestId: interrupt!.value.requestId,
+                                        checkpointId: headCheckpoint?.checkpoint_id ?? null,
+                                    });
                                     setAutoScroll(true);
                                 }}
                             />
@@ -165,62 +195,96 @@ export default function MessageList() {
             );
         }
 
-        // type === 'message'
-        const { msg, idx } = item;
-        const msgId = msg.id || `msg-${idx}`;
+        const { idx, msg } = item;
+        const msgId = typeof msg.id === 'string' ? msg.id : `msg-${idx}`;
         const isStreamingAiMessage =
             isLoading &&
             idx === messages.length - 1 &&
             AIMessage.isInstance(msg);
+        const metadata = messageMetadataById[msgId] ?? {
+            messageId: msgId,
+            branchOptions: [],
+            firstSeenState: undefined,
+            branch: undefined,
+        };
 
-        if (HumanMessage.isInstance(msg)) {
-            return (
-                <div className={`${styles.bubbleRow} ${styles.bubbleRowHuman}`}>
-                    <div className={`${styles.bubble} ${styles.bubbleHuman}`}>
-                        <CollapsibleBox
-                            collapseKey={msgId}
-                            tone="light"
-                            fade="human"
-                            maxCollapsedHeight={240}
-                        >
-                            <Markdown>{msg.text}</Markdown>
-                        </CollapsibleBox>
-                    </div>
-                </div>
-            );
-        }
+        return (
+            <MessageBubble
+                controlsDisabled={isLoading || isHydrating}
+                isStreamingAiMessage={isStreamingAiMessage}
+                key={msgId}
+                message={msg}
+                messageId={msgId}
+                messageToolCalls={AIMessage.isInstance(msg) ? getToolCallsForMessage(msg, toolCalls, messages) : []}
+                metadata={metadata}
+                onBranchSwitch={(branchId) => {
+                    selectBranch(selectedThreadId, branchId);
+                    setAutoScroll(true);
+                }}
+                onEdit={(text) => {
+                    const checkpoint = metadata?.firstSeenState?.parent_checkpoint ?? getThreadStartCheckpoint(selectedThreadId);
+                    const preferredBranch = activeBranch;
+                    const baseMessages = getCheckpointMessages(history, checkpoint.checkpoint_id);
+                    const optimisticMessages = [
+                        ...baseMessages,
+                        new HumanMessage({
+                            id: msgId,
+                            content: text,
+                        }),
+                    ];
 
-        if (AIMessage.isInstance(msg)) {
-            const messageToolCalls = getToolCallsForMessage(msg, toolCalls, messages);
-            return (
-                <div className={`${styles.bubbleRow} ${styles.bubbleRowAi}`}>
-                    <div className={styles.bubbleAvatar}>✦</div>
-                    <div className={`${styles.bubble} ${styles.bubbleAi}`}>
-                        {msg.text && (
-                            <CollapsibleBox
-                                collapseKey={msgId}
-                                freezeAutoCollapse={isStreamingAiMessage}
-                                maxCollapsedHeight={240}
-                            >
-                                <Markdown streaming={isStreamingAiMessage}>{msg.text}</Markdown>
-                            </CollapsibleBox>
-                        )}
-                        {messageToolCalls.length > 0 && (
-                            <div className={styles.toolCallsWrapper}>
-                                {messageToolCalls.map((tc: any, tcIdx: number) => (
-                                    <ToolCard key={tc.call?.id || tcIdx} toolCall={tc} />
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        }
+                    prepareBranchRun(selectedThreadId, {
+                        activeBranch: preferredBranch,
+                        headCheckpoint: checkpoint.checkpoint_id === THREAD_START_CHECKPOINT_ID ? null : checkpoint,
+                        interrupt: null,
+                        messageMetadataById: {},
+                        messages: optimisticMessages,
+                        toolCalls: [],
+                    });
+                    enqueueMessage(selectedThreadId, text, msgId, checkpoint, preferredBranch);
+                    setAutoScroll(true);
+                }}
+                onRegenerate={() => {
+                    const checkpoint = metadata?.firstSeenState?.parent_checkpoint;
+                    if (!checkpoint) {
+                        return;
+                    }
+                    const preferredBranch = activeBranch;
+                    const baseMessages = getCheckpointMessages(history, checkpoint.checkpoint_id);
 
-        return null;
-    }, [enqueueReview, interrupt, isLoading, messages, prepareReview, selectedThreadId, setAutoScroll, toolCalls]);
+                    prepareBranchRun(selectedThreadId, {
+                        activeBranch: preferredBranch,
+                        headCheckpoint: checkpoint,
+                        interrupt: null,
+                        messageMetadataById: {},
+                        messages: baseMessages,
+                        toolCalls: [],
+                    });
+                    enqueueRegenerate(selectedThreadId, checkpoint, preferredBranch);
+                    setAutoScroll(true);
+                }}
+            />
+        );
+    }, [
+        enqueueMessage,
+        enqueueRegenerate,
+        enqueueReview,
+        interrupt,
+        isHydrating,
+        isLoading,
+        activeBranch,
+        headCheckpoint,
+        history,
+        messageMetadataById,
+        messages,
+        prepareBranchRun,
+        prepareReview,
+        selectedThreadId,
+        selectBranch,
+        setAutoScroll,
+        toolCalls,
+    ]);
 
-    // ── 空状态 ──
     if (isHydrating && messages.length === 0) {
         return (
             <main className={styles.chatMessages}>
@@ -233,6 +297,16 @@ export default function MessageList() {
         return (
             <main className={styles.chatMessages}>
                 <PresetCards onSubmit={submit} />
+            </main>
+        );
+    }
+
+    if (messages.length === 0 && !isHydrating && history.length > 0) {
+        return (
+            <main className={styles.chatMessages}>
+                <div className={styles.presetsWrapper}>
+                    当前分支没有消息，可以继续在这个分支上提问。
+                </div>
             </main>
         );
     }

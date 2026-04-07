@@ -11,11 +11,12 @@ type ModelRunParams = {
     messages: BaseMessage[];
     threadId: string;
     status?: ThreadStatus;
+    parentCheckpointId?: string | null;
     sendEvent: SendEvent;
 };
 
 export async function modelCallAgent(params: ModelRunParams) {
-    const { messages, threadId, status = ThreadStatus.IDLE, sendEvent } = params;
+    const { messages, threadId, status = ThreadStatus.IDLE, parentCheckpointId, sendEvent } = params;
 
     emitValues(messages, sendEvent);
     const aiResponse = await streamModelCall(messages, sendEvent);
@@ -35,6 +36,8 @@ export async function modelCallAgent(params: ModelRunParams) {
             messages: serializeMessages(withoutSystemMessages(messages)),
         },
         status: toolCalls.length > 0 ? ThreadStatus.INTERRUPTED : status,
+    }, {
+        parentCheckpointId: parentCheckpointId ?? thread.checkpoint_id ?? null,
     });
 
     if (!toolCalls.length) {

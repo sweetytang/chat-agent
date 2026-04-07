@@ -19,7 +19,7 @@ export default defineConfig({
         },
     },
     server: {
-        port: 8002,
+        port: 8003,
         open: false,
     },
     build: {

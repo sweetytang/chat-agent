@@ -25,6 +25,10 @@ export interface HITLRequest {
 /** 用户的审核响应 */
 export interface HITLResponse {
     decision: "approve" | "reject" | "edit";
+    /** 当前审核卡片所属的 requestId，用于防止分支切换后的过期提交 */
+    requestId?: string;
+    /** 当前审核卡片所属的 checkpointId，用于确保恢复执行时仍落在正确分支 */
+    checkpointId?: string | null;
     /** reject 时的拒绝原因 */
     reason?: string;
     /** edit 时，按工具顺序提交的参数列表；未修改项保持原参数即可 */

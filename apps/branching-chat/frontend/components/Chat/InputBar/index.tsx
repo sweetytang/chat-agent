@@ -20,7 +20,7 @@ export default function InputBar() {
     const enqueueMessage = useStreamStore((s) => s.enqueueMessage);
     const stopThread = useStreamStore((s) => s.stopThread);
     const setAutoScroll = useScrollStore((s) => s.setAutoScroll);
-    const { isLoading, interrupt, isHydrating } = session;
+    const { activeBranch, headCheckpoint, isLoading, interrupt, isHydrating } = session;
 
     const [input, setInput] = useState('');
     const isAwaitingReview = Boolean(interrupt);
@@ -32,7 +32,7 @@ export default function InputBar() {
         const messageId = createClientMessageId();
         setInput('');
         prepareMessage(selectedThreadId, text, messageId);
-        enqueueMessage(selectedThreadId, text, messageId);
+        enqueueMessage(selectedThreadId, text, messageId, headCheckpoint, activeBranch);
         setAutoScroll(true);
     };
 
@@ -77,9 +77,11 @@ export default function InputBar() {
             <p className={styles.chatHint}>
                 {isHydrating
                     ? '正在加载当前线程内容...'
-                    : isAwaitingReview
-                        ? '请先完成当前工具审核，再继续发送消息'
-                        : 'Powered by TenaSourcing'}
+                    : activeBranch
+                        ? '当前正在分支上继续对话，新消息会沿当前分支继续，不会覆盖其他版本'
+                        : isAwaitingReview
+                            ? '请先完成当前工具审核，再继续发送消息'
+                            : 'Powered by TenaSourcing'}
             </p>
         </footer>
     );

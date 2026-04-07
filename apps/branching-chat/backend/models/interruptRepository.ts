@@ -9,6 +9,7 @@ interface StoredInterrupt {
     hitlRequest: HITLRequest;
     aiMessage: AIMessage;
     allMessages: BaseMessage[];
+    checkpointId?: string | null;
 };
 
 class InterruptRepository {
@@ -65,6 +66,7 @@ class InterruptRepository {
             }),
             aiMessage,
             allMessages: deserializeMessages(allMessagesSerialized),
+            checkpointId: record.checkpointId,
         };
     }
 
