@@ -7,13 +7,16 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "cd apps/generative-ui && pnpm run dev",
-    "start": "cd apps/generative-ui && pnpm run build && pnpm start"
+    "build": "cd apps/generative-ui && pnpm run build &&",
+    "start": "cd apps/generative-ui && pnpm start"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.32.1",
   "dependencies": {
+    "@json-render/core": "^0.16.0",
+    "@json-render/react": "^0.16.0",
     "@langchain/core": "^1.1.32",
     "@langchain/langgraph-sdk": "^1.7.2",
     "@langchain/openai": "^1.2.13",
@@ -23,20 +26,19 @@
     "@prisma/client": "^7.5.0",
     "better-sqlite3": "^12.8.0",
     "cors": "^2.8.6",
+    "cross-env": "^10.1.0",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "langchain": "^1.2.32",
     "prisma": "^7.5.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-markdown": "^10.1.0",
+    "react-virtuoso": "^4.18.4",
+    "remark-gfm": "^4.0.1",
     "sass": "^1.98.0",
     "zod": "^4.3.6",
-    "zustand": "^5.0.12",
-    "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1",
-    "react-virtuoso": "^4.18.4",
-    "@json-render/core": "^0.16.0",
-    "@json-render/react": "^0.16.0"
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

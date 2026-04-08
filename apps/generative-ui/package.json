@@ -4,10 +4,10 @@
   "description": "LangChain generative-ui demo",
   "type": "module",
   "scripts": {
-    "dev": "pnpm run dev:server & vite --config frontend/pack/vite.config.ts",
+    "dev": "cross-env NODE_ENV=development pnpm run dev:server & vite --config frontend/pack/vite.config.ts",
     "dev:server": "prisma db push --config ../../prisma.config.ts && tsx --watch backend/server.ts",
     "build": "prisma generate --config ../../prisma.config.ts && tsc && vite build --config frontend/pack/vite.config.ts",
-    "start": "tsx backend/server.ts",
+    "start": "cross-env NODE_ENV=production tsx backend/server.ts",
     "preview": "vite preview --config frontend/pack/vite.config.ts"
   }
 }

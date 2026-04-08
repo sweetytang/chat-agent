@@ -1,6 +1,6 @@
 export const SERVER_PORT = 3000;
 
-export const SERVER_URL = `http://localhost:${SERVER_PORT}`;
+export const SERVER_URL = process.env.NODE_ENV === 'production' ? 'https://ai.tenasourcing.com' : `http://localhost:${SERVER_PORT}`;
 
 export const ASSISTANT_ID = "generative-ui_agent";
 
