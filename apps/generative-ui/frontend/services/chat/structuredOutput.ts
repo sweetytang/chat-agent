@@ -6,6 +6,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isStringArray(value: unknown): value is string[] {
+    return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
 function parseStructuredOutputArgs(args: unknown): Partial<StructuredOutputPayload> | null {
     if (isRecord(args)) {
         return args as Partial<StructuredOutputPayload>;
@@ -48,10 +52,17 @@ export function hasStructuredOutputContent(payload: Partial<StructuredOutputPayl
         return false;
     }
 
+    const sections = Array.isArray(payload.sections)
+        ? payload.sections.filter((section) => isRecord(section) && typeof section.title === "string")
+        : [];
+    const comparisonRows = Array.isArray(payload.comparisonTable?.rows)
+        ? payload.comparisonTable.rows.filter((row) => isRecord(row) && isStringArray(row.values))
+        : [];
+
     return Boolean(
         payload.title
         || payload.summary
-        || payload.sections?.length
-        || payload.comparisonTable?.rows?.length,
+        || sections.length
+        || comparisonRows.length,
     );
 }

@@ -3,6 +3,8 @@ import { AIMessage, BaseMessage, HumanMessage } from '@langchain/core/messages';
 import { getMessageText } from '@common/utils/messageContent';
 import CollapsibleBox from '@frontend/components/CollapsibleBox';
 import Markdown from '@frontend/components/Markdown';
+import GenerativeUICard from '@frontend/components/Chat/MessageList/GenerativeUICard';
+import { extractGenerativeUiPayload, hasGenerativeUiContent, isGenerativeUiToolCall } from '@frontend/services/chat/generativeUi';
 import { extractAiDisplayContent } from '@frontend/services/chat/reasoning';
 import { extractStructuredOutputPayload, hasStructuredOutputContent, isStructuredOutputToolCall } from '@frontend/services/chat/structuredOutput';
 import type { ThreadMessageBranchMetadata } from '@frontend/types/chat';
@@ -48,8 +50,12 @@ export default function MessageBubble({
     const aiDisplayContent = isAiMessage ? extractAiDisplayContent(message) : null;
     const aiMessageText = aiDisplayContent?.text ?? getMessageText(message);
     const reasoningText = aiDisplayContent?.reasoningText ?? '';
+    const generativeUi = extractGenerativeUiPayload(message, messageToolCalls);
     const structuredOutput = extractStructuredOutputPayload(message, messageToolCalls);
-    const actionableToolCalls = messageToolCalls.filter((toolCall) => !isStructuredOutputToolCall(toolCall));
+    const actionableToolCalls = messageToolCalls.filter((toolCall) => (
+        !isStructuredOutputToolCall(toolCall) && !isGenerativeUiToolCall(toolCall)
+    ));
+    const hasGenerativeUi = hasGenerativeUiContent(generativeUi);
     const hasStructuredContent = hasStructuredOutputContent(structuredOutput);
     const isToolInvocationMessage = isAiMessage && actionableToolCalls.length > 0;
     const canEdit = isHumanMessage;
@@ -152,6 +158,12 @@ export default function MessageBubble({
                         >
                             <Markdown streaming={isStreamingAiMessage}>{aiMessageText}</Markdown>
                         </CollapsibleBox>
+                    )}
+                    {hasGenerativeUi && generativeUi && (
+                        <GenerativeUICard
+                            data={generativeUi}
+                            isStreaming={isStreamingAiMessage}
+                        />
                     )}
                     {hasStructuredContent && structuredOutput && (
                         <StructuredOutputCard

@@ -44,7 +44,7 @@ export function ToolCard({ toolCall }: { toolCall: any }) {
 
     return (
         <CollapsibleBox
-            collapseKey={`tool-${toolCall.id ?? toolCall.call?.id ?? toolCall.call?.name}-${toolCall.state ?? "unknown"}`}
+            collapseKey={`tool-${toolCall.id ?? toolCall.call?.id ?? toolCall.call?.name}`}
             maxCollapsedHeight={300}
             expandLabel="展开工具卡片"
             collapseLabel="收起工具卡片"

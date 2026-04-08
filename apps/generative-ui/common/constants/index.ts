@@ -5,6 +5,7 @@ export const SERVER_URL = `http://localhost:${SERVER_PORT}`;
 export const ASSISTANT_ID = "generative-ui_agent";
 
 export const STRUCTURED_OUTPUT_TOOL_NAME = "present_structured_answer";
+export const GENERATIVE_UI_TOOL_NAME = "present_generative_ui";
 
 export const DRAFT_THREAD_ID = "__draft__";
 

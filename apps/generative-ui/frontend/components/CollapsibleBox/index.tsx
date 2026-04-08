@@ -17,6 +17,8 @@ interface CollapsibleBoxProps {
     fade?: CollapsibleFade;
 }
 
+const collapseStateMemory = new Map<string, boolean>();
+
 export default function CollapsibleBox({
     collapseKey,
     children,
@@ -32,14 +34,12 @@ export default function CollapsibleBox({
     const contentId = useId();
     const contentInnerRef = useRef<HTMLDivElement | null>(null);
     const [contentHeight, setContentHeight] = useState(0);
-    const [isExpanded, setIsExpanded] = useState(true);
-    const [hasManualToggle, setHasManualToggle] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(() => collapseStateMemory.get(collapseKey) ?? true);
 
     const isCollapsible = contentHeight > maxCollapsedHeight + 4;
 
     useLayoutEffect(() => {
-        setHasManualToggle(false);
-        setIsExpanded(true);
+        setIsExpanded(collapseStateMemory.get(collapseKey) ?? true);
     }, [collapseKey]);
 
     useLayoutEffect(() => {
@@ -112,8 +112,11 @@ export default function CollapsibleBox({
                     className={`${styles.collapsibleToggleBtn} ${tone === "light" ? styles.collapsibleToggleBtnLight : styles.collapsibleToggleBtnAccent
                         }`}
                     onClick={() => {
-                        setHasManualToggle(true);
-                        setIsExpanded((current) => !current);
+                        setIsExpanded((current) => {
+                            const nextValue = !current;
+                            collapseStateMemory.set(collapseKey, nextValue);
+                            return nextValue;
+                        });
                     }}
                 >
                     {isExpanded ? collapseLabel : expandLabel}

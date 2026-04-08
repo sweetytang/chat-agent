@@ -22,8 +22,10 @@ export default function InputBar() {
     const stopThread = useStreamStore((s) => s.stopThread);
     const setAutoScroll = useScrollStore((s) => s.setAutoScroll);
     const deepThinkingEnabled = useChatPreferencesStore((s) => s.deepThinkingEnabled);
+    const generativeUiEnabled = useChatPreferencesStore((s) => s.generativeUiEnabled);
     const structuredOutputEnabled = useChatPreferencesStore((s) => s.structuredOutputEnabled);
     const toggleDeepThinking = useChatPreferencesStore((s) => s.toggleDeepThinking);
+    const toggleGenerativeUi = useChatPreferencesStore((s) => s.toggleGenerativeUi);
     const toggleStructuredOutput = useChatPreferencesStore((s) => s.toggleStructuredOutput);
     const { activeBranch, headCheckpoint, isLoading, interrupt, isHydrating } = session;
 
@@ -51,6 +53,7 @@ export default function InputBar() {
             activeBranch,
             {
                 deepThinkingEnabled,
+                generativeUiEnabled,
                 structuredOutputEnabled,
             },
         );
@@ -66,6 +69,7 @@ export default function InputBar() {
 
     const queueSize = queuedCommands.length;
     const sendButtonLabel = isBusy ? '加入队列' : '发送';
+    const primaryButtonLabel = isLoading ? '停止当前回复' : sendButtonLabel;
     const hintText = (() => {
         if (isHydrating) {
             return '正在加载当前线程内容...';
@@ -93,6 +97,10 @@ export default function InputBar() {
 
         if (activeBranch) {
             return '当前正在分支上继续对话，新消息会沿当前分支继续，不会覆盖其他版本';
+        }
+
+        if (generativeUiEnabled) {
+            return '生成式 UI 已开启，助手会优先返回可直接渲染的组件树';
         }
 
         if (structuredOutputEnabled) {
@@ -132,6 +140,20 @@ export default function InputBar() {
                         <button
                             className={styles.modeBtn}
                             type="button"
+                            onClick={toggleGenerativeUi}
+                            disabled={isModeToggleDisabled}
+                            aria-pressed={generativeUiEnabled}
+                            data-active={generativeUiEnabled ? 'true' : 'false'}
+                            data-variant="generative"
+                        >
+                            <span className={styles.modeBtnIcon} aria-hidden="true">
+                                <span className={styles.modeBtnIconCore} />
+                            </span>
+                            <span className={styles.modeBtnLabel}>生成式 UI</span>
+                        </button>
+                        <button
+                            className={styles.modeBtn}
+                            type="button"
                             onClick={toggleStructuredOutput}
                             disabled={isModeToggleDisabled}
                             aria-pressed={structuredOutputEnabled}
@@ -141,30 +163,26 @@ export default function InputBar() {
                             <span className={styles.modeBtnIcon} aria-hidden="true">
                                 <span className={styles.modeBtnIconCore} />
                             </span>
-                            <span className={styles.modeBtnLabel}>结构化输出</span>
+                            <span className={styles.modeBtnLabel}>结构化卡片</span>
                         </button>
                     </div>
                     <div className={styles.submitActions}>
-                        {isLoading && (
-                            <button
-                                className={styles.stopBtn}
-                                type="button"
-                                onClick={() => stopThread(selectedThreadId)}
-                                aria-label="停止当前回复"
-                                title="停止当前回复"
-                            >
-                                ⏹
-                            </button>
-                        )}
                         <button
-                            className={`${styles.sendBtn} ${input.trim() && !isDisabled ? styles.sendBtnActive : ''}`}
+                            className={`${styles.primaryActionBtn} ${isLoading ? styles.primaryActionBtnStop : input.trim() && !isDisabled ? styles.primaryActionBtnActive : ''}`}
                             type="button"
-                            onClick={() => handleSubmit(input)}
-                            disabled={!input.trim() || isDisabled}
-                            aria-label={sendButtonLabel}
-                            title={sendButtonLabel}
+                            onClick={() => {
+                                if (isLoading) {
+                                    stopThread(selectedThreadId);
+                                    return;
+                                }
+
+                                handleSubmit(input);
+                            }}
+                            disabled={isLoading ? false : !input.trim() || isDisabled}
+                            aria-label={primaryButtonLabel}
+                            title={primaryButtonLabel}
                         >
-                            ↑
+                            {isLoading ? '⏹' : '↑'}
                         </button>
                     </div>
                 </div>

@@ -34,11 +34,16 @@ function getRequestedCheckpointId(body: any): string | null {
 
 function getRunMetadata(body: any): RunMetadata {
     const deepThinkingEnabled = body?.metadata?.deepThinkingEnabled;
+    const generativeUiEnabled = body?.metadata?.generativeUiEnabled;
     const structuredOutputEnabled = body?.metadata?.structuredOutputEnabled;
     const metadata: RunMetadata = {};
 
     if (typeof deepThinkingEnabled === "boolean") {
         metadata.deepThinkingEnabled = deepThinkingEnabled;
+    }
+
+    if (typeof generativeUiEnabled === "boolean") {
+        metadata.generativeUiEnabled = generativeUiEnabled;
     }
 
     if (typeof structuredOutputEnabled === "boolean") {
@@ -53,6 +58,10 @@ function toRuntimeOptions(metadata: RunMetadata): ModelRuntimeOptions {
 
     if (typeof metadata.deepThinkingEnabled === "boolean") {
         runtimeOptions.deepThinkingEnabled = metadata.deepThinkingEnabled;
+    }
+
+    if (typeof metadata.generativeUiEnabled === "boolean") {
+        runtimeOptions.generativeUiEnabled = metadata.generativeUiEnabled;
     }
 
     if (typeof metadata.structuredOutputEnabled === "boolean") {

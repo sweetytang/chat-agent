@@ -71,6 +71,7 @@ export default function ThreadStreamWorker({ workerId }: ThreadStreamWorkerProps
     const logout = useAuthStore((s) => s.logout);
     const token = useAuthStore((s) => s.token);
     const deepThinkingEnabled = useChatPreferencesStore((s) => s.deepThinkingEnabled);
+    const generativeUiEnabled = useChatPreferencesStore((s) => s.generativeUiEnabled);
     const structuredOutputEnabled = useChatPreferencesStore((s) => s.structuredOutputEnabled);
 
     const runtimeThreadId = runtime?.threadId ?? null;
@@ -252,6 +253,7 @@ export default function ThreadStreamWorker({ workerId }: ThreadStreamWorkerProps
         latestOperationCheckpointRef.current = getCommandCheckpointId(nextQueuedCommand);
         const metadata = getCommandMetadata(nextQueuedCommand) ?? {
             deepThinkingEnabled,
+            generativeUiEnabled,
             structuredOutputEnabled,
         };
 
@@ -289,6 +291,7 @@ export default function ThreadStreamWorker({ workerId }: ThreadStreamWorkerProps
     }, [
         consumeQueuedCommand,
         deepThinkingEnabled,
+        generativeUiEnabled,
         nextQueuedCommand,
         prepareMessage,
         runtime,

@@ -1,11 +1,11 @@
-import { BaseMessage } from "@langchain/core/messages";
+import { BaseMessage, ToolMessage } from "@langchain/core/messages";
 import { serializeMessages } from "./messageSerde.js";
-import { buildHITLRequest, emitValues, getToolCalls, withoutSystemMessages } from "./messageState.js";
+import { buildHITLRequest, emitValues, getToolCalls, sanitizeMessagesForModel, withoutSystemMessages } from "./messageState.js";
 import { streamModelCall } from "./streamModelCall.js";
 import { interruptRepository } from "../../models/interruptRepository.js";
 import { threadRepository } from "../../models/threadRepository.js";
 import type { ModelRuntimeOptions } from "../ai/providerConfig.js";
-import { getExecutableToolCalls } from "../ai/tools/index.js";
+import { createPresentationToolMessage, getExecutableToolCalls, sendToolMessage } from "../ai/tools/index.js";
 import { SendEvent } from "@backend/types";
 import { ThreadStatus } from '@common/types/thread';
 
@@ -22,10 +22,20 @@ export async function modelCallAgent(params: ModelRunParams) {
     const { messages, threadId, status = ThreadStatus.IDLE, parentCheckpointId, runtimeOptions = {}, sendEvent } = params;
 
     emitValues(messages, sendEvent);
-    const aiResponse = await streamModelCall(messages, sendEvent, runtimeOptions);
+    const aiResponse = await streamModelCall(
+        sanitizeMessagesForModel(messages),
+        sendEvent,
+        runtimeOptions,
+    );
     messages.push(aiResponse);
+    const presentationToolMessages = getToolCalls(aiResponse)
+        .map(createPresentationToolMessage)
+        .filter((toolMessage): toolMessage is ToolMessage => toolMessage !== null);
+    for (const toolMessage of presentationToolMessages) {
+        messages.push(toolMessage);
+        sendToolMessage(sendEvent, toolMessage);
+    }
     emitValues(messages, sendEvent);
-    sendEvent("end", null);
 
     const thread = await threadRepository.get(threadId);
     if (!thread) {
@@ -44,6 +54,7 @@ export async function modelCallAgent(params: ModelRunParams) {
     });
 
     if (!toolCalls.length) {
+        sendEvent("end", null);
         return;
     }
 
@@ -54,4 +65,5 @@ export async function modelCallAgent(params: ModelRunParams) {
     }, persistedThread.checkpoint_id);
 
     console.log(`[HITL] Thread ${threadId} interrupted — ${toolCalls.length} tool(s) pending review`);
+    sendEvent("end", null);
 }

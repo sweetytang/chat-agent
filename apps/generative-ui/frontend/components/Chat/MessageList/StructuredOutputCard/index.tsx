@@ -25,10 +25,16 @@ export default function StructuredOutputCard({
     data,
     isStreaming = false,
 }: StructuredOutputCardProps) {
-    const highlights = Array.isArray(data.highlights) ? data.highlights : [];
-    const sections = Array.isArray(data.sections) ? data.sections : [];
+    const highlights = Array.isArray(data.highlights)
+        ? data.highlights.filter((highlight) => highlight && typeof highlight.label === "string")
+        : [];
+    const sections = Array.isArray(data.sections)
+        ? data.sections.filter((section) => section && typeof section.title === "string")
+        : [];
     const comparisonColumns = Array.isArray(data.comparisonTable?.columns) ? data.comparisonTable.columns : [];
-    const comparisonRows = Array.isArray(data.comparisonTable?.rows) ? data.comparisonTable.rows : [];
+    const comparisonRows = Array.isArray(data.comparisonTable?.rows)
+        ? data.comparisonTable.rows.filter((row) => row && Array.isArray(row.values))
+        : [];
     const nextSteps = Array.isArray(data.nextSteps) ? data.nextSteps : [];
 
     return (
@@ -77,7 +83,7 @@ export default function StructuredOutputCard({
                             {comparisonRows.map((row, rowIndex) => (
                                 <tr key={`${row.label}-${rowIndex}`}>
                                     <td>{row.label}</td>
-                                    {row.values.map((value, valueIndex) => (
+                                    {(Array.isArray(row.values) ? row.values : []).map((value, valueIndex) => (
                                         <td key={`${row.label}-${valueIndex}`}>{value}</td>
                                     ))}
                                 </tr>

@@ -106,14 +106,24 @@ export default function MessageList() {
     const enqueueRegenerate = useStreamStore((state) => state.enqueueRegenerate);
     const enqueueReview = useStreamStore((state) => state.enqueueReview);
     const deepThinkingEnabled = useChatPreferencesStore((state) => state.deepThinkingEnabled);
+    const generativeUiEnabled = useChatPreferencesStore((state) => state.generativeUiEnabled);
     const structuredOutputEnabled = useChatPreferencesStore((state) => state.structuredOutputEnabled);
     const autoScroll = useScrollStore((state) => state.autoScroll);
     const setAutoScroll = useScrollStore((state) => state.setAutoScroll);
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const runMetadata = useMemo(() => ({
         deepThinkingEnabled,
+        generativeUiEnabled,
         structuredOutputEnabled,
-    }), [deepThinkingEnabled, structuredOutputEnabled]);
+    }), [deepThinkingEnabled, generativeUiEnabled, structuredOutputEnabled]);
+    const toolLookupMessages = useMemo(() => {
+        if (!headCheckpoint?.checkpoint_id) {
+            return messages;
+        }
+
+        const currentState = history.find((item) => item.checkpoint?.checkpoint_id === headCheckpoint.checkpoint_id);
+        return Array.isArray(currentState?.values?.messages) ? currentState.values.messages : messages;
+    }, [headCheckpoint?.checkpoint_id, history, messages]);
 
     useEffect(() => {
         if (!selectedThreadId) {
@@ -224,7 +234,7 @@ export default function MessageList() {
                 key={msgId}
                 message={msg}
                 messageId={msgId}
-                messageToolCalls={AIMessage.isInstance(msg) ? getToolCallsForMessage(msg, toolCalls, messages) : []}
+                messageToolCalls={AIMessage.isInstance(msg) ? getToolCallsForMessage(msg, toolCalls, toolLookupMessages) : []}
                 metadata={metadata}
                 onBranchSwitch={(branchId) => {
                     selectBranch(selectedThreadId, branchId);

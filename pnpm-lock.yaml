@@ -8,6 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@json-render/core':
+        specifier: ^0.16.0
+        version: 0.16.0(zod@4.3.6)
+      '@json-render/react':
+        specifier: ^0.16.0
+        version: 0.16.0(react@19.2.4)(zod@4.3.6)
       '@langchain/core':
         specifier: ^1.1.32
         version: 1.1.32(openai@6.29.0(zod@4.3.6))
@@ -53,9 +59,15 @@ importers:
       react-dom:
         specifier: ^19.2.4
         version: 19.2.4(react@19.2.4)
+      react-markdown:
+        specifier: ^10.1.0
+        version: 10.1.0(@types/react@19.2.14)(react@19.2.4)
       react-virtuoso:
         specifier: ^4.18.4
         version: 4.18.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
       sass:
         specifier: ^1.98.0
         version: 1.98.0
@@ -94,34 +106,25 @@ importers:
         specifier: ^6.0.0
         version: 6.4.1(@types/node@25.5.0)(jiti@2.6.1)(sass@1.98.0)(tsx@4.21.0)
 
+  apps/branching-chat: {}
+
+  apps/generative-ui: {}
+
   apps/hello-prisma: {}
 
-  apps/human-in-the-loop:
-    dependencies:
-      react-markdown:
-        specifier: ^10.1.0
-        version: 10.1.0(@types/react@19.2.14)(react@19.2.4)
-      remark-gfm:
-        specifier: ^4.0.1
-        version: 4.0.1
+  apps/human-in-the-loop: {}
 
-  apps/markdown-messages:
-    dependencies:
-      react-markdown:
-        specifier: ^10.1.0
-        version: 10.1.0(@types/react@19.2.14)(react@19.2.4)
-      remark-gfm:
-        specifier: ^4.0.1
-        version: 4.0.1
+  apps/join-rejoin: {}
 
-  apps/tool-calling:
-    dependencies:
-      react-markdown:
-        specifier: ^10.1.0
-        version: 10.1.0(@types/react@19.2.14)(react@19.2.4)
-      remark-gfm:
-        specifier: ^4.0.1
-        version: 4.0.1
+  apps/markdown-messages: {}
+
+  apps/message-queues: {}
+
+  apps/reasoning-tokens: {}
+
+  apps/structured-output: {}
+
+  apps/tool-calling: {}
 
 packages:
 
@@ -570,6 +573,16 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@json-render/core@0.16.0':
+    resolution: {integrity: sha512-qQp8BB/3pWYapTGXBDSBMXRCdrC05VJPLL3drXMPX/QbUB3nuvtyXUGmAZFUz8eLUy7JImODvb3GNIq38dGzhQ==}
+    peerDependencies:
+      zod: ^4.0.0
+
+  '@json-render/react@0.16.0':
+    resolution: {integrity: sha512-PJQjLftGYZ5LNlA1IFww+yNOAJZRW2feEcH/L10u/8M/b/zImr9wfqQVMDyC87myoEzhyucpkQ6joISeZdKxsw==}
+    peerDependencies:
+      react: ^19.2.3
 
   '@langchain/core@1.1.32':
     resolution: {integrity: sha512-ZZNiER5tceFXqZOghfrxNHzM60gcQL5XK/8Ow5+o4OuKHrP1p/RUQBDM9Y1nddi/VmKQj+ncaXXM5KovXTEGGQ==}
@@ -2588,6 +2601,17 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@json-render/core@0.16.0(zod@4.3.6)':
+    dependencies:
+      zod: 4.3.6
+
+  '@json-render/react@0.16.0(react@19.2.4)(zod@4.3.6)':
+    dependencies:
+      '@json-render/core': 0.16.0(zod@4.3.6)
+      react: 19.2.4
+    transitivePeerDependencies:
+      - zod
 
   '@langchain/core@1.1.32(openai@6.29.0(zod@4.3.6))':
     dependencies:

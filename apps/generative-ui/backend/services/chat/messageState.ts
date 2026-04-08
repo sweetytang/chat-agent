@@ -4,6 +4,7 @@ import { MessageTypeEnum } from "@common/types";
 import { HITLRequest, DecisionEnum } from "@common/types/interrupt";
 import { IThreadDTO } from '@common/types/thread'
 import { SendEvent } from "@backend/types";
+import { isPresentationToolCall } from "../ai/tools/index.js";
 
 export function rebuildHistory(thread: IThreadDTO): BaseMessage[] {
     return deserializeMessages(thread.values?.messages || []);
@@ -38,6 +39,34 @@ export function withoutSystemMessages(messages: BaseMessage[]): BaseMessage[] {
 export function emitValues(messages: BaseMessage[], sendEvent: SendEvent) {
     sendEvent("values", {
         messages: serializeMessages(withoutSystemMessages(messages)),
+    });
+}
+
+export function sanitizeMessagesForModel(messages: BaseMessage[]): BaseMessage[] {
+    return messages.map((message) => {
+        if (!AIMessage.isInstance(message)) {
+            return message;
+        }
+
+        const toolCalls = Array.isArray((message as any).tool_calls) ? (message as any).tool_calls : [];
+        const invalidToolCalls = Array.isArray((message as any).invalid_tool_calls) ? (message as any).invalid_tool_calls : [];
+        const safeToolCalls = toolCalls.filter((toolCall: any) => !isPresentationToolCall(toolCall));
+        const safeInvalidToolCalls = invalidToolCalls.filter((toolCall: any) => !isPresentationToolCall(toolCall));
+
+        if (safeToolCalls.length === toolCalls.length && safeInvalidToolCalls.length === invalidToolCalls.length) {
+            return message;
+        }
+
+        return new AIMessage({
+            content: message.content,
+            id: message.id,
+            ...(typeof (message as any).name === "string" ? { name: (message as any).name } : {}),
+            ...((message as any).additional_kwargs ? { additional_kwargs: (message as any).additional_kwargs } : {}),
+            ...((message as any).response_metadata ? { response_metadata: (message as any).response_metadata } : {}),
+            ...((message as any).usage_metadata ? { usage_metadata: (message as any).usage_metadata } : {}),
+            ...(safeToolCalls.length > 0 ? { tool_calls: safeToolCalls as any } : {}),
+            ...(safeInvalidToolCalls.length > 0 ? { invalid_tool_calls: safeInvalidToolCalls as any } : {}),
+        } as any);
     });
 }
 

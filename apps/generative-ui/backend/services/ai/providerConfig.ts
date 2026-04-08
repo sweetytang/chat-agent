@@ -1,6 +1,6 @@
 import type { RunMetadata } from "@common/types/run";
 
-export type ModelRuntimeOptions = Pick<RunMetadata, "deepThinkingEnabled" | "structuredOutputEnabled">;
+export type ModelRuntimeOptions = Pick<RunMetadata, "deepThinkingEnabled" | "generativeUiEnabled" | "structuredOutputEnabled">;
 
 type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
 type ReasoningSummary = "auto" | "concise" | "detailed";

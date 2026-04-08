@@ -13,7 +13,7 @@ interface PresetCardsProps {
 export default function PresetCards({ onSubmit }: PresetCardsProps) {
     return (
         <div className={styles.presetsWrapper}>
-            <p className={styles.presetsLabel}>试试这些更适合结构化输出的提示词：</p>
+            <p className={styles.presetsLabel}>试试这些更适合结构化卡片或生成式 UI 的提示词：</p>
             <div className={styles.presetsGrid}>
                 {PRESETS.map((p) => (
                     <button

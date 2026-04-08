@@ -26,6 +26,7 @@ function getModelCacheKey(runtimeOptions: ModelRuntimeOptions) {
     return JSON.stringify({
         baseUrl,
         deepSeekThinkingMode,
+        generativeUiEnabled: runtimeOptions.generativeUiEnabled === true,
         modelName,
         reasoning,
         reasoningModel,
