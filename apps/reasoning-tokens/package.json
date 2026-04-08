@@ -4,12 +4,10 @@
   "description": "LangChain reasoning tokens demo",
   "type": "module",
   "scripts": {
-    "start": "pnpm run dev:server & pnpm run dev",
-    "dev": "vite --config frontend/pack/vite.config.ts",
-    "db:push": "prisma db push --config ../../prisma.config.ts",
-    "prisma:generate": "prisma generate --config ../../prisma.config.ts",
-    "dev:server": "pnpm run db:push && tsx --watch backend/server.ts",
-    "build": "pnpm run prisma:generate && tsc && vite build --config frontend/pack/vite.config.ts",
+    "dev": "pnpm run dev:server & vite --config frontend/pack/vite.config.ts",
+    "dev:server": "prisma db push --config ../../prisma.config.ts && tsx --watch backend/server.ts",
+    "build": "prisma generate --config ../../prisma.config.ts && tsc && vite build --config frontend/pack/vite.config.ts",
+    "start": "tsx backend/server.ts",
     "preview": "vite preview --config frontend/pack/vite.config.ts"
   }
 }

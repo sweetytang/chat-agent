@@ -4,8 +4,7 @@
   "description": "LangChain tool calling demo",
   "type": "module",
   "scripts": {
-    "start": "pnpm run dev:server & pnpm run dev",
-    "dev": "vite",
+    "dev": "pnpm run dev:server & vite",
     "dev:server": "tsx --watch src/services/server.ts",
     "build": "tsc && vite build",
     "preview": "vite preview"

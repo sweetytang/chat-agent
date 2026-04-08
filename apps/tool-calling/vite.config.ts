@@ -5,7 +5,7 @@ export default defineConfig({
     // root: "../", // 修正 Vite 项目的根目录，让它回到 package.json 这一级来寻找 index.html
     plugins: [react()],
     server: {
-        port: 8001,
+        port: 8000,
         open: true,
     },
     css: {

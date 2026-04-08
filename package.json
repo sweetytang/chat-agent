@@ -1,11 +1,13 @@
 {
-  "name": "langchain-tuitor",
+  "name": "chat-agent",
   "version": "1.0.0",
-  "description": "",
+  "description": "A LangChain monorepo for building chat agents with tool calling, structured output, reasoning tokens, message queues, branching chat, human-in-the-loop, and generative UI.",
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "cd apps/generative-ui && pnpm run dev",
+    "start": "cd apps/generative-ui && pnpm run build && pnpm start"
   },
   "keywords": [],
   "author": "",
