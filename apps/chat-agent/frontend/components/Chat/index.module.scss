@@ -1,0 +1,78 @@
+.chat-root {
+    display: flex;
+    min-height: 100vh;
+    background: var(--bg);
+}
+
+.chat-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-header {
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+}
+
+.chat-header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 20px 24px;
+}
+
+.chat-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.chat-subtitle {
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.branch-pill-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.branch-pill {
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(79, 124, 255, 0.12);
+    border: 1px solid rgba(79, 124, 255, 0.35);
+    color: #dce6ff;
+    font-size: 12px;
+}
+
+.branch-reset-button {
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+@media (max-width: 900px) {
+    .chat-root {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 720px) {
+    .chat-header-inner {
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 16px;
+    }
+}

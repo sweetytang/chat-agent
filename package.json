@@ -6,9 +6,9 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "cd apps/generative-ui && pnpm run dev",
-    "build": "cd apps/generative-ui && pnpm run build &&",
-    "start": "cd apps/generative-ui && pnpm start"
+    "dev": "cd apps/chat-agent && pnpm run dev",
+    "build": "cd apps/chat-agent && pnpm run build",
+    "start": "cd apps/chat-agent && pnpm start"
   },
   "keywords": [],
   "author": "",
@@ -18,6 +18,8 @@
     "@json-render/core": "^0.16.0",
     "@json-render/react": "^0.16.0",
     "@langchain/core": "^1.1.32",
+    "@langchain/langgraph": "1.2.2",
+    "@langchain/langgraph-checkpoint": "1.0.0",
     "@langchain/langgraph-sdk": "^1.7.2",
     "@langchain/openai": "^1.2.13",
     "@langchain/react": "^0.1.3",
@@ -37,10 +39,12 @@
     "react-virtuoso": "^4.18.4",
     "remark-gfm": "^4.0.1",
     "sass": "^1.98.0",
+    "uuid": "^13.0.0",
     "zod": "^4.3.6",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@langchain/langgraph-cli": "^1.1.17",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.5.0",

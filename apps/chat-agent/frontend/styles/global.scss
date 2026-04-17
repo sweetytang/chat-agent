@@ -1,0 +1,41 @@
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+:root {
+    --bg: #11151b;
+    --surface: #171c24;
+    --surface-2: #1d2430;
+    --border: #313b4a;
+    --accent: #4f7cff;
+    --accent-light: #8fb1ff;
+    --human-bubble: #4f7cff;
+    --ai-bubble: #171c24;
+    --text: #edf2f8;
+    --text-muted: #96a1b3;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+    --font: "SF Pro Text", "Segoe UI", sans-serif;
+    --font-mono: "SFMono-Regular", "Consolas", monospace;
+}
+
+html, body, #root {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+}
+
+body {
+    margin: 0;
+}
+
+button,
+input,
+textarea {
+    font: inherit;
+}

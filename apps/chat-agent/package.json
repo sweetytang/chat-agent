@@ -1,0 +1,16 @@
+{
+  "name": "chat-agent",
+  "version": "1.0.0",
+  "description": "chat agent based on langgraph and langchain",
+  "type": "module",
+  "scripts": {
+    "dev": "VITE_LANGGRAPH_API_URL=${VITE_LANGGRAPH_API_URL:-http://localhost:${LANGGRAPH_CLI_PORT:-2024}} pnpm run dev:server & VITE_LANGGRAPH_API_URL=${VITE_LANGGRAPH_API_URL:-http://localhost:${LANGGRAPH_CLI_PORT:-2024}} vite --config frontend/pack/vite.config.ts",
+    "dev:server": "langgraphjs dev --config ./langgraph.json --no-browser --port ${LANGGRAPH_CLI_PORT:-2024}",
+    "build": "tsc && vite build --config frontend/pack/vite.config.ts",
+    "start": "langgraphjs dev --config ./langgraph.json --no-browser --port ${LANGGRAPH_CLI_PORT:-2024}",
+    "preview": "vite preview --config frontend/pack/vite.config.ts"
+  },
+  "devDependencies": {
+    "@langchain/langgraph-cli": "^1.1.17"
+  }
+}
