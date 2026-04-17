@@ -6,9 +6,9 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "cd apps/chat-agent && pnpm run dev",
-    "build": "cd apps/chat-agent && pnpm run build",
-    "start": "cd apps/chat-agent && pnpm start"
+    "dev": "cd apps/generative-ui && pnpm run dev",
+    "build": "cd apps/generative-ui && pnpm run build",
+    "start": "cd apps/generative-ui && pnpm start"
   },
   "keywords": [],
   "author": "",

@@ -4,11 +4,13 @@
   "description": "chat agent based on langgraph and langchain",
   "type": "module",
   "scripts": {
-    "dev": "VITE_LANGGRAPH_API_URL=${VITE_LANGGRAPH_API_URL:-http://localhost:${LANGGRAPH_CLI_PORT:-2024}} pnpm run dev:server & VITE_LANGGRAPH_API_URL=${VITE_LANGGRAPH_API_URL:-http://localhost:${LANGGRAPH_CLI_PORT:-2024}} vite --config frontend/pack/vite.config.ts",
-    "dev:server": "langgraphjs dev --config ./langgraph.json --no-browser --port ${LANGGRAPH_CLI_PORT:-2024}",
+    "dev": "pnpm run dev:server & pnpm run dev:web",
+    "dev:server": "langgraphjs dev --config ./langgraph.json --no-browser --host ${LANGGRAPH_HOST:-0.0.0.0} --port ${LANGGRAPH_CLI_PORT:-2024}",
+    "dev:web": "vite --config frontend/pack/vite.config.ts --host ${WEB_HOST:-0.0.0.0} --port ${WEB_PORT:-8000}",
     "build": "tsc && vite build --config frontend/pack/vite.config.ts",
-    "start": "langgraphjs dev --config ./langgraph.json --no-browser --port ${LANGGRAPH_CLI_PORT:-2024}",
-    "preview": "vite preview --config frontend/pack/vite.config.ts"
+    "start": "pnpm run start:server & pnpm run start:web",
+    "start:server": "langgraphjs dev --config ./langgraph.json --no-browser --host ${LANGGRAPH_HOST:-0.0.0.0} --port ${LANGGRAPH_CLI_PORT:-2024}",
+    "start:web": "vite preview --config frontend/pack/vite.config.ts --host ${WEB_HOST:-0.0.0.0} --port ${WEB_PORT:-8000}"
   },
   "devDependencies": {
     "@langchain/langgraph-cli": "^1.1.17"
