@@ -1,8 +1,8 @@
-export const SERVER_PORT = 3000;
+export const SERVER_PORT = 3002;
 
 export const SERVER_URL = process.env.NODE_ENV === 'production' ? 'https://ai.tenasourcing.com' : `http://localhost:${SERVER_PORT}`;
 
-export const ASSISTANT_ID = "generative-ui_agent";
+export const ASSISTANT_ID = "chat-agent-self";
 
 export const STRUCTURED_OUTPUT_TOOL_NAME = "present_structured_answer";
 export const GENERATIVE_UI_TOOL_NAME = "present_generative_ui";

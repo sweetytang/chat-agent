@@ -1,7 +1,7 @@
 {
-  "name": "generative-ui",
+  "name": "chat-agent-self",
   "version": "1.0.0",
-  "description": "LangChain generative-ui demo",
+  "description": "chat-agent-self",
   "type": "module",
   "scripts": {
     "dev": "cross-env NODE_ENV=development pnpm run dev:server & vite --config frontend/pack/vite.config.ts",
