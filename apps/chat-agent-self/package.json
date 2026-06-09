@@ -9,5 +9,8 @@
     "build": "prisma generate --config ../../prisma.config.ts && tsc && vite build --config frontend/pack/vite.config.ts",
     "start": "cross-env NODE_ENV=production tsx backend/server.ts",
     "preview": "vite preview --config frontend/pack/vite.config.ts"
+  },
+  "engines": {
+    "node": ">=25.0.0"
   }
 }
