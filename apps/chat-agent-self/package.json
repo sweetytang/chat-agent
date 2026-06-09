@@ -4,13 +4,10 @@
   "description": "chat-agent-self",
   "type": "module",
   "scripts": {
-    "dev": "cross-env NODE_ENV=development pnpm run dev:server & vite --config frontend/pack/vite.config.ts",
+    "dev": "cross-env NODE_ENV=development NODE_OPTIONS=--experimental-require-module pnpm run dev:server & vite --config frontend/pack/vite.config.ts",
     "dev:server": "prisma db push --config ../../prisma.config.ts && tsx --watch backend/server.ts",
-    "build": "prisma generate --config ../../prisma.config.ts && tsc && vite build --config frontend/pack/vite.config.ts",
+    "build": "cross-env NODE_OPTIONS=--experimental-require-module prisma generate --config ../../prisma.config.ts && tsc && vite build --config frontend/pack/vite.config.ts",
     "start": "cross-env NODE_ENV=production tsx backend/server.ts",
     "preview": "vite preview --config frontend/pack/vite.config.ts"
-  },
-  "engines": {
-    "node": ">=25.0.0"
   }
 }

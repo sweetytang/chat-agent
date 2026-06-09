@@ -37,7 +37,7 @@ function getTavilySearchTool() {
 export const webSearch = tool(
     async (input: WebSearchInput) => {
         console.log(`[Tool] webSearch called for: ${input.query}`);
-        return getTavilySearchTool().invoke(input);
+        return getTavilySearchTool().invoke(input as any);
     },
     {
         name: "web_search",
