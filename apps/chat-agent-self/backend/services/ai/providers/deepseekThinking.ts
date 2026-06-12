@@ -4,7 +4,7 @@ import { getMessageText } from "@common/utils/messageContent";
 import type { SendEvent } from "@backend/types";
 import { uuid } from "@backend/utils/uuid.js";
 import { finalizeAiMessage, sendAiChunkEvent } from "../../chat/aiMessageStream.js";
-import { getConfiguredBaseUrl, getConfiguredModelName, isDeepSeekReasonerModel, type ModelRuntimeOptions } from "../providerConfig.js";
+import { getConfiguredBaseUrl, getConfiguredModelName, type ModelRuntimeOptions } from "../providerConfig.js";
 import { getRuntimeTools } from "../tools/index.js";
 
 type DeepSeekToolDelta = {
@@ -85,21 +85,13 @@ function toDeepSeekToolCalls(message: AIMessage) {
 }
 
 function toDeepSeekMessages(messages: BaseMessage[]) {
-    const keepReasoningContent = !isDeepSeekReasonerModel();
-
     return messages.flatMap<DeepSeekRequestMessage>((message) => {
         if (SystemMessage.isInstance(message)) {
-            return [{
-                role: "system",
-                content: getMessageText(message),
-            }];
+            return [{ role: "system", content: getMessageText(message) }];
         }
 
         if (HumanMessage.isInstance(message)) {
-            return [{
-                role: "user",
-                content: getMessageText(message),
-            }];
+            return [{ role: "user", content: getMessageText(message) }];
         }
 
         if (ToolMessage.isInstance(message)) {
@@ -118,7 +110,7 @@ function toDeepSeekMessages(messages: BaseMessage[]) {
                 role: "assistant",
                 content: getMessageText(message),
                 ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
-                ...(keepReasoningContent && reasoningContent ? { reasoning_content: reasoningContent } : {}),
+                ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
             }];
         }
 
@@ -236,14 +228,10 @@ async function createStreamingResponse(messages: BaseMessage[], runtimeOptions: 
             model: modelName,
             stream: true,
             messages: toDeepSeekMessages(messages),
-            ...(!isDeepSeekReasonerModel(modelName)
-                ? {
-                    thinking: {
-                        type: "enabled",
-                    },
-                    tools: runtimeTools.map(toDeepSeekToolSchema),
-                }
-                : {}),
+            thinking: {
+                type: runtimeOptions.deepThinkingEnabled ? "enabled" : "disabled",
+            },
+            tools: runtimeTools.map(toDeepSeekToolSchema),
         }),
     });
 

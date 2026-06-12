@@ -1,4 +1,4 @@
-export const SERVER_PORT = Number(process.env.PORT) ?? 3002;
+export const SERVER_PORT = parseInt(process.env.PORT ?? "", 10) || 3002;
 
 export const SERVER_URL = process.env.NODE_ENV === 'production' ? 'https://ai.tenasourcing.com' : `http://localhost:${SERVER_PORT}`;
 

@@ -4,7 +4,6 @@ import {
     getConfiguredBaseUrl,
     getConfiguredModelName,
     isDeepSeekProviderConfigured,
-    isDeepSeekReasonerModel,
     isDeepSeekThinkingModeEnabled,
     isReasoningModel,
     type ModelRuntimeOptions,
@@ -59,14 +58,8 @@ export function getModel(runtimeOptions: ModelRuntimeOptions = {}) {
             : {}),
         ...(reasoningModel || deepSeekThinkingMode ? {} : { temperature: 0 }),
         ...(reasoning ? { reasoning } : {}),
-        ...(deepSeekThinkingMode && !isDeepSeekReasonerModel(modelName)
-            ? {
-                modelKwargs: {
-                    thinking: {
-                        type: "enabled",
-                    },
-                },
-            }
+        ...(deepSeekThinkingMode
+            ? { modelKwargs: { thinking: { type: "enabled" } } }
             : {}),
         ...(isDeepSeekProviderConfigured(modelName, baseUrl)
             ? { __includeRawResponse: true }

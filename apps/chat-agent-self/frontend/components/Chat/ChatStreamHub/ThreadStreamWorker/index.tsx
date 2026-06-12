@@ -285,13 +285,20 @@ export default function ThreadStreamWorker({ workerId }: ThreadStreamWorkerProps
             }
         };
 
-        void dispatchCommand().finally(() => {
-            isDispatchingQueuedCommandRef.current = false;
-        });
+        void dispatchCommand()
+            .catch((error) => {
+                // dispatch 失败时标记错误，避免 command 被静默丢弃导致队列卡死
+                const message = error instanceof Error ? error.message : String(error);
+                markRuntimeError(workerId, message);
+            })
+            .finally(() => {
+                isDispatchingQueuedCommandRef.current = false;
+            });
     }, [
         consumeQueuedCommand,
         deepThinkingEnabled,
         generativeUiEnabled,
+        markRuntimeError,
         nextQueuedCommand,
         prepareMessage,
         runtime,

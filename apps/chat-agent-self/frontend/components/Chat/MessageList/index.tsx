@@ -236,6 +236,7 @@ export default function MessageList() {
                 messageId={msgId}
                 messageToolCalls={AIMessage.isInstance(msg) ? getToolCallsForMessage(msg, toolCalls, toolLookupMessages) : []}
                 metadata={metadata}
+                showReasoning={deepThinkingEnabled}
                 onBranchSwitch={(branchId) => {
                     selectBranch(selectedThreadId, branchId);
                     setAutoScroll(true);

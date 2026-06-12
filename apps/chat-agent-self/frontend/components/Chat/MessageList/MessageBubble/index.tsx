@@ -21,6 +21,8 @@ interface MessageBubbleProps {
     messageId: string;
     messageToolCalls?: any[];
     metadata?: ThreadMessageBranchMetadata;
+    /** 是否展示思考内容（由外部 deepThinkingEnabled 决定，默认不展示） */
+    showReasoning?: boolean;
     onBranchSwitch: (branchId: string) => void;
     onEdit: (text: string) => void;
     onRegenerate: () => void;
@@ -33,6 +35,7 @@ export default function MessageBubble({
     messageId,
     messageToolCalls = [],
     metadata,
+    showReasoning = false,
     onBranchSwitch,
     onEdit,
     onRegenerate,
@@ -144,7 +147,8 @@ export default function MessageBubble({
             <div className={`${styles.bubbleRow} ${styles.bubbleRowAi}`}>
                 <div className={styles.bubbleAvatar}>✦</div>
                 <div className={`${styles.bubble} ${styles.bubbleAi}`}>
-                    {reasoningText && (
+                    {/* 仅当用户主动开启深度思考时才展示思考气泡，避免模型即使在关闭状态下返回 reasoning_content 时也被显示 */}
+                    {showReasoning && reasoningText && (
                         <ReasoningBubble
                             isStreaming={isStreamingAiMessage}
                             reasoning={reasoningText}

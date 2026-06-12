@@ -28,7 +28,7 @@ export function sendAiChunkEvent({
     }, {}]);
 }
 
-export function finalizeAiMessage(mergedChunk: AIMessageChunk | null, fallbackId: string): AIMessage {
+export function finalizeAiMessage(mergedChunk: AIMessageChunk | null, fallbackId: string, includeReasoning = true): AIMessage {
     if (!mergedChunk) {
         return new AIMessage({
             id: fallbackId,
@@ -37,13 +37,24 @@ export function finalizeAiMessage(mergedChunk: AIMessageChunk | null, fallbackId
         });
     }
 
+    // 当思考模式关闭时，从最终消息中也剥离 reasoning_content，
+    // 防止存入数据库后，历史记录加载时意外显示
+    const additionalKwargs = (() => {
+        if (!mergedChunk.additional_kwargs) return undefined;
+        if (includeReasoning) return mergedChunk.additional_kwargs;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { reasoning_content: _removed, ...rest } = mergedChunk.additional_kwargs;
+        return rest;
+    })();
+
     return new AIMessage({
         id: mergedChunk.id || fallbackId,
         content: normalizeMessageContent(mergedChunk.content),
         ...(mergedChunk.tool_calls?.length ? { tool_calls: mergedChunk.tool_calls } : {}),
         ...(mergedChunk.invalid_tool_calls?.length ? { invalid_tool_calls: mergedChunk.invalid_tool_calls } : {}),
-        ...(mergedChunk.additional_kwargs ? { additional_kwargs: mergedChunk.additional_kwargs } : {}),
+        ...(additionalKwargs ? { additional_kwargs: additionalKwargs } : {}),
         ...(mergedChunk.response_metadata ? { response_metadata: mergedChunk.response_metadata } : {}),
         ...(mergedChunk.usage_metadata ? { usage_metadata: mergedChunk.usage_metadata } : {}),
     } as any);
 }
+
