@@ -7,7 +7,7 @@ interface ChatPreferencesState {
 }
 
 export const useChatPreferencesStore = create<ChatPreferencesState>((set) => ({
-    deepThinkingEnabled: true,
+    deepThinkingEnabled: false,
     setDeepThinkingEnabled: (enabled) => {
         set({ deepThinkingEnabled: enabled });
     },
