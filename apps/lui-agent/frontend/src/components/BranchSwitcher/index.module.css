@@ -1,0 +1,2 @@
+.switcher { display: flex; align-items: center; gap: 8px; color: #687386; font-size: 12px; }
+.switcher select { border: 1px solid #ccd5e2; border-radius: 6px; padding: 4px; }

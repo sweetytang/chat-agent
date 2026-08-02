@@ -1,0 +1,2 @@
+{"id":"full-feature-regression","kind":"spec","source":"task prd/design","summary":"验证 auth/thread、普通流、tools/HITL、queue/cancel、reasoning、structured output、generative UI、checkpoint branch 和 frontend fetch-SSE。"}
+{"id":"postgres-runtime-check","kind":"spec","source":"task design/implement","summary":"验证 PostgreSQL migration、事务、run 状态机、checkpoint parent-child、SSE sequence 和刷新恢复。"}

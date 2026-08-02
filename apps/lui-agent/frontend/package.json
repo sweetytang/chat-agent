@@ -1,0 +1,25 @@
+{
+  "name": "lui-agent-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --config pack/vite.config.ts",
+    "build": "tsc -p tsconfig.json && vite build --config pack/vite.config.ts",
+    "preview": "vite preview --config pack/vite.config.ts"
+  },
+  "dependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.3.0",
+    "typescript": "^5.9.3",
+    "vite": "^6.0.0"
+  }
+}

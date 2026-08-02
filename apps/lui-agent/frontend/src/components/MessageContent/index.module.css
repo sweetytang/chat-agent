@@ -1,0 +1,6 @@
+.content { line-height: 1.65; overflow-wrap: anywhere; }
+.content :global(p) { margin: 0 0 10px; }
+.content :global(p:last-child) { margin-bottom: 0; }
+.content :global(pre) { overflow: auto; padding: 12px; border-radius: 8px; background: #172033; color: #d8e2f2; }
+.content :global(code) { padding: 2px 4px; border-radius: 4px; background: #eef2f7; }
+.content :global(pre code) { padding: 0; background: transparent; }

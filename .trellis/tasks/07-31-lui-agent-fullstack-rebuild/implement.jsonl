@@ -1,0 +1,2 @@
+{"id":"legacy-capability-matrix","kind":"research","source":"apps/chat-agent, apps/chat-agent-self, apps/branching-chat and docs","summary":"建立三套旧项目的完整能力、来源文件、目标模块和验收场景矩阵。"}
+{"id":"lui-agent-boundary","kind":"spec","source":"task prd/design","summary":"FastAPI 是唯一服务入口；Python LangGraph 只负责进程内 Agent 编排；业务持久化、运行生命周期和版本化业务事件由 lui-agent 自研。"}
