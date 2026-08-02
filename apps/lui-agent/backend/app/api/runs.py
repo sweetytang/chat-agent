@@ -3,31 +3,41 @@ from __future__ import annotations
 import asyncio
 import re
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.events import BusinessEvent
-from app.integrations.tools.registry import calculate
+from app.core.security import get_optional_subject
 from app.db.models import InterruptStatus, MessageRole, Run, RunStatus, Thread
 from app.db.session import get_optional_db_session
-from app.modules.runs.repository import RunRepository
-from app.modules.interrupts.repository import InterruptRepository
-from app.modules.threads.repository import ThreadRepository
 from app.graph.runtime import stream_graph_events
 from app.integrations.llm.config import get_provider_config
 from app.integrations.llm.factory import create_chat_model
 from app.integrations.llm.fake import FakeChatModel
 from app.integrations.tools.langchain import default_langchain_tools
+from app.integrations.tools.registry import calculate
+from app.modules.checkpoints.service import (
+    RunBranchContext,
+    append_message_checkpoint,
+    checkpoint_messages,
+    create_run_branch,
+    latest_user_content,
+    message_snapshot,
+    model_messages,
+)
+from app.modules.interrupts.repository import InterruptRepository
+from app.modules.runs.repository import RunRepository
+from app.modules.threads.repository import ThreadRepository
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
 _thread_locks: dict[str, asyncio.Lock] = {}
 _cancel_events: dict[str, asyncio.Event] = {}
-_pending_reviews: dict[str, tuple[str, RunRequest]] = {}
 
 
 class RunRequest(BaseModel):
@@ -36,11 +46,28 @@ class RunRequest(BaseModel):
     checkpoint_id: UUID | None = None
     mode: str = Field(default="send", pattern="^(send|edit|regenerate)$")
 
+    @model_validator(mode="after")
+    def validate_regenerate_checkpoint(self) -> "RunRequest":
+        if self.mode == "regenerate" and self.checkpoint_id is None:
+            raise ValueError("重新生成必须传入用户消息 checkpoint")
+        return self
+
 
 class ResumeRequest(BaseModel):
     request_id: str = Field(min_length=1)
     decision: str = Field(pattern="^(approve|edit|reject)$")
     payload: dict[str, object] | None = None
+
+
+@dataclass(frozen=True)
+class PendingReview:
+    run_id: str
+    request: RunRequest
+    branch_context: RunBranchContext | None
+    persisted: bool = False
+
+
+_pending_reviews: dict[str, PendingReview] = {}
 
 
 def _thread_lock(thread_id: str) -> asyncio.Lock:
@@ -51,10 +78,105 @@ def _event(run_id: str, thread_id: str, sequence: int, name: str, **data: object
     return BusinessEvent(1, name, run_id, thread_id, sequence, data)
 
 
+def _required_user_id(subject: str | None) -> UUID:
+    if subject is None:
+        raise HTTPException(status_code=401, detail="需要登录后访问该资源")
+    try:
+        return UUID(subject)
+    except ValueError as error:
+        raise HTTPException(status_code=401, detail="无效用户身份") from error
+
+
+def _require_thread_owner(thread: Thread, subject: str | None) -> None:
+    if thread.user_id != _required_user_id(subject):
+        raise HTTPException(status_code=404, detail="线程不存在")
+
+
+async def _persisted_run(
+    session: AsyncSession | None,
+    run_id: str,
+) -> Run | None:
+    if session is None:
+        return None
+    try:
+        parsed_run_id = UUID(run_id)
+    except ValueError:
+        return None
+    return await session.get(Run, parsed_run_id)
+
+
+async def _require_run_owner(
+    session: AsyncSession,
+    run: Run,
+    subject: str | None,
+) -> None:
+    user_id = _required_user_id(subject)
+    thread = await session.get(Thread, run.thread_id)
+    if thread is None or thread.user_id != user_id:
+        raise HTTPException(status_code=404, detail="运行不存在")
+
+
+async def _load_branch_base(
+    session: AsyncSession,
+    thread: Thread,
+    checkpoint_id: UUID | None,
+    *,
+    use_current_if_none: bool = True,
+) -> tuple[UUID | None, tuple[dict, ...]]:
+    repository = ThreadRepository(session)
+    base_checkpoint_id = (
+        thread.current_checkpoint_id
+        if checkpoint_id is None and use_current_if_none
+        else checkpoint_id
+    )
+    if base_checkpoint_id is None:
+        return None, ()
+
+    checkpoint = await repository.get_checkpoint(thread.id, base_checkpoint_id)
+    if checkpoint is None:
+        raise HTTPException(status_code=404, detail="checkpoint 不存在")
+    snapshots = checkpoint_messages(checkpoint)
+    if snapshots is None:
+        snapshots = tuple(message_snapshot(item) for item in await repository.list_messages(thread.id))
+    return base_checkpoint_id, snapshots
+
+
+async def _prepare_persisted_run(
+    session: AsyncSession,
+    run_id: UUID,
+    request: RunRequest,
+    thread: Thread,
+) -> RunBranchContext | None:
+    base_checkpoint_id, base_messages = await _load_branch_base(
+        session,
+        thread,
+        request.checkpoint_id,
+        use_current_if_none="checkpoint_id" not in request.model_fields_set,
+    )
+    if request.mode == "regenerate" and (
+        not base_messages
+        or base_messages[-1].get("role") != MessageRole.USER.value
+    ):
+        raise HTTPException(status_code=400, detail="重新生成必须指定用户消息 checkpoint")
+    await RunRepository(session).create(thread.id, run_id=run_id)
+    branch_context = await create_run_branch(
+        session,
+        thread,
+        run_id=run_id,
+        mode=request.mode,
+        content=request.content,
+        base_checkpoint_id=base_checkpoint_id,
+        base_messages=base_messages,
+    )
+    await session.commit()
+    return branch_context
+
+
 async def run_events(
     run_id: str,
     request: RunRequest,
     session: AsyncSession | None = None,
+    branch_context: RunBranchContext | None = None,
 ) -> AsyncIterator[str]:
     """先提供稳定的业务事件协议，再把模型节点接入同一事件出口。"""
 
@@ -73,14 +195,39 @@ async def run_events(
         if repository is not None:
             await repository.update_status(UUID(run_id), RunStatus.RUNNING)
             await session.commit()
-        if request.content.startswith(("think:", "思考：")):
+        if branch_context is not None and branch_context.created_checkpoint is not None:
+            input_checkpoint = branch_context.created_checkpoint
+            sequence += 1
+            yield _event(
+                run_id,
+                request.thread_id,
+                sequence,
+                "checkpoint.created",
+                checkpoint_id=str(input_checkpoint.id),
+                parent_id=str(input_checkpoint.parent_id) if input_checkpoint.parent_id else None,
+            ).to_sse()
+            sequence += 1
+            yield _event(
+                run_id,
+                request.thread_id,
+                sequence,
+                "thread.updated",
+                current_checkpoint_id=str(input_checkpoint.id),
+            ).to_sse()
+
+        snapshots = branch_context.messages if branch_context is not None else (
+            {"role": MessageRole.USER.value, "content": {"content": request.content}},
+        )
+        input_messages = model_messages(snapshots)
+        prompt_content = latest_user_content(snapshots, request.content)
+        if prompt_content.startswith(("think:", "思考：")):
             sequence += 1
             yield _event(
                 run_id, request.thread_id, sequence, "reasoning.delta", content="正在分析请求并选择合适的执行路径。"
             ).to_sse()
 
-        reply = f"收到：{request.content}"
-        calculator_match = re.fullmatch(r"(?:calc|计算)(?::|：)?\s*(.+)", request.content, re.IGNORECASE)
+        reply = f"收到：{prompt_content}"
+        calculator_match = re.fullmatch(r"(?:calc|计算)(?::|：)?\s*(.+)", prompt_content, re.IGNORECASE)
         if calculator_match:
             expression = calculator_match.group(1)
             sequence += 1
@@ -97,16 +244,16 @@ async def run_events(
             sequence += 1
             yield _event(run_id, request.thread_id, sequence, "tool.result", **tool_data).to_sse()
 
-        if request.content.startswith("json:"):
+        if prompt_content.startswith("json:"):
             sequence += 1
             yield _event(
                 run_id,
                 request.thread_id,
                 sequence,
                 "structured_output.delta",
-                value={"type": "text", "value": request.content.removeprefix("json:").strip()},
+                value={"type": "text", "value": prompt_content.removeprefix("json:").strip()},
             ).to_sse()
-        if request.content.startswith("ui:"):
+        if prompt_content.startswith("ui:"):
             sequence += 1
             yield _event(
                 run_id,
@@ -114,33 +261,45 @@ async def run_events(
                 sequence,
                 "generative_ui.delta",
                 component="NoticeCard",
-                props={"text": request.content.removeprefix("ui:").strip()},
+                props={"text": prompt_content.removeprefix("ui:").strip()},
             ).to_sse()
 
-        if request.content.startswith(("search:", "搜索：")):
+        if prompt_content.startswith(("search:", "搜索：")):
             request_id = str(uuid4())
             if repository is not None:
                 await InterruptRepository(session).create(
-                    UUID(run_id), request_id, "tool", {"query": request.content.split(":", 1)[-1].strip()}
+                    UUID(run_id),
+                    request_id,
+                    "tool",
+                    {
+                        "tool": "web_search",
+                        "query": prompt_content.split(":", 1)[-1].strip(),
+                    },
+                    branch_context.checkpoint_id if branch_context else None,
                 )
                 await repository.update_status(UUID(run_id), RunStatus.INTERRUPTED)
                 await session.commit()
-            _pending_reviews[request_id] = (run_id, request)
+            _pending_reviews[request_id] = PendingReview(
+                run_id,
+                request,
+                branch_context,
+                persisted=repository is not None,
+            )
             sequence += 1
-            yield _event(run_id, request.thread_id, sequence, "tool.call", tool="web_search", request_id=request_id, arguments={"query": request.content.split(":", 1)[-1].strip()}).to_sse()
+            yield _event(run_id, request.thread_id, sequence, "tool.call", tool="web_search", request_id=request_id, arguments={"query": prompt_content.split(":", 1)[-1].strip()}).to_sse()
             sequence += 1
             yield _event(run_id, request.thread_id, sequence, "tool.approval_required", tool="web_search", request_id=request_id).to_sse()
             return
 
         assistant_content = reply
-        use_graph = calculator_match is None and not request.content.startswith(("json:", "ui:"))
+        use_graph = calculator_match is None and not prompt_content.startswith(("json:", "ui:"))
         if use_graph:
             provider = get_provider_config()
-            model = FakeChatModel(chunks=("收到：", request.content)) if provider.provider == "fake" else create_chat_model(provider)
+            model = FakeChatModel(chunks=("收到：", prompt_content)) if provider.provider == "fake" else create_chat_model(provider)
             chunks: list[str] = []
             async for graph_event in stream_graph_events(
                 model,
-                [{"role": "user", "content": request.content}],
+                input_messages,
                 run_id=run_id,
                 thread_id=request.thread_id,
                 tools=default_langchain_tools(),
@@ -162,21 +321,18 @@ async def run_events(
             yield _event(run_id, request.thread_id, sequence, "message.delta", content=reply).to_sse()
             sequence += 1
             yield _event(run_id, request.thread_id, sequence, "message.completed").to_sse()
-        if repository is not None:
-            await repository.append_message(
-                UUID(request.thread_id),
-                MessageRole.ASSISTANT,
-                {"content": assistant_content},
-                run_id=UUID(run_id),
-            )
+        if repository is not None and branch_context is not None:
             thread = await session.get(Thread, UUID(request.thread_id))
             if thread is not None:
-                parent_id = request.checkpoint_id or thread.current_checkpoint_id
-                created_checkpoint = await ThreadRepository(session).append_checkpoint(
+                result = await append_message_checkpoint(
+                    session,
                     thread,
-                    {"content": assistant_content, "run_id": run_id, "mode": request.mode},
-                    parent_id,
-                    "分支" if request.mode in {"edit", "regenerate"} else None,
+                    parent_id=branch_context.checkpoint_id,
+                    base_messages=branch_context.messages,
+                    role=MessageRole.ASSISTANT,
+                    content={"content": assistant_content},
+                    run_id=UUID(run_id),
+                    branch_name="重新生成" if request.mode == "regenerate" else None,
                 )
                 sequence += 1
                 yield _event(
@@ -184,8 +340,8 @@ async def run_events(
                     request.thread_id,
                     sequence,
                     "checkpoint.created",
-                    checkpoint_id=str(created_checkpoint.id),
-                    parent_id=str(parent_id) if parent_id else None,
+                    checkpoint_id=str(result.checkpoint.id),
+                    parent_id=str(result.checkpoint.parent_id),
                 ).to_sse()
                 sequence += 1
                 yield _event(
@@ -193,7 +349,7 @@ async def run_events(
                     request.thread_id,
                     sequence,
                     "thread.updated",
-                    current_checkpoint_id=str(created_checkpoint.id),
+                    current_checkpoint_id=str(result.checkpoint.id),
                 ).to_sse()
             await repository.update_status(UUID(run_id), RunStatus.COMPLETED)
             await session.commit()
@@ -208,6 +364,7 @@ async def resumed_run_events(
     request_id: str,
     decision: str,
     session: AsyncSession | None,
+    branch_context: RunBranchContext | None,
 ) -> AsyncIterator[str]:
     sequence = 0
     # 演示线程可以在有 PostgreSQL 会话时运行，但它没有对应的数据库 run。
@@ -236,14 +393,18 @@ async def resumed_run_events(
     yield _event(run_id, request.thread_id, sequence, "message.delta", content=answer).to_sse()
     sequence += 1
     yield _event(run_id, request.thread_id, sequence, "message.completed").to_sse()
-    if repository is not None:
-        await repository.append_message(UUID(request.thread_id), MessageRole.ASSISTANT, {"content": answer}, run_id=UUID(run_id))
+    if repository is not None and branch_context is not None:
         thread = await persisted_session.get(Thread, UUID(request.thread_id))
         if thread is not None:
-            checkpoint = await ThreadRepository(persisted_session).append_checkpoint(
+            result = await append_message_checkpoint(
+                persisted_session,
                 thread,
-                {"content": answer, "run_id": run_id, "mode": "send"},
-                thread.current_checkpoint_id,
+                parent_id=branch_context.checkpoint_id,
+                base_messages=branch_context.messages,
+                role=MessageRole.ASSISTANT,
+                content={"content": answer},
+                run_id=UUID(run_id),
+                branch_name="重新生成" if request.mode == "regenerate" else None,
             )
             sequence += 1
             yield _event(
@@ -251,8 +412,16 @@ async def resumed_run_events(
                 request.thread_id,
                 sequence,
                 "checkpoint.created",
-                checkpoint_id=str(checkpoint.id),
-                parent_id=str(checkpoint.parent_id) if checkpoint.parent_id else None,
+                checkpoint_id=str(result.checkpoint.id),
+                parent_id=str(result.checkpoint.parent_id),
+            ).to_sse()
+            sequence += 1
+            yield _event(
+                run_id,
+                request.thread_id,
+                sequence,
+                "thread.updated",
+                current_checkpoint_id=str(result.checkpoint.id),
             ).to_sse()
         await repository.update_status(UUID(run_id), RunStatus.COMPLETED)
         await persisted_session.commit()
@@ -263,39 +432,49 @@ async def resumed_run_events(
 @router.post("/stream")
 async def stream_run(
     request: RunRequest,
+    subject: str | None = Depends(get_optional_subject),
     session: AsyncSession | None = Depends(get_optional_db_session),
 ) -> StreamingResponse:
     run_id = str(uuid4())
     _cancel_events[run_id] = asyncio.Event()
     persistence_session: AsyncSession | None = None
+    branch_context: RunBranchContext | None = None
     try:
-        thread_id = UUID(request.thread_id)
-        if session is not None and await session.get(Thread, thread_id) is not None:
-            if request.checkpoint_id is not None:
-                if await ThreadRepository(session).get_checkpoint(thread_id, request.checkpoint_id) is None:
-                    raise HTTPException(status_code=404, detail="checkpoint 不存在")
-            repository = RunRepository(session)
-            await repository.create(thread_id, run_id=UUID(run_id))
-            await repository.append_message(
-                thread_id,
-                MessageRole.USER,
-                {"content": request.content},
-                run_id=UUID(run_id),
-            )
-            await session.commit()
+        if session is not None:
+            try:
+                thread_id = UUID(request.thread_id)
+            except ValueError:
+                thread_id = None
+            thread = await session.get(Thread, thread_id) if thread_id is not None else None
+            if thread is not None:
+                _require_thread_owner(thread, subject)
+                branch_context = await _prepare_persisted_run(
+                    session,
+                    UUID(run_id),
+                    request,
+                    thread,
+                )
+        if branch_context is not None:
             persistence_session = session
     except (ValueError, OSError, RuntimeError):
         if session is not None:
             await session.rollback()
     return StreamingResponse(
-        run_events(run_id, request, persistence_session),
+        run_events(run_id, request, persistence_session, branch_context),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
 @router.post("/{run_id}/cancel", status_code=status.HTTP_202_ACCEPTED)
-async def cancel_run(run_id: str) -> dict[str, str]:
+async def cancel_run(
+    run_id: str,
+    subject: str | None = Depends(get_optional_subject),
+    session: AsyncSession | None = Depends(get_optional_db_session),
+) -> dict[str, str]:
+    run = await _persisted_run(session, run_id)
+    if run is not None and session is not None:
+        await _require_run_owner(session, run, subject)
     cancel_event = _cancel_events.get(run_id)
     if cancel_event is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="运行不存在")
@@ -307,20 +486,53 @@ async def cancel_run(run_id: str) -> dict[str, str]:
 async def resume_run(
     run_id: str,
     request: ResumeRequest,
+    subject: str | None = Depends(get_optional_subject),
     session: AsyncSession | None = Depends(get_optional_db_session),
 ) -> StreamingResponse:
     pending = _pending_reviews.get(request.request_id)
+    # 纯内存 demo interrupt 没有 branch context，不应为了鉴权主动连接数据库。
+    # 持久化 interrupt 或服务重启后的恢复才查询 run 所有者。
+    requires_persistence = pending is None or pending.persisted
+    persisted_run = None
+    if requires_persistence:
+        if session is None:
+            raise HTTPException(status_code=503, detail="持久化服务不可用")
+        persisted_run = await _persisted_run(session, run_id)
+        if persisted_run is None:
+            raise HTTPException(status_code=404, detail="运行不存在")
+        await _require_run_owner(session, persisted_run, subject)
     if pending is None and session is not None:
         interrupt = await InterruptRepository(session).get_by_request_id(request.request_id)
-        persisted_run = await session.get(Run, UUID(run_id)) if interrupt is not None else None
         if interrupt is not None and persisted_run is not None and str(interrupt.run_id) == run_id:
             query = str(interrupt.payload.get("query", ""))
-            pending = (run_id, RunRequest(thread_id=str(persisted_run.thread_id), content=f"search: {query}"))
-    if pending is None or pending[0] != run_id:
+            persisted_thread = await session.get(Thread, persisted_run.thread_id)
+            branch_context = None
+            if persisted_thread is not None:
+                checkpoint_id, snapshots = await _load_branch_base(
+                    session,
+                    persisted_thread,
+                    interrupt.checkpoint_id,
+                )
+                if checkpoint_id is not None:
+                    branch_context = RunBranchContext(checkpoint_id, snapshots)
+            pending = PendingReview(
+                run_id,
+                RunRequest(thread_id=str(persisted_run.thread_id), content=f"search: {query}"),
+                branch_context,
+                persisted=True,
+            )
+    if pending is None or pending.run_id != run_id:
         raise HTTPException(status_code=409, detail="审核请求不存在或已过期")
     _pending_reviews.pop(request.request_id, None)
     return StreamingResponse(
-        resumed_run_events(run_id, pending[1], request.request_id, request.decision, session),
+        resumed_run_events(
+            run_id,
+            pending.request,
+            request.request_id,
+            request.decision,
+            session,
+            pending.branch_context,
+        ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

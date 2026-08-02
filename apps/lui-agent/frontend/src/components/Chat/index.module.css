@@ -5,9 +5,6 @@
 .header p { margin: 4px 0 0; color: #687386; font-size: 13px; }
 .messages { flex: 1; width: min(860px, calc(100% - 40px)); margin: 0 auto; padding: 32px 0; }
 .empty { color: #7a8494; text-align: center; padding: 80px 0; }
-.message { max-width: 75%; margin: 12px 0; padding: 12px 16px; border-radius: 14px; white-space: pre-wrap; line-height: 1.6; }
-.user { margin-left: auto; background: #2563eb; color: white; }
-.assistant { background: white; border: 1px solid #e3e8f0; }
 .composer { width: min(860px, calc(100% - 40px)); margin: 0 auto 28px; display: flex; gap: 10px; }
 .input { flex: 1; resize: vertical; min-height: 48px; padding: 12px; border: 1px solid #ccd5e2; border-radius: 10px; font: inherit; }
 .button { border: 0; border-radius: 10px; padding: 0 20px; background: #2563eb; color: white; font: inherit; cursor: pointer; }

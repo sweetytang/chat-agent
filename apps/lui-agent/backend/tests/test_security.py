@@ -1,6 +1,12 @@
 from fastapi import HTTPException
 
-from app.core.security import create_access_token, get_subject, hash_password, verify_password
+from app.core.security import (
+    create_access_token,
+    get_optional_subject,
+    get_subject,
+    hash_password,
+    verify_password,
+)
 
 
 def test_password_hash_is_not_plaintext_and_verifies() -> None:
@@ -27,3 +33,14 @@ def test_tampered_jwt_is_rejected() -> None:
         assert error.status_code == 401
     else:
         raise AssertionError("tampered token should be rejected")
+
+
+def test_optional_subject_allows_missing_token_but_rejects_invalid_token() -> None:
+    assert get_optional_subject(None) is None
+
+    try:
+        get_optional_subject("invalid")
+    except HTTPException as error:
+        assert error.status_code == 401
+    else:
+        raise AssertionError("invalid optional token should be rejected")

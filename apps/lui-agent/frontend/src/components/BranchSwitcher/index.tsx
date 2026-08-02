@@ -1,10 +1,39 @@
-import { useEffect } from "react";
-import { useThreadStore } from "@/store/thread";
+import type { MessageBranchOption } from "@/types/history";
 import styles from "./index.module.css";
 
-export function BranchSwitcher() {
-  const { checkpoints, loadCheckpoints, switchCheckpoint } = useThreadStore();
-  useEffect(() => { void loadCheckpoints(); }, [loadCheckpoints]);
-  if (checkpoints.length === 0) return null;
-  return <label className={styles.switcher}>Checkpoint<select defaultValue={checkpoints.at(-1)?.id} onChange={(event) => void switchCheckpoint(event.target.value)}><option value="">当前</option>{checkpoints.map((item) => <option key={item.id} value={item.id}>{item.branch_name ?? item.id.slice(0, 8)}</option>)}</select></label>;
+interface BranchSwitcherProps {
+  branchOptions: MessageBranchOption[];
+  currentIndex: number;
+  disabled?: boolean;
+  onSwitch: (checkpointId: string) => void;
+}
+
+export function BranchSwitcher({
+  branchOptions,
+  currentIndex,
+  disabled = false,
+  onSwitch,
+}: BranchSwitcherProps) {
+  if (branchOptions.length <= 1) return null;
+
+  const previous = branchOptions[currentIndex - 1];
+  const next = branchOptions[currentIndex + 1];
+
+  return <div className={styles.switcher} aria-label="消息版本">
+    <button
+      aria-label="上一版本"
+      disabled={disabled || !previous}
+      onClick={() => { if (previous) onSwitch(previous.checkpoint_id); }}
+      title="上一版本"
+      type="button"
+    >←</button>
+    <span>{currentIndex + 1}/{branchOptions.length}</span>
+    <button
+      aria-label="下一版本"
+      disabled={disabled || !next}
+      onClick={() => { if (next) onSwitch(next.checkpoint_id); }}
+      title="下一版本"
+      type="button"
+    >→</button>
+  </div>;
 }

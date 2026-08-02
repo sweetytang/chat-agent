@@ -7,15 +7,6 @@ export type RunStatus =
   | "failed"
   | "cancelled";
 
-export type MessageRole = "user" | "assistant" | "tool";
-
-export interface ChatMessage {
-  id: string;
-  role: MessageRole;
-  content: string;
-  createdAt: string;
-}
-
 export interface EventBase {
   version: 1;
   event: string;

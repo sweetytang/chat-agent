@@ -9,4 +9,5 @@ def test_interrupt_routes_are_exposed() -> None:
         "/api/interrupts",
         "/api/interrupts/{request_id}/resolve",
         "/api/interrupts/{request_id}/resume",
+        "/api/threads/{thread_id}/interrupts/pending",
     } <= routes

@@ -12,6 +12,7 @@ from fastapi.security import OAuth2PasswordBearer
 from app.core.config import get_settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
+optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token", auto_error=False)
 
 
 def _b64(value: bytes) -> str:
@@ -65,3 +66,11 @@ def get_subject(token: Annotated[str, Depends(oauth2_scheme)]) -> str:
     if not isinstance(subject, str) or not subject:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="访问令牌缺少用户标识")
     return subject
+
+
+def get_optional_subject(
+    token: Annotated[str | None, Depends(optional_oauth2_scheme)],
+) -> str | None:
+    if token is None:
+        return None
+    return get_subject(token)

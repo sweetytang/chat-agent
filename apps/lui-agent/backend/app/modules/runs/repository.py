@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Message, MessageRole, Run, RunStatus
+from app.db.models import Message, MessageRole, Run, RunStatus, Thread
 
 
 class RunRepository:
@@ -28,6 +28,13 @@ class RunRepository:
         self.session.add(run)
         await self.session.flush()
         return run
+
+    async def get_owned(self, run_id: UUID, user_id: UUID) -> Run | None:
+        run = await self.session.get(Run, run_id)
+        if run is None:
+            return None
+        thread = await self.session.get(Thread, run.thread_id)
+        return run if thread is not None and thread.user_id == user_id else None
 
     async def update_status(
         self,

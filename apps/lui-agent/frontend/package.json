@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --config pack/vite.config.ts",
     "build": "tsc -p tsconfig.json && vite build --config pack/vite.config.ts",
+    "test": "node --test tests/*.test.mjs",
     "preview": "vite preview --config pack/vite.config.ts"
   },
   "dependencies": {

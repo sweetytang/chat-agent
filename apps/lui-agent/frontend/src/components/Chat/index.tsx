@@ -1,67 +1,151 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
-import { streamAgentEvents } from "@/services/sse/client";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+
+import { useAuthStore } from "@/store/auth";
 import { useRunStore } from "@/store/run";
 import { useThreadStore } from "@/store/thread";
-import { Sidebar } from "@/components/Sidebar";
-import { QueuePanel } from "@/components/QueuePanel";
+import { api, RUN_STREAM_URL } from "@/services/api";
+import { streamAgentEvents } from "@/services/sse/client";
 import { ApprovalCard } from "@/components/ApprovalCard";
-import { BranchSwitcher } from "@/components/BranchSwitcher";
 import { AuthPanel } from "@/components/AuthPanel";
-import { MessageContent } from "@/components/MessageContent";
-import { StructuredOutputCard } from "@/components/StructuredOutputCard";
 import { GenerativeUICard } from "@/components/GenerativeUICard";
-import { api } from "@/services/api";
-import { useAuthStore } from "@/store/auth";
+import { MessageBubble } from "@/components/MessageBubble";
+import { QueuePanel } from "@/components/QueuePanel";
+import { Sidebar } from "@/components/Sidebar";
+import { StructuredOutputCard } from "@/components/StructuredOutputCard";
+import type { HistoryMessage, RunMode, RunStreamRequest } from "@/types/history";
+import { findPreviousUserContent, historyBeforeMessage } from "@/utils/history";
 import styles from "./index.module.css";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api/runs/stream";
-const API_BASE_URL = API_URL.replace(/\/api\/runs\/stream$/, "");
+const ACTIVE_RUN_STATUSES = new Set(["queued", "running", "interrupted", "resuming"]);
+
+interface StartRunOptions {
+  content: string;
+  checkpointId: string | null;
+  mode: RunMode;
+  showUserMessage?: boolean;
+  baseHistory?: HistoryMessage[];
+}
 
 export function Chat() {
   const [input, setInput] = useState("");
   const controller = useRef<AbortController | null>(null);
   const threadId = useThreadStore((state) => state.threadId);
   const currentCheckpointId = useThreadStore((state) => state.currentCheckpointId);
+  const isRefreshing = useThreadStore((state) => state.isRefreshing);
+  const refreshCurrentThread = useThreadStore((state) => state.refreshCurrentThread);
+  const switchCheckpoint = useThreadStore((state) => state.switchCheckpoint);
   const token = useAuthStore((state) => state.token);
-  const { messages, status, error, reasoning, structuredOutput, generativeUi, toolResults, pendingApproval, applyEvent, addUserMessage, setHistory } = useRunStore();
+  const {
+    history,
+    status,
+    error,
+    reasoning,
+    structuredOutput,
+    generativeUi,
+    toolResults,
+    pendingApproval,
+    applyEvent,
+    beginRun,
+  } = useRunStore();
+  const controlsDisabled = ACTIVE_RUN_STATUSES.has(status) || isRefreshing;
 
   useEffect(() => {
-    if (!token || threadId === "demo-thread") return;
-    void api.listMessages(threadId).then((history) => setHistory(history.map((message) => ({
-      id: message.id,
-      role: message.role === "user" ? "user" : "assistant",
-      content: typeof message.content.content === "string" ? message.content.content : JSON.stringify(message.content),
-      createdAt: new Date().toISOString(),
-    }))));
-  }, [setHistory, threadId, token]);
+    controller.current?.abort();
+    if (token && threadId !== "demo-thread") void refreshCurrentThread();
+    return () => controller.current?.abort();
+  }, [refreshCurrentThread, threadId, token]);
+
+  async function startRun({
+    content,
+    checkpointId,
+    mode,
+    showUserMessage = false,
+    baseHistory,
+  }: StartRunOptions) {
+    const request: RunStreamRequest = {
+      thread_id: threadId,
+      content,
+      checkpoint_id: checkpointId,
+      mode,
+    };
+    const streamController = new AbortController();
+    controller.current?.abort();
+    controller.current = streamController;
+    beginRun(showUserMessage ? content : undefined, baseHistory);
+
+    try {
+      for await (const agentEvent of streamAgentEvents({
+        url: RUN_STREAM_URL,
+        body: request,
+        token: token ?? undefined,
+        signal: streamController.signal,
+      })) {
+        applyEvent(agentEvent);
+      }
+    } catch (streamError) {
+      if (!(streamError instanceof DOMException && streamError.name === "AbortError")) {
+        useRunStore.setState({
+          error: streamError instanceof Error ? streamError.message : "连接失败",
+          status: "failed",
+        });
+      }
+    } finally {
+      if (controller.current === streamController) controller.current = null;
+      if (useThreadStore.getState().threadId === request.thread_id) await refreshCurrentThread(true);
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     const content = input.trim();
-    if (!content || status === "running" || status === "queued") return;
+    if (!content || controlsDisabled) return;
     setInput("");
-    addUserMessage(content);
-    controller.current?.abort();
-    controller.current = new AbortController();
-    try {
-      for await (const agentEvent of streamAgentEvents({ url: API_URL, body: { thread_id: threadId, content, checkpoint_id: currentCheckpointId }, signal: controller.current.signal })) applyEvent(agentEvent);
-    } catch (streamError) {
-      if (!(streamError instanceof DOMException && streamError.name === "AbortError")) useRunStore.setState({ error: streamError instanceof Error ? streamError.message : "连接失败", status: "failed" });
+    await startRun({ content, checkpointId: currentCheckpointId, mode: "send", showUserMessage: true });
+  }
+
+  function editMessage(message: HistoryMessage, content: string) {
+    void startRun({
+      content,
+      checkpointId: message.parent_checkpoint_id,
+      mode: "edit",
+      showUserMessage: true,
+      baseHistory: historyBeforeMessage(history, message.id),
+    });
+  }
+
+  function regenerateMessage(message: HistoryMessage) {
+    const content = findPreviousUserContent(history, message.id);
+    if (!content) {
+      useRunStore.setState({ error: "找不到该回复对应的用户消息" });
+      return;
     }
+    void startRun({
+      content,
+      checkpointId: message.parent_checkpoint_id,
+      mode: "regenerate",
+      baseHistory: historyBeforeMessage(history, message.id),
+    });
   }
 
   async function cancel() {
     const runId = useRunStore.getState().runId;
     if (!runId) return;
-    await fetch(`${API_BASE_URL}/api/runs/${runId}/cancel`, { method: "POST" });
+    await api.cancelRun(runId);
   }
 
-  return <div className={styles.shell}><Sidebar /><main className={styles.page}>
+  return <div className={styles.shell}><Sidebar disabled={controlsDisabled} /><main className={styles.page}>
     <AuthPanel />
-    <header className={styles.header}><h1>LUI Agent</h1><p>FastAPI + LangGraph 对话工作台</p><BranchSwitcher /></header>
+    <header className={styles.header}><h1>LUI Agent</h1><p>FastAPI + LangGraph 对话工作台</p></header>
     <QueuePanel />
     <section className={styles.messages} aria-live="polite">
-      {messages.length === 0 ? <p className={styles.empty}>输入消息，开始一次新的 Agent 运行。</p> : messages.map((message) => <article className={`${styles.message} ${message.role === "user" ? styles.user : styles.assistant}`} key={message.id}>{message.content ? <MessageContent content={message.content} /> : "…"}</article>)}
+      {history.length === 0 ? <p className={styles.empty}>输入消息，开始一次新的 Agent 运行。</p> : history.map((message) => <MessageBubble
+        disabled={controlsDisabled}
+        key={message.id}
+        message={message}
+        onBranchSwitch={(checkpointId) => void switchCheckpoint(checkpointId)}
+        onEdit={editMessage}
+        onRegenerate={regenerateMessage}
+      />)}
       {reasoning && <aside className={styles.reasoning}><strong>思考摘要</strong><p>{reasoning}</p></aside>}
       {toolResults.map((result, index) => <pre className={styles.payload} key={`${result.tool}-${index}`}>{result.tool}\n{JSON.stringify(result.content, null, 2)}</pre>)}
       {structuredOutput && <StructuredOutputCard value={structuredOutput} />}
@@ -72,6 +156,6 @@ export function Chat() {
       {error ?? (status === "idle" ? "就绪" : `运行状态：${status}`)}
       {(status === "running" || status === "queued") && <button className={styles.cancel} onClick={cancel} type="button">取消运行</button>}
     </div>
-    <form className={styles.composer} onSubmit={submit}><textarea className={styles.input} value={input} onChange={(event) => setInput(event.target.value)} placeholder="输入消息…（支持 calc: 1 + 2、json: 内容、ui: 内容）" aria-label="消息" /><button className={styles.button} disabled={!input.trim() || status === "running" || status === "queued"} type="submit">发送</button></form>
+    <form className={styles.composer} onSubmit={submit}><textarea className={styles.input} value={input} onChange={(event) => setInput(event.target.value)} placeholder="输入消息…（支持 calc: 1 + 2、json: 内容、ui: 内容）" aria-label="消息" /><button className={styles.button} disabled={!input.trim() || controlsDisabled} type="submit">发送</button></form>
   </main></div>;
 }
