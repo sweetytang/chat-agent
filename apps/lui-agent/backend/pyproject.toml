@@ -2,9 +2,9 @@
 name = "lui-agent-backend"
 version = "0.1.0"
 description = "Lui Agent FastAPI backend"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
-    "fastapi[standard]>=0.115,<1.0",
+    "fastapi[standard]>=0.115,<0.120",
     "alembic>=1.14,<2.0",
     "langchain-core>=0.3,<1.0",
     "langgraph>=0.2,<1.0",
@@ -27,9 +27,6 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-
-[project.scripts]
-lui-agent = "app.main:run"
 
 [tool.ruff]
 line-length = 100
