@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field, field_validator
+from typing import Annotated
 
 from app.core.security import create_access_token, get_subject
 from app.db.session import get_db_session
@@ -34,7 +35,7 @@ class RefreshRequest(BaseModel):
 
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
-async def register(payload: AuthRequest, session: AsyncSession = Depends(get_db_session)) -> AuthResponse:
+async def register(payload: AuthRequest, session: Annotated[AsyncSession, Depends(get_db_session)]) -> AuthResponse:
     try:
         user = await register_user(session, payload.email, payload.password)
         await session.commit()
@@ -47,12 +48,19 @@ async def register(payload: AuthRequest, session: AsyncSession = Depends(get_db_
 
 
 @router.post("/token", response_model=AuthResponse)
-async def login(payload: AuthRequest, session: AsyncSession = Depends(get_db_session)) -> AuthResponse:
+async def login(payload: AuthRequest, session: Annotated[AsyncSession, Depends(get_db_session)]) -> AuthResponse:
     try:
-        token = await authenticate_user(session, payload.email, payload.password)
+        token = await authenticate_user(
+            session = session,
+            email = payload.email,
+            password = payload.password
+        )
         return AuthResponse(access_token=token)
     except ValueError as error:
-        raise HTTPException(status_code=401, detail=str(error)) from error
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(error)
+        ) from error
 
 
 @router.get("/me")
@@ -63,12 +71,21 @@ async def me(subject: str = Depends(get_subject)) -> dict[str, str]:
 @router.post("/refresh", response_model=AuthResponse)
 async def refresh(payload: RefreshRequest, session: AsyncSession = Depends(get_db_session)) -> AuthResponse:
     try:
-        refresh_token, replacement = await rotate_refresh_token(session, payload.refresh_token)
+        refresh_token, replacement = await rotate_refresh_token(
+            session = session,
+            refresh_token = payload.refresh_token,
+        )
         await session.commit()
-        return AuthResponse(access_token=create_access_token(str(replacement.user_id)), refresh_token=refresh_token)
+        return AuthResponse(
+            access_token=create_access_token(str(replacement.user_id)),
+            refresh_token=refresh_token,
+        )
     except RefreshTokenError as error:
         await session.rollback()
-        raise HTTPException(status_code=401, detail=str(error)) from error
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(error)
+        ) from error
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

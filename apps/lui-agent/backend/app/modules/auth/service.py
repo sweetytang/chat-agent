@@ -1,17 +1,10 @@
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.models import User
-from app.modules.auth.refresh_tokens import (
-    RefreshTokenError,
-    create_refresh_token,
-    revoke_all_refresh_tokens,
-    revoke_refresh_token,
-    rotate_refresh_token,
-)
 
 
 async def register_user(session: AsyncSession, email: str, password: str) -> User:
