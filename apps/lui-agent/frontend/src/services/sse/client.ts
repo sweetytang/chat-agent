@@ -1,3 +1,4 @@
+import { fetchWithAuth } from "@/services/api";
 import { isAgentEvent, type AgentEvent } from "@/types/events";
 
 export interface SseRequest {
@@ -29,19 +30,18 @@ export async function* streamAgentEvents({
   token,
   signal,
 }: SseRequest): AsyncGenerator<AgentEvent> {
-  token ??= localStorage.getItem("lui-agent.access-token") ?? undefined;
   const headers: Record<string, string> = {
     Accept: "text/event-stream",
     "Content-Type": "application/json",
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const response = await fetch(url, {
+  const response = await fetchWithAuth(url, {
     method: "POST",
     headers,
     body: JSON.stringify(body),
     signal,
-  });
+  }, true);
   if (!response.ok) throw new Error(`请求失败（${response.status}）`);
   if (!response.body) throw new Error("服务端未返回流式响应");
 

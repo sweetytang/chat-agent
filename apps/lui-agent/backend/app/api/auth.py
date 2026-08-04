@@ -27,7 +27,7 @@ class AuthRequest(BaseModel):
 class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    refresh_token: str | None = None
+    refresh_token: str
 
 
 class RefreshRequest(BaseModel):
@@ -38,7 +38,6 @@ class RefreshRequest(BaseModel):
 async def register(payload: AuthRequest, session: Annotated[AsyncSession, Depends(get_db_session)]) -> AuthResponse:
     try:
         user = await register_user(session, payload.email, payload.password)
-        await session.commit()
         refresh_token, _ = await create_refresh_token(session, user.id)
         await session.commit()
         return AuthResponse(access_token=create_access_token(str(user.id)), refresh_token=refresh_token)
@@ -50,13 +49,16 @@ async def register(payload: AuthRequest, session: Annotated[AsyncSession, Depend
 @router.post("/token", response_model=AuthResponse)
 async def login(payload: AuthRequest, session: Annotated[AsyncSession, Depends(get_db_session)]) -> AuthResponse:
     try:
-        token = await authenticate_user(
+        user = await authenticate_user(
             session = session,
             email = payload.email,
             password = payload.password
         )
-        return AuthResponse(access_token=token)
+        refresh_token, _ = await create_refresh_token(session, user.id)
+        await session.commit()
+        return AuthResponse(access_token=create_access_token(str(user.id)), refresh_token=refresh_token)
     except ValueError as error:
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(error)
@@ -73,7 +75,7 @@ async def refresh(payload: RefreshRequest, session: AsyncSession = Depends(get_d
     try:
         refresh_token, replacement = await rotate_refresh_token(
             session = session,
-            refresh_token = payload.refresh_token,
+            raw_token = payload.refresh_token,
         )
         await session.commit()
         return AuthResponse(

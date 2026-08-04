@@ -1,22 +1,43 @@
 import { create } from "zustand";
 import { api } from "@/services/api";
+import { clearAuthSession, getAccessToken, getRefreshToken, saveAuthSession, subscribeAuthSession } from "@/services/authSession";
 
 interface AuthState {
   token: string | null;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  register: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  token: localStorage.getItem("lui-agent.access-token"), error: null,
+  token: getAccessToken(), error: null,
   login: async (email, password) => {
     try {
       const result = await api.login(email, password);
-      localStorage.setItem("lui-agent.access-token", result.access_token);
-      if (result.refresh_token) localStorage.setItem("lui-agent.refresh-token", result.refresh_token);
-      set({ token: result.access_token, error: null });
+      saveAuthSession(result.access_token, result.refresh_token);
+      set({ error: null });
     } catch (error) { set({ error: error instanceof Error ? error.message : "登录失败" }); }
   },
-  logout: () => { localStorage.removeItem("lui-agent.access-token"); set({ token: null }); },
+  register: async (email, password) => {
+    try {
+      const result = await api.register(email, password);
+      saveAuthSession(result.access_token, result.refresh_token);
+      set({ error: null });
+    } catch (error) { set({ error: error instanceof Error ? error.message : "注册失败" }); }
+  },
+  logout: async () => {
+    const refreshToken = getRefreshToken();
+    clearAuthSession();
+    if (refreshToken) {
+      try { await api.logout(refreshToken); } catch { /* 本地会话已清除，服务端撤销失败不阻塞退出。 */ }
+    }
+  },
 }));
+
+subscribeAuthSession((token) => useAuthStore.setState({ token }));
+if (typeof window !== "undefined") {
+  window.addEventListener("lui-agent:auth-expired", () => {
+    useAuthStore.setState({ token: null, error: "登录已过期，请重新登录" });
+  });
+}
