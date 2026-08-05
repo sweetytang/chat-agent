@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from copy import deepcopy
 from dataclasses import dataclass
-from collections.abc import Sequence
 from typing import Any
 from uuid import UUID
 
@@ -149,7 +149,9 @@ def project_history_messages(
         checkpoint_id = snapshot.get("checkpoint_id")
         checkpoint_key = str(checkpoint_id) if checkpoint_id else None
         introduced_at = checkpoint_by_id.get(checkpoint_key) if checkpoint_key else None
-        parent_id = str(introduced_at.parent_id) if introduced_at and introduced_at.parent_id else None
+        parent_id = (
+            str(introduced_at.parent_id) if introduced_at and introduced_at.parent_id else None
+        )
         siblings = children_by_parent.get(parent_id, []) if introduced_at else []
         options = []
         branch_index = None

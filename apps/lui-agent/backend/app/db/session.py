@@ -12,7 +12,11 @@ async_session_factory = None
 def get_session_factory():
     global engine, async_session_factory
     if async_session_factory is None:
-        engine = create_async_engine(str(settings.database_url), pool_pre_ping=True)
+        engine = create_async_engine(
+            str(settings.database_url),
+            echo=True,
+            pool_pre_ping=True,
+        )
         async_session_factory = async_sessionmaker(engine, expire_on_commit=False)
     return async_session_factory
 

@@ -16,6 +16,8 @@ async def test_graph_uses_model_as_an_in_process_node() -> None:
         async def ainvoke(self, messages):
             return {"role": "ai", "content": f"messages={len(messages)}"}
 
-    result = await create_graph(FakeModel()).ainvoke({"messages": [{"role": "user", "content": "hi"}]})
+    result = await create_graph(FakeModel()).ainvoke(
+        {"messages": [{"role": "user", "content": "hi"}]}
+    )
 
     assert result["messages"][-1].content == "messages=1"

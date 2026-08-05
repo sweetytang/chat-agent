@@ -12,4 +12,3 @@ class Base(DeclarativeBase):
             "pk": "pk_%(table_name)s",
         }
     )
-

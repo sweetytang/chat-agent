@@ -5,9 +5,9 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from app.db.base import Base
-from app.db import models  # noqa: F401 - register all models in metadata
 from app.core.config import get_settings
+from app.db import models  # noqa: F401 - register all models in metadata
+from app.db.base import Base
 
 config = context.config
 config.set_main_option("sqlalchemy.url", str(get_settings().database_url))
@@ -18,7 +18,9 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    context.configure(url=str(get_settings().database_url), target_metadata=target_metadata, literal_binds=True)
+    context.configure(
+        url=str(get_settings().database_url), target_metadata=target_metadata, literal_binds=True
+    )
     with context.begin_transaction():
         context.run_migrations()
 

@@ -3,8 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
 from app.api.checkpoints import router as checkpoints_router
-from app.api.interrupts import router as interrupts_router
-from app.api.interrupts import thread_router as thread_interrupts_router
+from app.api.interrupts import (
+    router as interrupts_router,
+    thread_router as thread_interrupts_router,
+)
 from app.api.runs import router as runs_router
 from app.api.threads import router as threads_router
 from app.core.config import get_settings
@@ -37,5 +39,5 @@ def create_app() -> FastAPI:
     application.include_router(interrupts_router)
     application.include_router(thread_interrupts_router)
     application.include_router(checkpoints_router)
-    
+
     return application

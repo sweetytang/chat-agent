@@ -1,5 +1,5 @@
-import json
 from dataclasses import asdict, dataclass
+import json
 from typing import Any
 
 

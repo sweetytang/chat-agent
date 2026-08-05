@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,7 +49,7 @@ class RunRepository:
         run.status = status
         run.error_message = error_message
         if status is RunStatus.CANCELLED:
-            run.cancelled_at = datetime.now(timezone.utc)
+            run.cancelled_at = datetime.now(UTC)
         await self.session.flush()
         return run
 

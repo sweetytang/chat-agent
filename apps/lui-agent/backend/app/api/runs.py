@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+import re
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -47,7 +47,7 @@ class RunRequest(BaseModel):
     mode: str = Field(default="send", pattern="^(send|edit|regenerate)$")
 
     @model_validator(mode="after")
-    def validate_regenerate_checkpoint(self) -> "RunRequest":
+    def validate_regenerate_checkpoint(self) -> RunRequest:
         if self.mode == "regenerate" and self.checkpoint_id is None:
             raise ValueError("重新生成必须传入用户消息 checkpoint")
         return self
@@ -137,7 +137,9 @@ async def _load_branch_base(
         raise HTTPException(status_code=404, detail="checkpoint 不存在")
     snapshots = checkpoint_messages(checkpoint)
     if snapshots is None:
-        snapshots = tuple(message_snapshot(item) for item in await repository.list_messages(thread.id))
+        snapshots = tuple(
+            message_snapshot(item) for item in await repository.list_messages(thread.id)
+        )
     return base_checkpoint_id, snapshots
 
 
@@ -154,8 +156,7 @@ async def _prepare_persisted_run(
         use_current_if_none="checkpoint_id" not in request.model_fields_set,
     )
     if request.mode == "regenerate" and (
-        not base_messages
-        or base_messages[-1].get("role") != MessageRole.USER.value
+        not base_messages or base_messages[-1].get("role") != MessageRole.USER.value
     ):
         raise HTTPException(status_code=400, detail="重新生成必须指定用户消息 checkpoint")
     await RunRepository(session).create(thread.id, run_id=run_id)
@@ -215,24 +216,37 @@ async def run_events(
                 current_checkpoint_id=str(input_checkpoint.id),
             ).to_sse()
 
-        snapshots = branch_context.messages if branch_context is not None else (
-            {"role": MessageRole.USER.value, "content": {"content": request.content}},
+        snapshots = (
+            branch_context.messages
+            if branch_context is not None
+            else ({"role": MessageRole.USER.value, "content": {"content": request.content}},)
         )
         input_messages = model_messages(snapshots)
         prompt_content = latest_user_content(snapshots, request.content)
         if prompt_content.startswith(("think:", "思考：")):
             sequence += 1
             yield _event(
-                run_id, request.thread_id, sequence, "reasoning.delta", content="正在分析请求并选择合适的执行路径。"
+                run_id,
+                request.thread_id,
+                sequence,
+                "reasoning.delta",
+                content="正在分析请求并选择合适的执行路径。",
             ).to_sse()
 
         reply = f"收到：{prompt_content}"
-        calculator_match = re.fullmatch(r"(?:calc|计算)(?::|：)?\s*(.+)", prompt_content, re.IGNORECASE)
+        calculator_match = re.fullmatch(
+            r"(?:calc|计算)(?::|：)?\s*(.+)", prompt_content, re.IGNORECASE
+        )
         if calculator_match:
             expression = calculator_match.group(1)
             sequence += 1
             yield _event(
-                run_id, request.thread_id, sequence, "tool.call", tool="calculator", arguments={"expression": expression}
+                run_id,
+                request.thread_id,
+                sequence,
+                "tool.call",
+                tool="calculator",
+                arguments={"expression": expression},
             ).to_sse()
             try:
                 result = calculate(expression)
@@ -286,16 +300,35 @@ async def run_events(
                 persisted=repository is not None,
             )
             sequence += 1
-            yield _event(run_id, request.thread_id, sequence, "tool.call", tool="web_search", request_id=request_id, arguments={"query": prompt_content.split(":", 1)[-1].strip()}).to_sse()
+            yield _event(
+                run_id,
+                request.thread_id,
+                sequence,
+                "tool.call",
+                tool="web_search",
+                request_id=request_id,
+                arguments={"query": prompt_content.split(":", 1)[-1].strip()},
+            ).to_sse()
             sequence += 1
-            yield _event(run_id, request.thread_id, sequence, "tool.approval_required", tool="web_search", request_id=request_id).to_sse()
+            yield _event(
+                run_id,
+                request.thread_id,
+                sequence,
+                "tool.approval_required",
+                tool="web_search",
+                request_id=request_id,
+            ).to_sse()
             return
 
         assistant_content = reply
         use_graph = calculator_match is None and not prompt_content.startswith(("json:", "ui:"))
         if use_graph:
             provider = get_provider_config()
-            model = FakeChatModel(chunks=("收到：", prompt_content)) if provider.provider == "fake" else create_chat_model(provider)
+            model = (
+                FakeChatModel(chunks=("收到：", prompt_content))
+                if provider.provider == "fake"
+                else create_chat_model(provider)
+            )
             chunks: list[str] = []
             async for graph_event in stream_graph_events(
                 model,
@@ -308,17 +341,23 @@ async def run_events(
                 if graph_event.event == "message.delta":
                     chunks.append(str(graph_event.data.get("content", "")))
                 sequence += 1
-                yield _event(run_id, request.thread_id, sequence, graph_event.event, **graph_event.data).to_sse()
+                yield _event(
+                    run_id, request.thread_id, sequence, graph_event.event, **graph_event.data
+                ).to_sse()
             assistant_content = "".join(chunks) or reply
         else:
             sequence += 1
-            yield _event(run_id, request.thread_id, sequence, "message.started", role="assistant").to_sse()
+            yield _event(
+                run_id, request.thread_id, sequence, "message.started", role="assistant"
+            ).to_sse()
             if cancel_event.is_set():
                 sequence += 1
                 yield _event(run_id, request.thread_id, sequence, "run.cancelled").to_sse()
                 return
             sequence += 1
-            yield _event(run_id, request.thread_id, sequence, "message.delta", content=reply).to_sse()
+            yield _event(
+                run_id, request.thread_id, sequence, "message.delta", content=reply
+            ).to_sse()
             sequence += 1
             yield _event(run_id, request.thread_id, sequence, "message.completed").to_sse()
         if repository is not None and branch_context is not None:
@@ -372,12 +411,16 @@ async def resumed_run_events(
     persisted_session = None
     if session is not None:
         try:
-            persisted_session = session if await session.get(Run, UUID(run_id)) is not None else None
-        except (ValueError, OSError, RuntimeError):
+            persisted_session = (
+                session if await session.get(Run, UUID(run_id)) is not None else None
+            )
+        except ValueError, OSError, RuntimeError:
             await session.rollback()
     repository = RunRepository(persisted_session) if persisted_session is not None else None
     if repository is not None:
-        await InterruptRepository(persisted_session).update_status(request_id, InterruptStatus.RESUMED)
+        await InterruptRepository(persisted_session).update_status(
+            request_id, InterruptStatus.RESUMED
+        )
         await repository.update_status(UUID(run_id), RunStatus.RESUMING)
         await persisted_session.commit()
     yield _event(run_id, request.thread_id, sequence, "run.resuming").to_sse()
@@ -385,7 +428,9 @@ async def resumed_run_events(
     result = {"query": request.content.split(":", 1)[-1].strip(), "results": []}
     if decision == "reject":
         result = {"error": "用户拒绝执行搜索"}
-    yield _event(run_id, request.thread_id, sequence, "tool.result", tool="web_search", content=result).to_sse()
+    yield _event(
+        run_id, request.thread_id, sequence, "tool.result", tool="web_search", content=result
+    ).to_sse()
     sequence += 1
     yield _event(run_id, request.thread_id, sequence, "message.started", role="assistant").to_sse()
     sequence += 1
@@ -456,7 +501,7 @@ async def stream_run(
                 )
         if branch_context is not None:
             persistence_session = session
-    except (ValueError, OSError, RuntimeError):
+    except ValueError, OSError, RuntimeError:
         if session is not None:
             await session.rollback()
     return StreamingResponse(

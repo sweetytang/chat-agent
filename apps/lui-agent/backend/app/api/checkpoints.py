@@ -55,7 +55,10 @@ async def create_checkpoint(
 ) -> CheckpointResponse:
     repository = ThreadRepository(session)
     thread = await owned_thread(thread_id, user_id, session)
-    if request.parent_id is not None and await repository.get_checkpoint(thread_id, request.parent_id) is None:
+    if (
+        request.parent_id is not None
+        and await repository.get_checkpoint(thread_id, request.parent_id) is None
+    ):
         raise HTTPException(status_code=404, detail="父 checkpoint 不存在")
     checkpoint = await repository.append_checkpoint(
         thread, request.state, request.parent_id, request.branch_name

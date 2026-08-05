@@ -1,11 +1,10 @@
 import os
 from uuid import uuid4
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 from app.main import app
-
 
 pytestmark = pytest.mark.skipif(
     os.getenv("LUI_AGENT_POSTGRES_TEST") != "1",
@@ -64,9 +63,13 @@ def test_edit_regenerate_and_switch_round_trip_with_postgres(client: TestClient)
     edited_head = edited_user["branch_options"][1]["checkpoint_id"]
     switched = client.post(f"/api/threads/{thread_id}/checkpoints/{original_head}/switch")
     assert switched.status_code == 200
-    assert client.get(f"/api/threads/{thread_id}/history").json()["messages"][0]["content"] == "原问题"
+    assert (
+        client.get(f"/api/threads/{thread_id}/history").json()["messages"][0]["content"] == "原问题"
+    )
 
-    assert client.post(f"/api/threads/{thread_id}/checkpoints/{edited_head}/switch").status_code == 200
+    assert (
+        client.post(f"/api/threads/{thread_id}/checkpoints/{edited_head}/switch").status_code == 200
+    )
     stream(
         client,
         thread_id,
@@ -106,10 +109,13 @@ def test_pending_interrupt_survives_refresh_and_clears_after_resume(client: Test
     pending_body = pending.json()
     assert pending_body["tool"] == "web_search"
 
-    assert client.post(
-        f"/api/interrupts/{pending_body['request_id']}/resolve",
-        json={"decision": "approve"},
-    ).status_code == 200
+    assert (
+        client.post(
+            f"/api/interrupts/{pending_body['request_id']}/resolve",
+            json={"decision": "approve"},
+        ).status_code
+        == 200
+    )
     assert (
         client.get(f"/api/threads/{thread_id}/interrupts/pending").json()["request_id"]
         == pending_body["request_id"]

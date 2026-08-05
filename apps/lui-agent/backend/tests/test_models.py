@@ -1,12 +1,18 @@
 from app.core.config import get_settings
 from app.db.base import Base
-from app.db.models import Checkpoint, Interrupt, Message, RefreshToken, Run, Thread, User
+from app.db.models import RefreshToken
 
 
 def test_core_models_are_registered() -> None:
-    assert {"users", "refresh_tokens", "threads", "runs", "messages", "checkpoints", "interrupts"} <= set(
-        Base.metadata.tables
-    )
+    assert {
+        "users",
+        "refresh_tokens",
+        "threads",
+        "runs",
+        "messages",
+        "checkpoints",
+        "interrupts",
+    } <= set(Base.metadata.tables)
 
 
 def test_refresh_token_columns_are_persisted_safely() -> None:

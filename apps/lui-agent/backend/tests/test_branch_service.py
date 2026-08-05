@@ -2,12 +2,12 @@ import asyncio
 from types import SimpleNamespace
 from uuid import uuid4
 
-import pytest
 from fastapi import HTTPException
+import pytest
 
-from app.db.models import Checkpoint
 from app.api import runs
 from app.api.runs import RunBranchContext, RunRequest, _load_branch_base
+from app.db.models import Checkpoint
 from app.modules.checkpoints import service
 
 
@@ -158,16 +158,51 @@ def test_history_projects_selected_sibling_and_latest_descendant() -> None:
     user_a_id, user_b_id = uuid4(), uuid4()
     assistant_a_id, assistant_b_id = uuid4(), uuid4()
     follow_up_id = uuid4()
-    user_a = {"id": str(uuid4()), "role": "user", "content": {"content": "问题 A"}, "checkpoint_id": str(user_a_id)}
-    user_b = {"id": str(uuid4()), "role": "user", "content": {"content": "问题 B"}, "checkpoint_id": str(user_b_id)}
-    assistant_a = {"id": str(uuid4()), "role": "assistant", "content": {"content": "回答 A"}, "checkpoint_id": str(assistant_a_id)}
-    assistant_b = {"id": str(uuid4()), "role": "assistant", "content": {"content": "回答 B"}, "checkpoint_id": str(assistant_b_id)}
+    user_a = {
+        "id": str(uuid4()),
+        "role": "user",
+        "content": {"content": "问题 A"},
+        "checkpoint_id": str(user_a_id),
+    }
+    user_b = {
+        "id": str(uuid4()),
+        "role": "user",
+        "content": {"content": "问题 B"},
+        "checkpoint_id": str(user_b_id),
+    }
+    assistant_a = {
+        "id": str(uuid4()),
+        "role": "assistant",
+        "content": {"content": "回答 A"},
+        "checkpoint_id": str(assistant_a_id),
+    }
+    assistant_b = {
+        "id": str(uuid4()),
+        "role": "assistant",
+        "content": {"content": "回答 B"},
+        "checkpoint_id": str(assistant_b_id),
+    }
     checkpoints = [
         checkpoint(checkpoint_id=user_a_id, thread_id=thread_id, parent_id=None, messages=[user_a]),
         checkpoint(checkpoint_id=user_b_id, thread_id=thread_id, parent_id=None, messages=[user_b]),
-        checkpoint(checkpoint_id=assistant_a_id, thread_id=thread_id, parent_id=user_a_id, messages=[user_a, assistant_a]),
-        checkpoint(checkpoint_id=assistant_b_id, thread_id=thread_id, parent_id=user_b_id, messages=[user_b, assistant_b]),
-        checkpoint(checkpoint_id=follow_up_id, thread_id=thread_id, parent_id=assistant_a_id, messages=[user_a, assistant_a]),
+        checkpoint(
+            checkpoint_id=assistant_a_id,
+            thread_id=thread_id,
+            parent_id=user_a_id,
+            messages=[user_a, assistant_a],
+        ),
+        checkpoint(
+            checkpoint_id=assistant_b_id,
+            thread_id=thread_id,
+            parent_id=user_b_id,
+            messages=[user_b, assistant_b],
+        ),
+        checkpoint(
+            checkpoint_id=follow_up_id,
+            thread_id=thread_id,
+            parent_id=assistant_a_id,
+            messages=[user_a, assistant_a],
+        ),
     ]
 
     branch_a = service.project_history_messages(checkpoints[-1], checkpoints, [])

@@ -16,6 +16,8 @@ async def stream_graph_events(graph, thread_id: str, content: str) -> AsyncItera
             for message in node_update.get("messages", []):
                 sequence += 1
                 text = getattr(message, "content", None) or message.get("content", "")
-                yield BusinessEvent(1, "message.delta", run_id, thread_id, sequence, {"content": text})
+                yield BusinessEvent(
+                    1, "message.delta", run_id, thread_id, sequence, {"content": text}
+                )
     sequence += 1
     yield BusinessEvent(1, "run.completed", run_id, thread_id, sequence, {})

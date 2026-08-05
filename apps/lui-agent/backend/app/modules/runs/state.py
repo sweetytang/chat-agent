@@ -14,7 +14,9 @@ class RunStatus(StrEnum):
 
 _TRANSITIONS: dict[RunStatus, frozenset[RunStatus]] = {
     RunStatus.QUEUED: frozenset({RunStatus.RUNNING, RunStatus.CANCELLED}),
-    RunStatus.RUNNING: frozenset({RunStatus.INTERRUPTED, RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED}),
+    RunStatus.RUNNING: frozenset(
+        {RunStatus.INTERRUPTED, RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED}
+    ),
     RunStatus.INTERRUPTED: frozenset({RunStatus.RESUMING, RunStatus.CANCELLED, RunStatus.FAILED}),
     RunStatus.RESUMING: frozenset({RunStatus.RUNNING, RunStatus.FAILED, RunStatus.CANCELLED}),
     RunStatus.COMPLETED: frozenset(),

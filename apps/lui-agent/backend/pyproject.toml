@@ -20,16 +20,11 @@ dependencies = [
 [dependency-groups]
 dev = [
     "httpx>=0.28,<1.0",
+    "mypy>=2.3.0",
     "pytest>=8.3,<9.0",
     "pytest-asyncio>=0.25,<1.0",
+    "ruff>=0.16.1",
 ]
 
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = ["tests"]
-
-[tool.ruff]
-line-length = 100
-
 [tool.fastapi]
-entrypoint="app.main:app"
+entrypoint = "app.main:app"

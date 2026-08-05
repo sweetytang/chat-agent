@@ -22,7 +22,9 @@ def current_user_id(subject: str = Depends(get_subject)) -> UUID:
     try:
         return UUID(subject)
     except ValueError as error:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="无效用户身份") from error
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="无效用户身份"
+        ) from error
 
 
 @router.post("", response_model=ThreadResponse, status_code=status.HTTP_201_CREATED)
@@ -66,7 +68,9 @@ async def list_messages(
     repository = ThreadRepository(session)
     if await repository.get_owned(thread_id, user_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="线程不存在")
-    return [MessageResponse.model_validate(item) for item in await repository.list_messages(thread_id)]
+    return [
+        MessageResponse.model_validate(item) for item in await repository.list_messages(thread_id)
+    ]
 
 
 @router.get("/{thread_id}/history", response_model=ThreadHistoryResponse)

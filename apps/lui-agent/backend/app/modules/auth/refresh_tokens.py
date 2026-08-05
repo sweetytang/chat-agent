@@ -1,8 +1,8 @@
 """Refresh token 的生成、轮换和撤销。"""
 
+from datetime import UTC, datetime, timedelta
 import hashlib
 import secrets
-from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from sqlalchemy import select, update
@@ -20,7 +20,7 @@ def _hash_token(token: str) -> str:
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 async def create_refresh_token(

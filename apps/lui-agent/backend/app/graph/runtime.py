@@ -22,7 +22,9 @@ def create_graph(model: ChatModel, tools: Sequence[Any] = ()):
     """创建最小消息图；FastAPI/application service 负责外部事件和持久化。"""
 
     async def call_model(state: MessagesState) -> dict[str, list[Any]]:
-        response = await (model.bind_tools(list(tools)) if tools else model).ainvoke(state["messages"])
+        response = await (model.bind_tools(list(tools)) if tools else model).ainvoke(
+            state["messages"]
+        )
         return {"messages": [response]}
 
     graph = StateGraph(MessagesState)
@@ -46,7 +48,9 @@ def _text(value: Any) -> str:
     if isinstance(value, str):
         return value
     if isinstance(value, list):
-        return "".join(_text(item.get("text", "") if isinstance(item, dict) else item) for item in value)
+        return "".join(
+            _text(item.get("text", "") if isinstance(item, dict) else item) for item in value
+        )
     return ""
 
 
@@ -70,12 +74,24 @@ async def stream_graph_events(
         sequence = 0
         for call in getattr(response, "tool_calls", None) or []:
             sequence += 1
-            yield _event(run_id, thread_id, sequence, "tool.call", tool=call["name"], tool_call_id=call.get("id"), arguments=call.get("args", {}))
-            selected = next((tool for tool in tools if getattr(tool, "name", None) == call["name"]), None)
+            yield _event(
+                run_id,
+                thread_id,
+                sequence,
+                "tool.call",
+                tool=call["name"],
+                tool_call_id=call.get("id"),
+                arguments=call.get("args", {}),
+            )
+            selected = next(
+                (tool for tool in tools if getattr(tool, "name", None) == call["name"]), None
+            )
             if selected is not None:
                 output = selected.invoke(call.get("args", {}))
                 sequence += 1
-                yield _event(run_id, thread_id, sequence, "tool.result", tool=call["name"], content=output)
+                yield _event(
+                    run_id, thread_id, sequence, "tool.result", tool=call["name"], content=output
+                )
         return
 
     graph = create_streaming_graph(model, tools=tools, continue_after_tools=continue_after_tools)
@@ -113,16 +129,37 @@ async def stream_graph_events(
                         event_name = "generative_ui.delta"
                     else:
                         event_name = "tool.call"
-                    yield _event(run_id, thread_id, sequence, event_name, tool=tool_name,
-                                 tool_call_id=call.get("id"), arguments=call.get("args", {}))
+                    yield _event(
+                        run_id,
+                        thread_id,
+                        sequence,
+                        event_name,
+                        tool=tool_name,
+                        tool_call_id=call.get("id"),
+                        arguments=call.get("args", {}),
+                    )
         elif kind == "on_tool_start":
             sequence += 1
-            yield _event(run_id, thread_id, sequence, "tool.call", tool=item.get("name", "tool"), arguments=data.get("input", {}))
+            yield _event(
+                run_id,
+                thread_id,
+                sequence,
+                "tool.call",
+                tool=item.get("name", "tool"),
+                arguments=data.get("input", {}),
+            )
         elif kind == "on_tool_end":
             sequence += 1
             output = data.get("output")
             output = getattr(output, "content", output)
-            yield _event(run_id, thread_id, sequence, "tool.result", tool=item.get("name", "tool"), content=output)
+            yield _event(
+                run_id,
+                thread_id,
+                sequence,
+                "tool.result",
+                tool=item.get("name", "tool"),
+                content=output,
+            )
 
     if reasoning_started:
         sequence += 1

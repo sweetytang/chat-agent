@@ -1,7 +1,8 @@
+import re
+
 from fastapi.testclient import TestClient
 
 from app.main import app
-import re
 
 
 def test_run_stream_emits_ordered_business_events() -> None:

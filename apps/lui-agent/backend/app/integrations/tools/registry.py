@@ -1,7 +1,7 @@
 import ast
-import operator
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+import operator
 from typing import Any
 
 

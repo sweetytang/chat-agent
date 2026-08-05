@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -53,7 +53,7 @@ class FakeSession:
 async def test_refresh_token_rotation_revokes_old_token():
     session = FakeSession()
     user_id = uuid4()
-    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    now = datetime(2026, 1, 1, tzinfo=UTC)
     raw, old = await create_refresh_token(session, user_id, now=now)
 
     new_raw, replacement = await rotate_refresh_token(session, raw, now=now + timedelta(minutes=1))
@@ -79,7 +79,7 @@ async def test_revoke_token_is_idempotent():
 async def test_revoke_all_tokens_only_changes_active_tokens():
     session = FakeSession()
     user_id = uuid4()
-    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    now = datetime(2026, 1, 1, tzinfo=UTC)
     _, first = await create_refresh_token(session, user_id, now=now)
     _, second = await create_refresh_token(session, user_id, now=now)
     first.revoked_at = now
