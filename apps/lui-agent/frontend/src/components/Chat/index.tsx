@@ -77,7 +77,6 @@ export function Chat() {
       for await (const agentEvent of streamAgentEvents({
         url: RUN_STREAM_URL,
         body: request,
-        token: token ?? undefined,
         signal: streamController.signal,
       })) {
         applyEvent(agentEvent);

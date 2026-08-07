@@ -4,7 +4,6 @@ import { isAgentEvent, type AgentEvent } from "@/types/events";
 export interface SseRequest {
   url: string;
   body: unknown;
-  token?: string;
   signal?: AbortSignal;
 }
 
@@ -27,18 +26,14 @@ function parseEvent(block: string): AgentEvent | null {
 export async function* streamAgentEvents({
   url,
   body,
-  token,
   signal,
 }: SseRequest): AsyncGenerator<AgentEvent> {
-  const headers: Record<string, string> = {
-    Accept: "text/event-stream",
-    "Content-Type": "application/json",
-  };
-  if (token) headers.Authorization = `Bearer ${token}`;
-
   const response = await fetchWithAuth(url, {
     method: "POST",
-    headers,
+    headers: {
+      Accept: "text/event-stream",
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(body),
     signal,
   }, true);
