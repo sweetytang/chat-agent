@@ -2,22 +2,113 @@
 
 ## 1. 分析代码的功能，按照功能放置到对应的文件夹下，如果文件夹不存在，则创建。其中项目基本目录如下：
     * frontend: 前端项目参考如下
-        * app: 整体功能、框架入口
-        * store: 全局状态
-        * components: 组件
-        * constants: 常量
-        * hooks: 钩子
-        * services: 服务
-        * styles: 样式
-        * types: 类型
-        * public: 项目公共资源
-        * utils: 工具
-        * tests: 项目测试
-        * pages: 页面
-        * scripts: 项目脚本
-        * pack: 打包构建
-            * vite.config.ts: vite配置文件
-            * webpack.config.js: webpack配置文件
+        apps/lui-agent/frontend/
+        ├── src/
+        │   ├── app/
+        │   │   ├── App.tsx
+        │   │   ├── main.tsx
+        │   │   └── styles/
+        │   │       └── global.scss
+        │   │
+        │   ├── modules/
+        │   │   ├── module-name/
+        │   │   │   ├── components/
+        │   │   │   │   └── AuthPanel/
+        │   │   │   │       ├── index.tsx
+        │   │   │   │       └── index.module.scss
+        │   │   │   ├── services/
+        │   │   │   ├── store/
+        │   │   │   ├── types/
+        │   │   │   ├── hooks/
+        │   │   │   └── index.ts
+        │   │   │   └── constants/
+        │   │   │
+        │   │   ├── threads/
+        │   │   │   ├── components/
+        │   │   │   │   └── Sidebar/
+        │   │   │   ├── services/
+        │   │   │   │   └── threadApi.ts
+        │   │   │   ├── store/
+        │   │   │   │   └── thread.ts
+        │   │   │   ├── types.ts
+        │   │   │   └── index.ts
+        │   │   │
+        │   │   ├── checkpoints/
+        │   │   │   ├── components/
+        │   │   │   │   └── BranchSwitcher/
+        │   │   │   ├── domain/
+        │   │   │   │   └── branchTree.ts
+        │   │   │   ├── services/
+        │   │   │   │   └── checkpointApi.ts
+        │   │   │   ├── types.ts
+        │   │   │   └── index.ts
+        │   │   │
+        │   │   ├── runs/
+        │   │   │   ├── components/
+        │   │   │   │   └── QueuePanel/
+        │   │   │   ├── services/
+        │   │   │   │   ├── runApi.ts
+        │   │   │   │   └── sse/
+        │   │   │   │       └── client.ts
+        │   │   │   ├── store/
+        │   │   │   │   └── run.ts
+        │   │   │   ├── types/
+        │   │   │   │   └── events.ts
+        │   │   │   └── index.ts
+        │   │   │
+        │   │   ├── interrupts/
+        │   │   │   ├── components/
+        │   │   │   │   └── ApprovalCard/
+        │   │   │   ├── domain/
+        │   │   │   │   └── pendingInterrupt.ts
+        │   │   │   ├── services/
+        │   │   │   │   └── interruptApi.ts
+        │   │   │   ├── types.ts
+        │   │   │   └── index.ts
+        │   │   │
+        │   │   ├── chat/
+        │   │   │   ├── components/
+        │   │   │   │   ├── Chat/
+        │   │   │   │   ├── MessageBubble/
+        │   │   │   │   └── MessageContent/
+        │   │   │   ├── hooks/
+        │   │   │   │   └── useChatRun.ts
+        │   │   │   ├── types/
+        │   │   │   │   └── message.ts
+        │   │   │   └── index.ts
+        │   │   │
+        │   │   └── presentation/
+        │   │       ├── components/
+        │   │       │   ├── GenerativeUICard/
+        │   │       │   ├── ReasoningBlock/
+        │   │       │   └── StructuredOutputCard/
+        │   │       ├── domain/
+        │   │       │   └── renderer.ts
+        │   │       ├── types.ts
+        │   │       └── index.ts
+        │   │
+        │   ├── shared/
+        │   │   ├── components/
+        │   │   ├── constants/
+        │   │   ├── http/
+        │   │   │   ├── client.ts
+        │   │   │   └── errors.ts
+        │   │   ├── session/
+        │   │   │   └── authSession.ts
+        │   │   ├── types/
+        │   │   ├── scripts/
+        │   │   └── utils/
+        │   │
+        │   │
+        │   └── vite-env.d.ts
+        │
+        ├── pack/
+        │   └── vite.config.ts
+        ├── public/
+        ├── tests/
+        ├── index.html
+        ├── package.json
+        └── tsconfig.json
     
     * backend: 后端python项目目录参考如下
         fastapi-project/

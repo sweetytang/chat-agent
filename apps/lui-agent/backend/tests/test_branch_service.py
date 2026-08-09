@@ -119,6 +119,29 @@ async def test_prepare_regenerate_rejects_non_user_checkpoint(monkeypatch) -> No
 
 
 @pytest.mark.asyncio
+async def test_prepare_regenerate_rejects_missing_checkpoint_for_persisted_thread(monkeypatch) -> None:
+    async def fake_load_branch_base(*_args, **_kwargs):
+        return None, ()
+
+    monkeypatch.setattr(runs, "_load_branch_base", fake_load_branch_base)
+
+    with pytest.raises(HTTPException) as raised:
+        await runs._prepare_persisted_run(
+            object(),
+            uuid4(),
+            RunRequest(
+                thread_id=str(uuid4()),
+                content="重新生成",
+                checkpoint_id=None,
+                mode="regenerate",
+            ),
+            SimpleNamespace(id=uuid4()),
+        )
+
+    assert raised.value.status_code == 400
+
+
+@pytest.mark.asyncio
 async def test_run_passes_complete_checkpoint_history_to_graph(monkeypatch) -> None:
     run_id = str(uuid4())
     captured_messages = []

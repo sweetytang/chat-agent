@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   pendingApprovalFromInterrupt,
   syncPendingApproval,
-} from "../src/utils/pendingInterrupt.ts";
+} from "../src/modules/interrupts/domain/pendingInterrupt.ts";
 
 const baseInterrupt = {
   request_id: "request-1",

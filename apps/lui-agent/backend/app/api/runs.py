@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.events import BusinessEvent
@@ -45,12 +45,6 @@ class RunRequest(BaseModel):
     content: str = Field(min_length=1)
     checkpoint_id: UUID | None = None
     mode: str = Field(default="send", pattern="^(send|edit|regenerate)$")
-
-    @model_validator(mode="after")
-    def validate_regenerate_checkpoint(self) -> RunRequest:
-        if self.mode == "regenerate" and self.checkpoint_id is None:
-            raise ValueError("重新生成必须传入用户消息 checkpoint")
-        return self
 
 
 class ResumeRequest(BaseModel):

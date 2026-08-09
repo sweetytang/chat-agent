@@ -5,7 +5,7 @@ import {
   findPreviousUserContent,
   getMessageBranchIndex,
   historyBeforeMessage,
-} from "../src/utils/history.ts";
+} from "../src/modules/checkpoints/domain/history.ts";
 
 const baseMessage = {
   checkpoint_id: null,

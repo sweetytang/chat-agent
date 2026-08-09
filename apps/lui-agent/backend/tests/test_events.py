@@ -18,6 +18,21 @@ def test_run_stream_emits_ordered_business_events() -> None:
     assert response.text.index('"sequence":0') < response.text.index('"sequence":4')
 
 
+def test_demo_regenerate_without_checkpoint_keeps_anonymous_stream_protocol() -> None:
+    response = TestClient(app).post(
+        "/api/runs/stream",
+        json={
+            "thread_id": "demo-thread",
+            "content": "hi",
+            "checkpoint_id": None,
+            "mode": "regenerate",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "event: run.completed" in response.text
+
+
 def test_run_stream_emits_tool_events() -> None:
     response = TestClient(app).post(
         "/api/runs/stream",

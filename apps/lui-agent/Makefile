@@ -1,7 +1,7 @@
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
 
-.PHONY: help install db-up db-down backend frontend dev test test-backend test-frontend build build-backend build-frontend
+.PHONY: help install db-up db-down db-migrate backend frontend dev test test-backend test-frontend build build-backend build-frontend
 
 help:
 	@awk 'BEGIN {FS = ":.*## "; printf "可用任务:\n"} /^[a-zA-Z_-]+:.*## / {printf "  %-16s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -16,15 +16,18 @@ install-backend: ## 安装后端依赖
 	cd $(BACKEND_DIR) && uv sync
 
 db-up: ## 启动 PostgreSQL
-	docker compose up -d
+	docker compose up -d --wait
 
 db-down: ## 停止 PostgreSQL
 	docker compose stop
 
+db-migrate: db-up ## 执行数据库迁移
+	cd $(BACKEND_DIR) && uv run alembic upgrade head
+
 dev: db-up ## 启动数据库，并行启动后端和前端
 	$(MAKE) -j2 dev-backend dev-frontend
 
-dev-backend: ## 启动 FastAPI 后端
+dev-backend: db-migrate ## 启动 FastAPI 后端
 	cd $(BACKEND_DIR) && uv run uvicorn app.main:app --port 8000 --reload
 
 dev-frontend: ## 启动 Vite 前端
