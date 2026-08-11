@@ -5,7 +5,10 @@ import { useThreadStore } from "@/modules/threads/store/thread";
 import styles from "./index.module.css";
 
 export function Sidebar({ disabled = false }: { disabled?: boolean }) {
-  const { threads, threadId, setThread, loadThreads } = useThreadStore();
+  const threads = useThreadStore((state) => state.threads);
+  const threadId = useThreadStore((state) => state.threadId);
+  const setThread = useThreadStore((state) => state.setThread);
+  const loadThreads = useThreadStore((state) => state.loadThreads);
   const token = useAuthStore((state) => state.token);
   async function createThread() {
     if (!token) { setThread("demo-thread", "新对话"); return; }

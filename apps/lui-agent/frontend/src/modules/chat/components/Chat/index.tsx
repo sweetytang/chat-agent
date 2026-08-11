@@ -35,18 +35,16 @@ export function Chat() {
   const refreshCurrentThread = useThreadStore((state) => state.refreshCurrentThread);
   const switchCheckpoint = useThreadStore((state) => state.switchCheckpoint);
   const token = useAuthStore((state) => state.token);
-  const {
-    history,
-    status,
-    error,
-    reasoning,
-    structuredOutput,
-    generativeUi,
-    toolResults,
-    pendingApproval,
-    applyEvent,
-    beginRun,
-  } = useRunStore();
+  const history = useRunStore((state) => state.history);
+  const status = useRunStore((state) => state.status);
+  const error = useRunStore((state) => state.error);
+  const reasoning = useRunStore((state) => state.reasoning);
+  const structuredOutput = useRunStore((state) => state.structuredOutput);
+  const generativeUi = useRunStore((state) => state.generativeUi);
+  const toolResults = useRunStore((state) => state.toolResults);
+  const pendingApproval = useRunStore((state) => state.pendingApproval);
+  const applyEvent = useRunStore((state) => state.applyEvent);
+  const beginRun = useRunStore((state) => state.beginRun);
   const controlsDisabled = ACTIVE_RUN_STATUSES.has(status) || isRefreshing;
 
   useEffect(() => {

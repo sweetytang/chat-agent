@@ -8,7 +8,11 @@ export function AuthPanel() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const { token, error, login, register, logout } = useAuthStore();
+  const token = useAuthStore((state) => state.token);
+  const error = useAuthStore((state) => state.error);
+  const login = useAuthStore((state) => state.login);
+  const register = useAuthStore((state) => state.register);
+  const logout = useAuthStore((state) => state.logout);
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (isRegistering && password !== confirmPassword) return;

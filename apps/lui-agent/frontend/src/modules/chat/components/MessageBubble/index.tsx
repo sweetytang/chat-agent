@@ -30,7 +30,7 @@ export function MessageBubble({
   useEffect(() => {
     setDraft(message.content);
     setIsEditing(false);
-  }, [message.content, message.id]);
+  }, [message.id]);
 
   function cancelEditing() {
     setDraft(message.content);
