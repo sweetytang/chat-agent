@@ -161,6 +161,8 @@ const shouldSubmit =
 | Page refresh with a valid token | Restore the persisted email or fixed neutral account label |
 | Multiple `message.delta` events arrive in one frame | Merge content and dispatch once using the highest event sequence |
 | `message.completed` arrives with a buffered delta | Flush the delta first, then mark the message complete without replacing the Markdown tree |
+| Thread history is loading with no projected messages | Show a restrained loading state; never flash the welcome panel |
+| Initial thread list request is pending | Show an accessible skeleton; render the empty state only after the request settles |
 
 ## Good, Base, and Bad Cases
 

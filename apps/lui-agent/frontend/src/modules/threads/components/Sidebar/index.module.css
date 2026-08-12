@@ -175,6 +175,34 @@
   cursor: pointer;
 }
 
+.threadListLoading {
+  display: grid;
+  gap: 8px;
+  padding: 8px 5px;
+}
+
+.threadListLoading span {
+  height: 34px;
+  background: var(--surface-muted);
+  border-radius: var(--radius-md);
+  animation: skeleton-pulse 1.2s ease-in-out infinite alternate;
+}
+
+.threadListLoading span:nth-child(2),
+.threadListLoading span:nth-child(4) {
+  width: 82%;
+}
+
+@keyframes skeleton-pulse {
+  from {
+    opacity: 0.45;
+  }
+
+  to {
+    opacity: 0.9;
+  }
+}
+
 .account {
   margin-top: auto;
   padding-top: 10px;
@@ -269,5 +297,11 @@
 
   .desktopOnly {
     display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .threadListLoading span {
+    animation: none;
   }
 }

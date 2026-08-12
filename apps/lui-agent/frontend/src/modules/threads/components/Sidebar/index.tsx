@@ -21,6 +21,7 @@ interface SidebarProps {
 export function Sidebar({ disabled = false, collapsed = false, onNavigate }: SidebarProps) {
   const threads = useThreadStore((state) => state.threads);
   const threadId = useThreadStore((state) => state.threadId);
+  const isLoadingThreads = useThreadStore((state) => state.isLoadingThreads);
   const token = useAuthStore((state) => state.token);
 
   function startNewThread() {
@@ -175,7 +176,19 @@ export function Sidebar({ disabled = false, collapsed = false, onNavigate }: Sid
         <>
           <ScrollArea.Root className={styles.scroll}>
             <ScrollArea.Viewport className={styles.viewport}>
-              {threads.length === 0 ? (
+              {isLoadingThreads ? (
+                <div
+                  className={styles.threadListLoading}
+                  aria-label="正在加载会话列表"
+                  aria-live="polite"
+                  role="status"
+                >
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              ) : threads.length === 0 ? (
                 <div className={styles.empty}>
                   <p>还没有保存的会话</p>
                   <button disabled={disabled} onClick={startNewThread} type="button">

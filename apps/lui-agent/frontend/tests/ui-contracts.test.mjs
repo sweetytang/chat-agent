@@ -268,3 +268,37 @@ test('顶部覆盖层仅保留主题菜单且不占用聊天区域高度', () =>
   assert.match(styles, /position:\s*absolute/);
   assert.doesNotMatch(styles, /height:\s*62px/);
 });
+
+test('切换会话加载历史时不展示欢迎页', () => {
+  const chat = fs.readFileSync(
+    new URL('../src/modules/chat/components/Chat/index.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(
+    chat,
+    /isRefreshing && history\.length === 0 \? \([\s\S]*chatLoading[\s\S]*\) : history\.length === 0/,
+  );
+  assert.match(chat, /aria-label="正在加载会话"/);
+  assert.match(chat, /aria-live="polite"[\s\S]*role="status"/);
+});
+
+test('首次加载会话列表时展示加载态而不是空态', () => {
+  const sidebar = fs.readFileSync(
+    new URL('../src/modules/threads/components/Sidebar/index.tsx', import.meta.url),
+    'utf8',
+  );
+  const store = fs.readFileSync(
+    new URL('../src/modules/threads/store/thread.ts', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(store, /isLoadingThreads: boolean/);
+  assert.match(store, /isLoadingThreads: true/);
+  assert.match(store, /loadThreads: async \(\) => \{[\s\S]*set\(\{ isLoadingThreads: true \}\)/);
+  assert.match(store, /finally \{[\s\S]*set\(\{ isLoadingThreads: false \}\)/);
+  assert.match(store, /requestId === latestThreadsRequestId/);
+  assert.match(sidebar, /isLoadingThreads[\s\S]*threadListLoading[\s\S]*threads\.length === 0/);
+  assert.match(sidebar, /aria-label="正在加载会话列表"/);
+  assert.match(sidebar, /aria-live="polite"[\s\S]*role="status"/);
+});

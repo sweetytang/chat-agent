@@ -26,6 +26,8 @@ async function loadThreadSnapshot(threadId: string) {
   return { history, checkpoints, pendingInterrupt };
 }
 
+let latestThreadsRequestId = 0;
+
 interface ThreadState {
   threadId: string;
   currentCheckpointId: string | null;
@@ -33,6 +35,7 @@ interface ThreadState {
   threads: ThreadSummary[];
   checkpoints: CheckpointSummary[];
   isRefreshing: boolean;
+  isLoadingThreads: boolean;
   startNewThread: () => void;
   setCurrentThreadTitle: (title: string) => void;
   setThread: (
@@ -57,6 +60,7 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
   threads: [],
   checkpoints: [],
   isRefreshing: false,
+  isLoadingThreads: true,
   startNewThread: () => {
     abortActiveStream();
     useRunStore.getState().reset();
@@ -92,8 +96,11 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
     });
   },
   loadThreads: async () => {
+    const requestId = ++latestThreadsRequestId;
+    set({ isLoadingThreads: true });
     try {
       const threads = await listThreads();
+      if (requestId !== latestThreadsRequestId) return;
       set((state) => {
         const current = threads.find((thread) => thread.id === state.threadId);
         return {
@@ -105,7 +112,9 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
         };
       });
     } catch {
-      set({ threads: [] });
+      if (requestId === latestThreadsRequestId) set({ threads: [] });
+    } finally {
+      if (requestId === latestThreadsRequestId) set({ isLoadingThreads: false });
     }
   },
   createThread: async (title, preserveRunState = false) => {

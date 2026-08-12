@@ -94,6 +94,28 @@
   animation-delay: 0.3s;
 }
 
+.chatLoading {
+  display: grid;
+  width: min(620px, 78%);
+  gap: 12px;
+  padding-top: 20px;
+}
+
+.loadingLine {
+  height: 14px;
+  background: var(--surface-muted);
+  border-radius: var(--radius-sm);
+  animation: loading-pulse 1.2s ease-in-out infinite alternate;
+}
+
+.loadingLine:nth-child(2) {
+  width: 88%;
+}
+
+.loadingLine:nth-child(3) {
+  width: 64%;
+}
+
 @keyframes pulse {
   0%,
   60%,
@@ -108,9 +130,25 @@
   }
 }
 
+@keyframes loading-pulse {
+  from {
+    opacity: 0.45;
+  }
+
+  to {
+    opacity: 0.9;
+  }
+}
+
 @media (width <= 560px) {
   .messages {
     width: calc(100% - 24px);
     padding: 24px 0 128px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loadingLine {
+    animation: none;
   }
 }

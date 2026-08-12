@@ -193,7 +193,18 @@ export function Chat() {
       <main className={styles.page}>
         <section className={styles.scroll} aria-live="polite">
           <div className={styles.messages}>
-            {history.length === 0 && !active ? (
+            {isRefreshing && history.length === 0 ? (
+              <div
+                className={styles.chatLoading}
+                aria-label="正在加载会话"
+                aria-live="polite"
+                role="status"
+              >
+                <span className={styles.loadingLine} />
+                <span className={styles.loadingLine} />
+                <span className={styles.loadingLine} />
+              </div>
+            ) : history.length === 0 && !active ? (
               <WelcomePanel authenticated={Boolean(token)} onPrompt={fillPrompt} />
             ) : (
               history.map((message) => (
