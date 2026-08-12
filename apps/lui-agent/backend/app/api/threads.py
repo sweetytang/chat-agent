@@ -14,6 +14,7 @@ from app.modules.threads.schemas import (
     ThreadHistoryResponse,
     ThreadResponse,
 )
+from app.modules.threads.title import can_generate_thread_title, local_thread_title
 
 router = APIRouter(prefix="/api/threads", tags=["threads"])
 
@@ -43,7 +44,26 @@ async def list_threads(
     user_id: UUID = Depends(current_user_id),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[ThreadResponse]:
-    threads = await ThreadRepository(session).list_owned(user_id)
+    repository = ThreadRepository(session)
+    threads = await repository.list_owned(user_id)
+    legacy_threads = [thread for thread in threads if can_generate_thread_title(thread.title)]
+    first_qa_pairs = await repository.first_qa_pairs([thread.id for thread in legacy_threads])
+    title_updated = False
+    for thread in legacy_threads:
+        pair = first_qa_pairs.get(thread.id)
+        if pair is None:
+            continue
+        user_content = pair[0].content.get("content", "")
+        assistant_content = pair[1].content.get("content", "")
+        if not isinstance(user_content, str) or not isinstance(assistant_content, str):
+            continue
+        title = local_thread_title(user_content, assistant_content)
+        if title is None:
+            continue
+        thread.title = title
+        title_updated = True
+    if title_updated:
+        await session.commit()
     return [ThreadResponse.model_validate(thread) for thread in threads]
 
 

@@ -84,11 +84,6 @@
   outline: none;
 }
 
-.form input:focus {
-  border-color: var(--accent);
-  box-shadow: var(--focus-ring);
-}
-
 .submit {
   padding: 13px;
   color: var(--accent-contrast);

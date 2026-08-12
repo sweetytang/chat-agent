@@ -92,8 +92,10 @@ export function Chat() {
         });
     } finally {
       clearActiveStream(streamController);
-      if (useThreadStore.getState().threadId === request.thread_id)
+      if (useThreadStore.getState().threadId === request.thread_id) {
         await useThreadStore.getState().refreshCurrentThread(true);
+        await useThreadStore.getState().loadThreads();
+      }
     }
   }
 

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <style>.a{fill:#5355d8}.b{fill:#55b9ec}@media(prefers-color-scheme:dark){.a{fill:#7776f2}.b{fill:#a46eea}}</style>
+  <style>.a{fill:#4b4d52}.b{fill:#b8babd}.b{filter:drop-shadow(0 4px 5px rgb(75 77 82/.16))}@media(prefers-color-scheme:dark){.a{fill:#ededee}.b{fill:#85878c;filter:drop-shadow(0 4px 6px rgb(237 237 238/.14))}}</style>
   <rect class="a" x="8" y="7" width="35" height="35" rx="12" transform="rotate(15 25.5 24.5)"/>
   <rect class="b" x="21" y="21" width="35" height="35" rx="12" transform="rotate(15 38.5 38.5)"/>
 </svg>

@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Checkpoint, Message, Thread
+from app.db.models import Checkpoint, Message, MessageRole, Thread
 
 
 class ThreadRepository:
@@ -33,6 +33,32 @@ class ThreadRepository:
             select(Message).where(Message.thread_id == thread_id).order_by(Message.created_at.asc())
         )
         return list(result.scalars())
+
+    async def first_qa_pairs(self, thread_ids: list[UUID]) -> dict[UUID, tuple[Message, Message]]:
+        """一次查询候选线程消息，返回首个连续 user/assistant 问答。"""
+
+        if not thread_ids:
+            return {}
+        result = await self.session.execute(
+            select(Message)
+            .where(
+                Message.thread_id.in_(thread_ids),
+                Message.role.in_((MessageRole.USER, MessageRole.ASSISTANT)),
+            )
+            .order_by(Message.thread_id.asc(), Message.created_at.asc(), Message.id.asc())
+        )
+        pairs: dict[UUID, tuple[Message, Message]] = {}
+        first_messages: dict[UUID, list[Message]] = {}
+        for message in result.scalars():
+            first_messages.setdefault(message.thread_id, []).append(message)
+        for thread_id, messages in first_messages.items():
+            if (
+                len(messages) >= 2
+                and messages[0].role == MessageRole.USER
+                and messages[1].role == MessageRole.ASSISTANT
+            ):
+                pairs[thread_id] = (messages[0], messages[1])
+        return pairs
 
     async def append_checkpoint(
         self,

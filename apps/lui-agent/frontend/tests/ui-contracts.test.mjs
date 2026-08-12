@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
+import { URL } from 'node:url';
 
 import { isThemePreference, resolveTheme, storedThemePreference } from '../src/app/domain/theme.ts';
 import { shouldSubmitComposer } from '../src/modules/chat/domain/composer.ts';
@@ -65,4 +67,14 @@ test('审核与失败事件可作为重复展示的有序卡片保留', () => {
       [8, 'error'],
     ],
   );
+});
+
+test('HITL 恢复完成后同时刷新历史和线程列表', () => {
+  const source = fs.readFileSync(
+    new URL('../src/modules/interrupts/components/ApprovalCard/index.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(source, /refreshCurrentThread\(true\)/);
+  assert.match(source, /loadThreads\(\)/);
 });

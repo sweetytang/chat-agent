@@ -33,6 +33,9 @@ from app.modules.checkpoints.service import (
 from app.modules.interrupts.repository import InterruptRepository
 from app.modules.runs.repository import RunRepository
 from app.modules.threads.repository import ThreadRepository
+from app.modules.threads.title import (
+    set_title_after_first_round,
+)
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
@@ -367,6 +370,15 @@ async def run_events(
                     run_id=UUID(run_id),
                     branch_name="重新生成" if request.mode == "regenerate" else None,
                 )
+                # run 可能等待过线程锁；写标题前同步其他 run 已提交的最新值。
+                await session.refresh(thread, attribute_names=["title"])
+                await set_title_after_first_round(
+                    thread,
+                    result.messages,
+                    mode=request.mode,
+                    user_content=prompt_content,
+                    assistant_content=assistant_content,
+                )
                 sequence += 1
                 yield _event(
                     run_id,
@@ -444,6 +456,15 @@ async def resumed_run_events(
                 content={"content": answer},
                 run_id=UUID(run_id),
                 branch_name="重新生成" if request.mode == "regenerate" else None,
+            )
+            # HITL 恢复也可能是首轮完成，沿用普通完成路径的最新值检查。
+            await persisted_session.refresh(thread, attribute_names=["title"])
+            await set_title_after_first_round(
+                thread,
+                result.messages,
+                mode=request.mode,
+                user_content=latest_user_content(branch_context.messages, request.content),
+                assistant_content=answer,
             )
             sequence += 1
             yield _event(

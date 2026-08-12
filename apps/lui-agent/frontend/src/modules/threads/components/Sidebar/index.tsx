@@ -26,10 +26,10 @@ export function Sidebar({ disabled = false, collapsed = false, onNavigate }: Sid
   async function createThread() {
     if (!token || disabled) return;
     try {
-      const thread = await createThreadRequest('新对话');
+      const thread = await createThreadRequest();
       useThreadStore
         .getState()
-        .setThread(thread.id, thread.title ?? '新对话', thread.current_checkpoint_id);
+        .setThread(thread.id, thread.title ?? '未命名会话', thread.current_checkpoint_id);
       await useThreadStore.getState().loadThreads();
       onNavigate?.();
     } catch {
@@ -201,7 +201,7 @@ export function Sidebar({ disabled = false, collapsed = false, onNavigate }: Sid
                         .getState()
                         .setThread(
                           thread.id,
-                          thread.title ?? '新对话',
+                          thread.title ?? '未命名会话',
                           thread.current_checkpoint_id,
                         );
                       onNavigate?.();

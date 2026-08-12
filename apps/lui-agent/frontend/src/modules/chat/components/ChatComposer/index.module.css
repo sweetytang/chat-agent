@@ -9,11 +9,6 @@
   box-shadow: var(--shadow-composer);
 }
 
-.composer:focus-within {
-  border-color: var(--accent-border);
-  box-shadow: var(--shadow-composer), var(--focus-ring);
-}
-
 .composer textarea {
   display: block;
   width: 100%;

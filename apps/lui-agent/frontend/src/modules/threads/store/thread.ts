@@ -35,11 +35,11 @@ interface ThreadState {
 export const useThreadStore = create<ThreadState>((set, get) => ({
   threadId: 'demo-thread',
   currentCheckpointId: null,
-  title: '新对话',
+  title: '未命名会话',
   threads: [],
   checkpoints: [],
   isRefreshing: false,
-  setThread: (threadId, title = '新对话', currentCheckpointId = null) => {
+  setThread: (threadId, title = '未命名会话', currentCheckpointId = null) => {
     if (threadId === get().threadId) return;
     useRunStore.getState().reset();
     set({

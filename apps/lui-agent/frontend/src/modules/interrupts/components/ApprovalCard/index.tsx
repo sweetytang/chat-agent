@@ -45,6 +45,7 @@ export function ApprovalCard({
     } finally {
       if (streamController) clearActiveStream(streamController);
       await useThreadStore.getState().refreshCurrentThread(true);
+      await useThreadStore.getState().loadThreads();
       setIsResolving(false);
     }
   }

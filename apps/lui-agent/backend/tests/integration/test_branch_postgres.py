@@ -41,11 +41,15 @@ def test_edit_regenerate_and_switch_round_trip_with_postgres(client: TestClient)
     assert auth.status_code == 201
     client.headers["Authorization"] = f"Bearer {auth.json()['access_token']}"
 
-    created = client.post("/api/threads", json={"title": "分支集成测试"})
+    created = client.post("/api/threads", json={})
     assert created.status_code == 201
+    assert created.json()["title"] is None
     thread_id = created.json()["id"]
 
-    stream(client, thread_id, "原问题", None, "send")
+    stream(client, thread_id, "  原问题\n附加说明  ", None, "send")
+    generated_title = client.get(f"/api/threads/{thread_id}").json()["title"]
+    assert generated_title == "原问题 附加说明相关讨论"
+    assert generated_title != "原问题 附加说明"
     original = client.get(f"/api/threads/{thread_id}/history").json()
     assert [message["role"] for message in original["messages"]] == ["user", "assistant"]
     original_user, original_assistant = original["messages"]
@@ -53,6 +57,7 @@ def test_edit_regenerate_and_switch_round_trip_with_postgres(client: TestClient)
     assert original_assistant["parent_checkpoint_id"] == original_user["checkpoint_id"]
 
     stream(client, thread_id, "编辑后的问题", original_user["parent_checkpoint_id"], "edit")
+    assert client.get(f"/api/threads/{thread_id}").json()["title"] == generated_title
     edited = client.get(f"/api/threads/{thread_id}/history").json()
     edited_user, edited_assistant = edited["messages"]
     assert edited_user["content"] == "编辑后的问题"

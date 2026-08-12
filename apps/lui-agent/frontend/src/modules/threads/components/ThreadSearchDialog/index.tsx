@@ -69,7 +69,7 @@ export function ThreadSearchDialog() {
                         .getState()
                         .setThread(
                           thread.id,
-                          thread.title ?? '新对话',
+                          thread.title ?? '未命名会话',
                           thread.current_checkpoint_id,
                         );
                       useUiStore.getState().setMobileSidebarOpen(false);

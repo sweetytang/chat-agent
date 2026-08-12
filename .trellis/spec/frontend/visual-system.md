@@ -37,6 +37,10 @@ type ResolvedTheme = 'light' | 'dark';
 
 Required token groups: background/surfaces, text levels, borders, accent states, semantic status colors, shadows, radii, and motion durations.
 
+- `BrandMark` and favicon use the same neutral black/white token pair; do not reintroduce saturated brand colors.
+- Account avatars use the `--avatar-*` gray token group in both themes.
+- Inputs and textareas keep their normal border on focus and must not add a focus border, outline, or box shadow. Interactive buttons and menu items retain a visible keyboard focus indicator.
+
 ## Component Ownership
 
 - `AppShell` owns page layout and responsive regions.
@@ -77,7 +81,7 @@ Mobile:
 - Overlay click, thread selection, and the shared toggle close it.
 - Composer must remain visible without covering the last message.
 
-Thread titles are one line with ellipsis. Thread ordering follows backend order. Never invent date groups without timestamp fields.
+Thread titles are one line with ellipsis. The displayed value comes from the backend conversation summary; the frontend must not derive it from the first prompt. Thread ordering follows backend order. Never invent date groups without timestamp fields.
 
 ## Authentication UI Contract
 
