@@ -60,7 +60,10 @@ export function Chat() {
 
   useEffect(() => {
     abortActiveStream();
-    if (token && threadId !== 'demo-thread') void useThreadStore.getState().refreshCurrentThread();
+    if (token && threadId !== 'demo-thread') {
+      const preserveRunState = ACTIVE_RUN_STATUSES.has(useRunStore.getState().status);
+      void useThreadStore.getState().refreshCurrentThread(preserveRunState);
+    }
     return abortActiveStream;
   }, [threadId, token]);
 
@@ -109,21 +112,23 @@ export function Chat() {
     setCreatingThread(true);
     try {
       const currentThread = useThreadStore.getState();
-      const thread =
-        currentThread.threadId === 'demo-thread'
-          ? await currentThread.createThread()
-          : currentThread;
-      if (currentThread.threadId === 'demo-thread' && !thread) {
-        setInput(content);
-        return;
+      const isNewThread = currentThread.threadId === 'demo-thread';
+      if (isNewThread) {
+        useRunStore.getState().beginRun(content);
+        currentThread.setCurrentThreadTitle(content);
+        const thread = await currentThread.createThread(content, true);
+        if (!thread) {
+          setInput(content);
+          useRunStore.getState().reset();
+          return;
+        }
       }
       const target = useThreadStore.getState();
-      target.setCurrentThreadTitle(content);
       void startRun({
         content,
         checkpointId: target.currentCheckpointId,
         mode: 'send',
-        showUserMessage: true,
+        showUserMessage: !isNewThread,
         threadId: target.threadId,
       });
     } finally {

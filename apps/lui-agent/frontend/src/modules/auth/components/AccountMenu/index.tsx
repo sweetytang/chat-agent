@@ -21,7 +21,7 @@ export function AccountMenu({ compact = false }: AccountMenuProps) {
       <span className={styles.avatar}>{email?.charAt(0).toUpperCase() ?? 'U'}</span>
       {!compact && (
         <span className={styles.identity}>
-          <strong>{label}</strong>
+          <span>{label}</span>
           <small>账户已连接</small>
         </span>
       )}

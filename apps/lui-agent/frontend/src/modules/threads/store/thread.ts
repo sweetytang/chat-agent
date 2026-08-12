@@ -35,12 +35,17 @@ interface ThreadState {
   isRefreshing: boolean;
   startNewThread: () => void;
   setCurrentThreadTitle: (title: string) => void;
-  setThread: (threadId: string, title?: string, currentCheckpointId?: string | null) => void;
+  setThread: (
+    threadId: string,
+    title?: string,
+    currentCheckpointId?: string | null,
+    preserveRunState?: boolean,
+  ) => void;
   loadThreads: () => Promise<void>;
   renameThread: (threadId: string, title: string) => Promise<void>;
   setThreadPinned: (threadId: string, isPinned: boolean) => Promise<void>;
   deleteThread: (threadId: string) => Promise<void>;
-  createThread: () => Promise<ThreadSummary | null>;
+  createThread: (title?: string, preserveRunState?: boolean) => Promise<ThreadSummary | null>;
   refreshCurrentThread: (preserveRunState?: boolean) => Promise<void>;
   switchCheckpoint: (checkpointId: string) => Promise<void>;
 }
@@ -70,9 +75,14 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
         thread.id === state.threadId ? { ...thread, title } : thread,
       ),
     })),
-  setThread: (threadId, title = '未命名会话', currentCheckpointId = null) => {
+  setThread: (
+    threadId,
+    title = '未命名会话',
+    currentCheckpointId = null,
+    preserveRunState = false,
+  ) => {
     if (threadId === get().threadId) return;
-    useRunStore.getState().reset();
+    if (!preserveRunState) useRunStore.getState().reset();
     set({
       threadId,
       title,
@@ -98,10 +108,15 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
       set({ threads: [] });
     }
   },
-  createThread: async () => {
+  createThread: async (title, preserveRunState = false) => {
     try {
-      const thread = await createThreadRequest();
-      get().setThread(thread.id, thread.title ?? '未命名会话', thread.current_checkpoint_id);
+      const thread = await createThreadRequest(title);
+      get().setThread(
+        thread.id,
+        thread.title ?? title ?? '未命名会话',
+        thread.current_checkpoint_id,
+        preserveRunState,
+      );
       await get().loadThreads();
       return thread;
     } catch {

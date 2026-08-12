@@ -44,7 +44,7 @@
 .identity {
   min-width: 0;
   display: grid;
-  gap: 2px;
+  gap: 5px;
 }
 
 .identity strong {

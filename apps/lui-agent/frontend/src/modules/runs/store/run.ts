@@ -101,7 +101,7 @@ export const useRunStore = create<RunState>((set) => ({
   setHistory: (history, preserveRunState = false) =>
     set((state) =>
       preserveRunState
-        ? { ...state, history }
+        ? { ...state, history: history.length > 0 ? history : state.history }
         : {
             runId: null,
             status: 'idle',

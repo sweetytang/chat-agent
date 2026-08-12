@@ -112,7 +112,7 @@ test('首条发送会先把 demo-thread 替换为真实线程', () => {
     'utf8',
   );
   assert.match(source, /currentThread\.threadId === 'demo-thread'/);
-  assert.match(source, /await currentThread\.createThread\(\)/);
+  assert.match(source, /createThread\(content, true\)/);
   assert.match(source, /threadId: target\.threadId/);
 });
 
@@ -137,6 +137,31 @@ test('新建会话只进入欢迎态，首次发送后才创建真实线程并�
   );
   assert.match(store, /startNewThread:/);
   assert.match(chat, /setCurrentThreadTitle\(content\)/);
+});
+
+test('首次发送先离开欢迎页，创建线程时保留乐观用户消息', () => {
+  const chat = fs.readFileSync(
+    new URL('../src/modules/chat/components/Chat/index.tsx', import.meta.url),
+    'utf8',
+  );
+  const store = fs.readFileSync(
+    new URL('../src/modules/threads/store/thread.ts', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(chat, /beginRun\(content\)[\s\S]*createThread\(content, true\)/);
+  assert.match(chat, /showUserMessage: !isNewThread/);
+  assert.match(store, /createThread: \(title\?: string, preserveRunState\?: boolean\)/);
+  assert.match(store, /currentCheckpointId,[\s\S]*preserveRunState/);
+  assert.match(store, /createThreadRequest\(title\)/);
+});
+
+test('运行中的历史刷新不会用空响应覆盖立即展示的用户消息', () => {
+  const source = fs.readFileSync(
+    new URL('../src/modules/runs/store/run.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(source, /preserveRunState[\s\S]*history\.length > 0 \? history : state\.history/);
 });
 
 test('认证邮箱持久化，缺少 profile 时使用固定中性身份', () => {
