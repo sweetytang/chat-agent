@@ -20,6 +20,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 | [State Management](./state-management.md) | Local state, global state, server state | To fill |
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
 | [Type Safety](./type-safety.md) | Type patterns, validation | To fill |
+| [Visual System](./visual-system.md) | Theme, shell, interaction, Radix, responsive and presentation contracts | Active |
 
 ---
 
@@ -36,4 +37,4 @@ The goal is to help AI assistants and new team members understand how YOUR proje
 
 ---
 
-**Language**: All documentation should be written in **English**.
+**Language**: Code specifications should be written in English unless a task explicitly requires Chinese planning artifacts.

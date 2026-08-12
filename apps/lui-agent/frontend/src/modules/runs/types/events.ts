@@ -1,5 +1,12 @@
-export type RunStatus =
-  'queued' | 'running' | 'interrupted' | 'resuming' | 'completed' | 'failed' | 'cancelled';
+export enum RunStatus {
+  Queued = 'queued',
+  Running = 'running',
+  Interrupted = 'interrupted',
+  Resuming = 'resuming',
+  Completed = 'completed',
+  Failed = 'failed',
+  Cancelled = 'cancelled',
+}
 
 export interface EventBase {
   version: 1;

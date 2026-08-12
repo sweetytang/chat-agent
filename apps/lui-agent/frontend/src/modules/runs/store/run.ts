@@ -5,7 +5,9 @@ import {
   type PendingApproval,
 } from '@/modules/interrupts/domain/pendingInterrupt';
 import type { PendingInterruptResponse } from '@/modules/interrupts/types';
-import { eventText, type AgentEvent, type RunStatus } from '@/modules/runs/types/events';
+import { appendPresentationItem } from '@/modules/presentation/domain/items';
+import type { PresentationItem, PresentationKind } from '@/modules/presentation/types';
+import { eventText, RunStatus, type AgentEvent } from '@/modules/runs/types/events';
 import type { HistoryMessage } from '@/modules/threads/types/history';
 
 interface RunState {
@@ -18,6 +20,7 @@ interface RunState {
   structuredOutput: Record<string, unknown> | null;
   generativeUi: Record<string, unknown> | null;
   toolResults: { tool: string; content: unknown }[];
+  presentationItems: PresentationItem[];
   pendingApproval: PendingApproval | null;
   beginRun: (optimisticUserContent?: string, baseHistory?: HistoryMessage[]) => void;
   prepareResume: () => void;
@@ -31,18 +34,26 @@ interface RunState {
 }
 
 const statusByEvent: Partial<Record<AgentEvent['event'], RunStatus>> = {
-  'run.queued': 'queued',
-  'run.started': 'running',
-  'run.resuming': 'resuming',
-  'run.cancelled': 'cancelled',
-  'run.completed': 'completed',
-  'run.failed': 'failed',
-  'tool.approval_required': 'interrupted',
+  'run.queued': RunStatus.Queued,
+  'run.started': RunStatus.Running,
+  'run.resuming': RunStatus.Resuming,
+  'run.cancelled': RunStatus.Cancelled,
+  'run.completed': RunStatus.Completed,
+  'run.failed': RunStatus.Failed,
+  'tool.approval_required': RunStatus.Interrupted,
 };
 
 function eventString(value: unknown, fallback: string): string {
   return typeof value === 'string' ? value : fallback;
 }
+
+const presentationKindByEvent: Partial<Record<AgentEvent['event'], PresentationKind>> = {
+  'tool.result': 'tool-result',
+  'tool.approval_required': 'approval',
+  'structured_output.delta': 'structured-output',
+  'generative_ui.delta': 'generative-ui',
+  'run.failed': 'error',
+};
 
 export const useRunStore = create<RunState>((set) => ({
   runId: null,
@@ -54,13 +65,14 @@ export const useRunStore = create<RunState>((set) => ({
   structuredOutput: null,
   generativeUi: null,
   toolResults: [],
+  presentationItems: [],
   pendingApproval: null,
   beginRun: (optimisticUserContent, baseHistory) =>
     set((state) => {
       const history = baseHistory ?? state.history;
       return {
         runId: null,
-        status: 'queued',
+        status: RunStatus.Queued,
         history: optimisticUserContent
           ? [
               ...history,
@@ -80,11 +92,12 @@ export const useRunStore = create<RunState>((set) => ({
         structuredOutput: null,
         generativeUi: null,
         toolResults: [],
+        presentationItems: [],
         pendingApproval: null,
         lastSequence: -1,
       };
     }),
-  prepareResume: () => set({ status: 'resuming', error: null, lastSequence: -1 }),
+  prepareResume: () => set({ status: RunStatus.Resuming, error: null, lastSequence: -1 }),
   setHistory: (history, preserveRunState = false) =>
     set((state) =>
       preserveRunState
@@ -99,6 +112,7 @@ export const useRunStore = create<RunState>((set) => ({
             structuredOutput: null,
             generativeUi: null,
             toolResults: [],
+            presentationItems: [],
             pendingApproval: null,
           },
     ),
@@ -123,6 +137,16 @@ export const useRunStore = create<RunState>((set) => ({
               { tool: eventString(event.data.tool, 'tool'), content: event.data.content },
             ]
           : state.toolResults;
+      const presentationKind = presentationKindByEvent[event.event];
+      const presentationItems = presentationKind
+        ? appendPresentationItem(
+            state.presentationItems,
+            event.run_id,
+            event.sequence,
+            presentationKind,
+            event.data,
+          )
+        : state.presentationItems;
       const pendingApproval =
         event.event === 'tool.approval_required'
           ? {
@@ -164,6 +188,7 @@ export const useRunStore = create<RunState>((set) => ({
         structuredOutput,
         generativeUi,
         toolResults,
+        presentationItems,
         pendingApproval,
         lastSequence: event.sequence,
       };
@@ -178,6 +203,7 @@ export const useRunStore = create<RunState>((set) => ({
       structuredOutput: null,
       generativeUi: null,
       toolResults: [],
+      presentationItems: [],
       pendingApproval: null,
       lastSequence: -1,
     }),

@@ -13,7 +13,11 @@ export interface PendingApprovalState {
   pendingApproval: PendingApproval | null;
 }
 
-const STREAMING_STATUSES = new Set<RunStatus>(['queued', 'running', 'resuming']);
+const STREAMING_STATUSES = new Set<PendingApprovalState['status']>([
+  'queued' as RunStatus,
+  'running' as RunStatus,
+  'resuming' as RunStatus,
+]);
 
 function optionalText(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
@@ -36,12 +40,12 @@ export function syncPendingApproval(
     const pendingApproval = pendingApprovalFromInterrupt(interrupt);
     return {
       runId: pendingApproval.runId,
-      status: 'interrupted',
+      status: 'interrupted' as RunStatus,
       pendingApproval,
     };
   }
 
-  if (preserveRunState && STREAMING_STATUSES.has(state.status as RunStatus)) {
+  if (preserveRunState && STREAMING_STATUSES.has(state.status)) {
     return state;
   }
 

@@ -1,18 +1,51 @@
 .card {
+  max-width: 760px;
   margin: 12px 0;
-  padding: 14px;
-  border: 1px solid #cbd5e1;
-  border-radius: 12px;
-  background: #fff;
+  overflow: hidden;
+  background: var(--success-soft);
+  border: 1px solid var(--success-border);
+  border-radius: var(--radius-lg);
 }
 
-.card p {
-  margin: 8px 0 0;
-  white-space: pre-wrap;
+.trigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 15px;
+  color: var(--text-primary);
+  background: transparent;
+  border: 0;
+  font-weight: 650;
+  cursor: pointer;
 }
 
-.card pre {
-  margin: 8px 0 0;
-  overflow: auto;
+.trigger span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trigger svg:last-child {
+  transition: transform var(--motion-fast);
+}
+
+.trigger[data-state='open'] svg:last-child {
+  transform: rotate(180deg);
+}
+
+.content {
+  padding: 0 15px 14px;
+  color: var(--text-secondary);
+}
+
+.content p {
+  margin: 0;
+}
+
+.content pre {
+  margin: 0;
+  overflow-x: auto;
   font-size: 12px;
+  white-space: pre-wrap;
 }

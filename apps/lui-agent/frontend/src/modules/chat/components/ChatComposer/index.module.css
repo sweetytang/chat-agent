@@ -1,0 +1,85 @@
+.composer {
+  position: relative;
+  width: min(800px, calc(100% - 32px));
+  margin: 0 auto 16px;
+  padding: 14px 54px 28px 17px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-composer);
+}
+
+.composer:focus-within {
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow-composer), var(--focus-ring);
+}
+
+.composer textarea {
+  display: block;
+  width: 100%;
+  min-height: 25px;
+  max-height: 180px;
+  resize: none;
+  color: var(--text-primary);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  line-height: 1.55;
+}
+
+.composer textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.disabled {
+  background: var(--surface-muted);
+  opacity: 0.8;
+}
+
+.send,
+.stop {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.stop {
+  color: var(--text-primary);
+  background: var(--surface-muted);
+  border: 1px solid var(--border-strong);
+}
+
+.send:disabled {
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  cursor: not-allowed;
+}
+
+.hint {
+  position: absolute;
+  bottom: 9px;
+  left: 17px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+@media (width <= 560px) {
+  .composer {
+    width: calc(100% - 20px);
+    margin-bottom: max(10px, env(safe-area-inset-bottom));
+    border-radius: var(--radius-lg);
+  }
+
+  .hint {
+    display: none;
+  }
+}

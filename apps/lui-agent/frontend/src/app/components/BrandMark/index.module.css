@@ -1,0 +1,27 @@
+.mark {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+.first,
+.second {
+  position: absolute;
+  width: 67%;
+  height: 67%;
+  border-radius: 38%;
+  transform: rotate(15deg);
+}
+
+.first {
+  top: 4%;
+  left: 4%;
+  background: var(--brand-primary);
+}
+
+.second {
+  right: 4%;
+  bottom: 4%;
+  background: var(--brand-secondary);
+  box-shadow: var(--brand-glow);
+}

@@ -1,11 +1,173 @@
 :root {
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  color-scheme: light;
+
+  --background: #f9f9f7;
+  --sidebar: #f2f2ef;
+  --surface: #fcfcfb;
+  --surface-raised: #fff;
+  --surface-muted: #f0f0ed;
+  --text-primary: #1c1d21;
+  --text-secondary: #5c606b;
+  --text-muted: #8b8e97;
+  --border: #e2e2de;
+  --border-strong: #d1d2ce;
+  --accent: #5b5bd6;
+  --accent-hover: #4d4dc4;
+  --accent-soft: #eef;
+  --accent-border: #b9b9ed;
+  --accent-contrast: #fff;
+  --brand-primary: #858bd8;
+  --brand-secondary: #82c4e8;
+  --brand-glow: 0 6px 16px rgb(108 148 211 / 12%);
+  --avatar-soft: #e8eaf6;
+  --avatar-text: #4c527e;
+  --avatar-border: #c8cce3;
+  --danger: #c23b4a;
+  --danger-soft: #fff0f1;
+  --danger-border: #efb8bf;
+  --warning: #a66b17;
+  --warning-soft: #fff7df;
+  --warning-border: #dfbd73;
+  --success: #287d55;
+  --success-soft: #edf8f2;
+  --success-border: #a9d8bf;
+  --user-message: #e8e9ff;
+  --user-message-border: #d6d7fb;
+  --user-message-text: #24254a;
+  --ambient-glow: rgb(106 112 224 / 9%);
+  --overlay: rgb(20 22 29 / 42%);
+  --tooltip: #25262c;
+  --tooltip-text: #fff;
+  --code-background: #24262d;
+  --code-toolbar: #2d3038;
+  --code-border: #3b3e48;
+  --code-text: #ebedf3;
+  --code-muted: #aeb2bd;
+  --code-inline: #ececf2;
+  --code-inline-text: #4b4d78;
+  --shadow-xs: 0 1px 2px rgb(20 21 26 / 4%);
+  --shadow-sm: 0 4px 14px rgb(20 21 26 / 8%);
+  --shadow-md: 0 14px 36px rgb(20 21 26 / 12%);
+  --shadow-lg: 0 24px 70px rgb(20 21 26 / 20%);
+  --shadow-composer: 0 8px 30px rgb(30 31 38 / 8%);
+  --focus-ring: 0 0 0 3px rgb(91 91 214 / 16%);
+  --radius-sm: 7px;
+  --radius-md: 11px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --motion-fast: 140ms;
+  --motion-normal: 220ms;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --background: #141417;
+  --sidebar: #19191d;
+  --surface: #1c1c21;
+  --surface-raised: #222228;
+  --surface-muted: #292930;
+  --text-primary: #f1f1f4;
+  --text-secondary: #b0b0bb;
+  --text-muted: #777984;
+  --border: #2e2f36;
+  --border-strong: #3b3c46;
+  --accent: #8988ff;
+  --accent-hover: #9d9cff;
+  --accent-soft: #292844;
+  --accent-border: #55548e;
+  --accent-contrast: #111117;
+  --brand-primary: #aaa1e8;
+  --brand-secondary: #8998dc;
+  --brand-glow: 0 6px 20px rgb(143 132 213 / 16%);
+  --avatar-soft: #303247;
+  --avatar-text: #d2d5ef;
+  --avatar-border: #555a78;
+  --danger: #ff858f;
+  --danger-soft: #3b2228;
+  --danger-border: #67353d;
+  --warning: #e7b05d;
+  --warning-soft: #382e1d;
+  --warning-border: #6f5730;
+  --success: #6dd7a0;
+  --success-soft: #1e3329;
+  --success-border: #355e49;
+  --user-message: #2d3150;
+  --user-message-border: #41466f;
+  --user-message-text: #f0f0ff;
+  --ambient-glow: rgb(103 91 228 / 13%);
+  --overlay: rgb(0 0 0 / 62%);
+  --tooltip: #ededf1;
+  --tooltip-text: #18181c;
+  --code-background: #101115;
+  --code-toolbar: #191a20;
+  --code-border: #30323b;
+  --code-text: #e5e7ed;
+  --code-muted: #9397a2;
+  --code-inline: #292a34;
+  --code-inline-text: #c8c6ff;
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 18%);
+  --shadow-sm: 0 5px 18px rgb(0 0 0 / 24%);
+  --shadow-md: 0 16px 40px rgb(0 0 0 / 35%);
+  --shadow-lg: 0 26px 80px rgb(0 0 0 / 48%);
+  --shadow-composer: 0 10px 35px rgb(0 0 0 / 30%);
+  --focus-ring: 0 0 0 3px rgb(137 136 255 / 20%);
 }
 
 * {
   box-sizing: border-box;
 }
 
-body {
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
   margin: 0;
+}
+
+body {
+  color: var(--text-primary);
+  background: var(--background);
+  font-family:
+    Inter,
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    'PingFang SC',
+    'Microsoft YaHei',
+    sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+[role='menuitem']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  color: var(--text-primary);
+  background: var(--accent-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

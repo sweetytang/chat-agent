@@ -1,0 +1,4 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/frontend/visual-system.md", "reason": "实现主题、布局、Radix、响应式、Composer 和展示事件时必须遵循的合同"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "遵循前端组件与 CSS Modules 的项目结构"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "保持业务 Store 与纯 UI 状态的边界"}

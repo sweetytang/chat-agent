@@ -1,0 +1,36 @@
+.card {
+  display: grid;
+  max-width: 760px;
+  grid-template-columns: auto 1fr auto;
+  gap: 11px;
+  align-items: start;
+  margin: 12px 0;
+  padding: 14px;
+  color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-md);
+}
+
+.card strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.card p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.card button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  color: var(--danger);
+  background: var(--surface-raised);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}

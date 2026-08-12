@@ -11,36 +11,43 @@ import {
 
 interface AuthState {
   token: string | null;
+  email: string | null;
   error: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<boolean>;
+  register: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   token: getAccessToken(),
+  email: null,
   error: null,
   login: async (email, password) => {
     try {
       const result = await login(email, password);
       saveAuthSession(result.access_token, result.refresh_token);
-      set({ error: null });
+      set({ email, error: null });
+      return true;
     } catch (error) {
       set({ error: error instanceof Error ? error.message : '登录失败' });
+      return false;
     }
   },
   register: async (email, password) => {
     try {
       const result = await register(email, password);
       saveAuthSession(result.access_token, result.refresh_token);
-      set({ error: null });
+      set({ email, error: null });
+      return true;
     } catch (error) {
       set({ error: error instanceof Error ? error.message : '注册失败' });
+      return false;
     }
   },
   logout: async () => {
     const refreshToken = getRefreshToken();
     clearAuthSession();
+    set({ email: null, error: null });
     if (refreshToken) {
       try {
         await logout(refreshToken);
@@ -51,7 +58,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 }));
 
-subscribeAuthSession((token) => useAuthStore.setState({ token }));
+subscribeAuthSession((token) =>
+  useAuthStore.setState({ token, ...(!token ? { email: null } : {}) }),
+);
 if (typeof window !== 'undefined') {
   window.addEventListener('lui-agent:auth-expired', () => {
     useAuthStore.setState({ token: null, error: '登录已过期，请重新登录' });

@@ -1,0 +1,42 @@
+import { Braces, ClipboardList, ListChecks, ScanText } from 'lucide-react';
+
+import { BrandMark } from '@/app/components/BrandMark';
+
+import styles from './index.module.css';
+
+const prompts = [
+  { icon: Braces, label: '分析一段代码', prompt: '请分析这段代码的结构、潜在问题和改进建议：' },
+  { icon: ClipboardList, label: '结构化整理', prompt: '请将以下内容整理成清晰的结构化信息：' },
+  { icon: ListChecks, label: '制定执行计划', prompt: '请为以下目标制定一份可执行的分步计划：' },
+  { icon: ScanText, label: '总结文本', prompt: '请总结以下文本的核心观点和关键结论：' },
+];
+
+export function WelcomePanel({
+  authenticated,
+  onPrompt,
+}: {
+  authenticated: boolean;
+  onPrompt: (prompt: string) => void;
+}) {
+  return (
+    <section className={styles.welcome}>
+      <BrandMark size={52} />
+      <h1>{authenticated ? '今天想一起完成什么？' : '欢迎使用 LUI Agent'}</h1>
+      <p>
+        {authenticated
+          ? '从一个问题开始，我会协助你思考、组织并执行。'
+          : '登录后即可开始对话，并在不同设备间继续你的工作。'}
+      </p>
+      {authenticated ? (
+        <div className={styles.prompts}>
+          {prompts.map(({ icon: Icon, label, prompt }) => (
+            <button key={label} onClick={() => onPrompt(prompt)} type="button">
+              <Icon size={17} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}

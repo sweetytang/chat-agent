@@ -1,22 +1,30 @@
 .card {
+  max-width: 760px;
   margin: 10px 0;
-  padding: 12px;
-  border: 1px solid #f0b429;
-  border-radius: 10px;
-  background: #fff9e6;
-  color: #7a5200;
+  padding: 14px 15px;
+  color: var(--warning);
+  background: var(--warning-soft);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-lg);
 }
 
-.card button {
-  margin: 10px 8px 0 0;
-  padding: 5px 10px;
-  border: 1px solid #d69e18;
-  border-radius: 6px;
-  background: #fff;
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 11px;
+}
+
+.actions button {
+  padding: 6px 11px;
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
-.card button:disabled {
+.actions button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
 }

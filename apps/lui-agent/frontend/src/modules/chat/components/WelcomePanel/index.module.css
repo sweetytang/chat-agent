@@ -1,0 +1,65 @@
+.welcome {
+  display: flex;
+  width: min(760px, 100%);
+  margin: auto;
+  align-items: center;
+  flex-direction: column;
+  padding: 42px 20px 26px;
+  text-align: center;
+}
+
+.welcome h1 {
+  margin: 22px 0 8px;
+  font-size: clamp(28px, 4vw, 40px);
+  line-height: 1.15;
+  letter-spacing: -0.045em;
+}
+
+.welcome > p {
+  max-width: 520px;
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.prompts {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 30px;
+}
+
+.prompts button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  color: var(--text-secondary);
+  text-align: left;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast),
+    transform var(--motion-fast),
+    background var(--motion-fast);
+}
+
+.prompts button:hover {
+  color: var(--text-primary);
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+  transform: translateY(-1px);
+}
+
+@media (width <= 560px) {
+  .prompts {
+    grid-template-columns: 1fr;
+  }
+
+  .welcome {
+    padding-top: 28px;
+  }
+}

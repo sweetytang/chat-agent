@@ -18,7 +18,9 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [],
+  "children": [
+    "08-12-lui-agent-frontend-visual-overhaul"
+  ],
   "parent": null,
   "relatedFiles": [],
   "notes": "",

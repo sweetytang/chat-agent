@@ -1,0 +1,43 @@
+.block {
+  margin: 16px 0;
+  overflow: hidden;
+  color: var(--code-text);
+  background: var(--code-background);
+  border: 1px solid var(--code-border);
+  border-radius: var(--radius-md);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 11px;
+  color: var(--code-muted);
+  background: var(--code-toolbar);
+  border-bottom: 1px solid var(--code-border);
+  font-size: 11px;
+}
+
+.toolbar button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.block pre {
+  margin: 0;
+  padding: 15px;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.block code {
+  padding: 0;
+  color: inherit;
+  background: none;
+}
