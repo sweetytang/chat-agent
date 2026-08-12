@@ -169,12 +169,17 @@ export const useRunStore = create<RunState>((set) => ({
             parent_checkpoint_id: null,
             branch_options: [],
             branch_index: null,
+            is_streaming: true,
           },
         ];
       } else if (event.event === 'message.delta' && content) {
         const last = history.at(-1);
         if (last?.role === 'assistant')
           history = [...history.slice(0, -1), { ...last, content: last.content + content }];
+      } else if (event.event === 'message.completed') {
+        const last = history.at(-1);
+        if (last?.role === 'assistant')
+          history = [...history.slice(0, -1), { ...last, is_streaming: false }];
       }
       const error =
         event.event === 'run.failed' ? eventString(event.data.error, '运行失败') : state.error;

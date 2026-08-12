@@ -130,6 +130,10 @@ const shouldSubmit =
 - Tool, approval, structured output, generative UI, and failed-run cards all enter the same ordered projection.
 - Presentation order derives from event `sequence`; render cards at that projected position instead of moving an active approval or error to the end.
 - A restored pending approval without a recoverable source event may render as a compatibility fallback after the ordered projection.
+- Streaming assistant messages use block-stable Markdown rendering. Completed blocks retain their component identity while only the changing tail block is reparsed.
+- Buffer `message.delta` events within one animation frame and dispatch at most one merged delta per frame. Flush the buffered delta before any non-delta event so event sequence and content remain lossless.
+- `message.completed` marks the assistant projection as complete without replacing the already rendered Markdown tree.
+- Memoize message rows, keep Markdown component references module-stable, and use a renderer that memoizes stable Markdown blocks. Message actions must read current store history at execution time so memoization cannot retain stale history snapshots.
 
 ## Motion Contract
 
@@ -155,6 +159,8 @@ const shouldSubmit =
 | Guest sidebar is rendered | Let guest content consume remaining height and keep the login action in the bottom account region |
 | First send from `demo-thread` | Create one persisted thread before starting the run; reject duplicate submits while creation is pending |
 | Page refresh with a valid token | Restore the persisted email or fixed neutral account label |
+| Multiple `message.delta` events arrive in one frame | Merge content and dispatch once using the highest event sequence |
+| `message.completed` arrives with a buffered delta | Flush the delta first, then mark the message complete without replacing the Markdown tree |
 
 ## Good, Base, and Bad Cases
 
@@ -168,6 +174,7 @@ const shouldSubmit =
 - Composer tests: Enter, Shift+Enter, IME, disabled unauthenticated state, stop ordering.
 - Presentation reducer tests: append order, duplicate sequence, multiple structured/generative results.
 - Presentation reducer tests: approval and failed-run cards preserve source-event order.
+- Streaming tests: same-frame deltas merge once; completion flushes pending content without replacing the Markdown tree.
 - Authentication UI tests: close preserves fields, success clears fields, token-without-email fallback.
 - Responsive browser checks: desktop expanded/collapsed and mobile drawer/overlay/scroll lock.
 - Quality gates: `pnpm format:check`, `pnpm lint`, `pnpm build`, `pnpm test`.
@@ -183,3 +190,4 @@ const shouldSubmit =
 - Handling Enter without checking IME composition.
 - Tracking only the initial chat stream locally, which leaves an approval-resume stream impossible to stop.
 - Appending an approval to the ordered projection but rendering it separately at the bottom.
+- Recreating every completed Markdown block for each stream delta; this creates near-quadratic work for long outputs.

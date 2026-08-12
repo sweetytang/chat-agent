@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 
 import { MessageContent } from '@/modules/chat/components/MessageContent';
 import { BranchSwitcher } from '@/modules/checkpoints/components/BranchSwitcher';
@@ -15,7 +15,7 @@ interface MessageBubbleProps {
   onRegenerate: (message: HistoryMessage) => void;
 }
 
-export function MessageBubble({
+function MessageBubbleComponent({
   message,
   disabled = false,
   onBranchSwitch,
@@ -90,3 +90,8 @@ export function MessageBubble({
     </article>
   );
 }
+
+export const MessageBubble = memo(
+  MessageBubbleComponent,
+  (previous, next) => previous.message === next.message && previous.disabled === next.disabled,
+);

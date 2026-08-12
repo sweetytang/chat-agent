@@ -20,6 +20,7 @@ import {
   activateStream,
   clearActiveStream,
 } from '@/modules/runs/domain/activeStream';
+import { createFrameEventDispatcher } from '@/modules/runs/domain/frameEventDispatcher';
 import { stopRun } from '@/modules/runs/domain/stopRun';
 import { cancelRun, RUN_STREAM_URL } from '@/modules/runs/services/runApi';
 import { streamAgentEvents } from '@/modules/runs/services/sse/client';
@@ -79,6 +80,9 @@ export function Chat() {
     };
     const streamController = new AbortController();
     activateStream(streamController);
+    const eventDispatcher = createFrameEventDispatcher((event) =>
+      useRunStore.getState().applyEvent(event),
+    );
     useRunStore
       .getState()
       .beginRun(options.showUserMessage ? options.content : undefined, options.baseHistory);
@@ -88,7 +92,7 @@ export function Chat() {
         body: request,
         signal: streamController.signal,
       }))
-        useRunStore.getState().applyEvent(agentEvent);
+        eventDispatcher.push(agentEvent);
     } catch (streamError) {
       if (!(streamError instanceof DOMException && streamError.name === 'AbortError'))
         useRunStore.setState({
@@ -96,6 +100,8 @@ export function Chat() {
           status: RunStatus.Failed,
         });
     } finally {
+      if (streamController.signal.aborted) eventDispatcher.cancel();
+      else eventDispatcher.flush();
       clearActiveStream(streamController);
       if (useThreadStore.getState().threadId === request.thread_id) {
         await useThreadStore.getState().refreshCurrentThread(true);
@@ -138,17 +144,19 @@ export function Chat() {
   }
 
   function editMessage(message: HistoryMessage, content: string) {
+    const currentHistory = useRunStore.getState().history;
     void startRun({
       content,
       checkpointId: message.parent_checkpoint_id,
       mode: 'edit',
       showUserMessage: true,
-      baseHistory: historyBeforeMessage(history, message.id),
+      baseHistory: historyBeforeMessage(currentHistory, message.id),
     });
   }
 
   function regenerateMessage(message: HistoryMessage) {
-    const content = findPreviousUserContent(history, message.id);
+    const currentHistory = useRunStore.getState().history;
+    const content = findPreviousUserContent(currentHistory, message.id);
     if (!content) {
       useRunStore.setState({ error: '找不到该回复对应的用户消息' });
       return;
@@ -157,7 +165,7 @@ export function Chat() {
       content,
       checkpointId: message.parent_checkpoint_id,
       mode: 'regenerate',
-      baseHistory: historyBeforeMessage(history, message.id),
+      baseHistory: historyBeforeMessage(currentHistory, message.id),
     });
   }
 

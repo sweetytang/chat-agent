@@ -77,6 +77,9 @@ test('HITL 恢复完成后同时刷新历史和线程列表', () => {
 
   assert.match(source, /refreshCurrentThread\(true\)/);
   assert.match(source, /loadThreads\(\)/);
+  assert.match(source, /createFrameEventDispatcher/);
+  assert.match(source, /eventDispatcher\.push\(event\)/);
+  assert.match(source, /eventDispatcher\.flush\(\)/);
 });
 
 test('线程操作菜单仅包含重命名、置顶和删除并保持产品顺序', () => {
@@ -162,6 +165,34 @@ test('运行中的历史刷新不会用空响应覆盖立即展示的用户消�
     'utf8',
   );
   assert.match(source, /preserveRunState[\s\S]*history\.length > 0 \? history : state\.history/);
+});
+
+test('流式消息使用稳定分块 Markdown 渲染', () => {
+  const bubble = fs.readFileSync(
+    new URL('../src/modules/chat/components/MessageBubble/index.tsx', import.meta.url),
+    'utf8',
+  );
+  const runStore = fs.readFileSync(
+    new URL('../src/modules/runs/store/run.ts', import.meta.url),
+    'utf8',
+  );
+  const markdown = fs.readFileSync(
+    new URL('../src/modules/chat/components/MessageContent/index.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(bubble, /<MessageContent content=\{message\.content\} \/>/);
+  assert.match(runStore, /is_streaming: true/);
+  assert.match(runStore, /message\.completed[\s\S]*is_streaming: false/);
+  assert.match(markdown, /import \{ Lexer \} from 'marked'/);
+  assert.match(markdown, /const remarkPlugins = \[remarkGfm\]/);
+  assert.match(markdown, /const markdownComponents: Components/);
+  assert.match(markdown, /const MarkdownBlock = memo/);
+  assert.match(markdown, /function splitMarkdownBlocks/);
+  assert.match(markdown, /token\.type === 'def'/);
+  assert.match(markdown, /key: `\$\{index\}-\$\{token\.type\}`/);
+  assert.match(markdown, /<MarkdownBlock content=\{block\.content\} key=\{block\.key\}/);
+  assert.match(markdown, /memo\(MessageContentComponent\)/);
 });
 
 test('认证邮箱持久化，缺少 profile 时使用固定中性身份', () => {

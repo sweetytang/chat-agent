@@ -12,6 +12,7 @@ export interface HistoryMessage {
   parent_checkpoint_id: string | null;
   branch_options: MessageBranchOption[];
   branch_index: number | null;
+  is_streaming?: boolean;
 }
 
 export interface ThreadHistory {

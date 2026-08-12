@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { resolveInterrupt } from '@/modules/interrupts/services/interruptApi';
 import { activateStream, clearActiveStream } from '@/modules/runs/domain/activeStream';
+import { createFrameEventDispatcher } from '@/modules/runs/domain/frameEventDispatcher';
 import { streamAgentEvents } from '@/modules/runs/services/sse/client';
 import { useRunStore } from '@/modules/runs/store/run';
 import { RunStatus } from '@/modules/runs/types/events';
@@ -25,6 +26,9 @@ export function ApprovalCard({
   async function resolve(decision: 'approve' | 'edit' | 'reject') {
     setIsResolving(true);
     let streamController: AbortController | null = null;
+    const eventDispatcher = createFrameEventDispatcher((event) =>
+      useRunStore.getState().applyEvent(event),
+    );
     try {
       await resolveInterrupt(requestId, decision);
       useRunStore.getState().prepareResume();
@@ -35,14 +39,17 @@ export function ApprovalCard({
         body: { request_id: requestId, decision },
         signal: streamController.signal,
       })) {
-        useRunStore.getState().applyEvent(event);
+        eventDispatcher.push(event);
       }
     } catch (error) {
-      useRunStore.setState({
-        error: error instanceof Error ? error.message : '审核恢复失败',
-        status: RunStatus.Failed,
-      });
+      if (!(error instanceof DOMException && error.name === 'AbortError'))
+        useRunStore.setState({
+          error: error instanceof Error ? error.message : '审核恢复失败',
+          status: RunStatus.Failed,
+        });
     } finally {
+      if (streamController?.signal.aborted) eventDispatcher.cancel();
+      else eventDispatcher.flush();
       if (streamController) clearActiveStream(streamController);
       await useThreadStore.getState().refreshCurrentThread(true);
       await useThreadStore.getState().loadThreads();
