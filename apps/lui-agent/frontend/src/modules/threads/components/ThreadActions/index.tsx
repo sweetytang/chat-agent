@@ -73,11 +73,12 @@ export function ThreadActions({ disabled, thread, onDeleted }: ThreadActionsProp
   }
 
   return (
-    <>
+    <div data-thread-actions>
       <DropdownMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenu.Trigger
           ref={triggerRef}
           className={styles.trigger}
+          data-thread-actions-trigger
           data-open={menuOpen ? '' : undefined}
           disabled={disabled}
           aria-label={`管理会话：${thread.title ?? '未命名会话'}`}
@@ -165,6 +166,6 @@ export function ThreadActions({ disabled, thread, onDeleted }: ThreadActionsProp
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-    </>
+    </div>
   );
 }

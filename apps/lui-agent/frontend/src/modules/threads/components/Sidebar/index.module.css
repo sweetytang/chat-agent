@@ -94,7 +94,7 @@
   height: 100%;
   padding: 3px 1px;
 
-  &>div {
+  & > div {
     width: 100%;
     display: block !important;
   }
@@ -137,13 +137,14 @@
 .item:hover,
 .item:focus-within {
   color: var(--text-primary);
-  background: var(--surface-muted);
+  background: var(--surface-hover);
 }
 
-.item:hover > :last-child,
-.item:focus-within > :last-child,
-.item.active > :last-child {
+.item:hover [data-thread-actions-trigger],
+.item:focus-within [data-thread-actions-trigger] {
   opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .item.active {
@@ -159,6 +160,7 @@
 
 .empty,
 .guest {
+  flex: 1;
   padding: 28px 12px;
   color: var(--text-muted);
   text-align: center;
@@ -174,6 +176,7 @@
 }
 
 .account {
+  margin-top: auto;
   padding-top: 10px;
   border-top: 1px solid var(--border);
 }
@@ -192,7 +195,7 @@
 }
 
 .login:hover {
-  background: var(--surface-muted);
+  background: var(--surface-hover);
 }
 
 .iconButton {

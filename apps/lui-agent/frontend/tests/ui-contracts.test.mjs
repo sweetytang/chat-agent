@@ -105,3 +105,87 @@ test('删除当前线程会中止流、重置运行投影、选择首条线程�
   assert.match(source, /await get\(\)\.refreshCurrentThread\(\)/);
   assert.match(source, /threadId: 'demo-thread'/);
 });
+
+test('首条发送会先把 demo-thread 替换为真实线程', () => {
+  const source = fs.readFileSync(
+    new URL('../src/modules/chat/components/Chat/index.tsx', import.meta.url),
+    'utf8',
+  );
+  assert.match(source, /currentThread\.threadId === 'demo-thread'/);
+  assert.match(source, /await currentThread\.createThread\(\)/);
+  assert.match(source, /threadId: target\.threadId/);
+});
+
+test('认证邮箱持久化，缺少 profile 时使用固定中性身份', () => {
+  const session = fs.readFileSync(
+    new URL('../src/shared/session/authSession.ts', import.meta.url),
+    'utf8',
+  );
+  const account = fs.readFileSync(
+    new URL('../src/modules/auth/components/AccountMenu/index.tsx', import.meta.url),
+    'utf8',
+  );
+  assert.match(session, /AUTH_EMAIL_KEY/);
+  assert.match(session, /getAuthEmail/);
+  assert.match(account, /email \?\? '已登录账户'/);
+  assert.match(account, /\?\? 'U'/);
+});
+
+test('Guest 账号区通过 flex 占据底部位置', () => {
+  const source = fs.readFileSync(
+    new URL('../src/modules/threads/components/Sidebar/index.module.css', import.meta.url),
+    'utf8',
+  );
+  assert.match(source, /\.guest\s*\{[^}]*flex:\s*1/);
+  assert.match(source, /\.account\s*\{[^}]*margin-top:\s*auto/);
+});
+
+test('线程行 hover 显示背景和操作按钮，操作按钮默认隐藏', () => {
+  const sidebar = fs.readFileSync(
+    new URL('../src/modules/threads/components/Sidebar/index.module.css', import.meta.url),
+    'utf8',
+  );
+  const actions = fs.readFileSync(
+    new URL('../src/modules/threads/components/ThreadActions/index.module.css', import.meta.url),
+    'utf8',
+  );
+  assert.match(sidebar, /\.item:hover[\s\S]*background: var\(--surface-hover\)/);
+  assert.match(sidebar, /\.item:hover \[data-thread-actions-trigger\]/);
+  assert.match(
+    fs.readFileSync(
+      new URL('../src/modules/threads/components/ThreadActions/index.tsx', import.meta.url),
+      'utf8',
+    ),
+    /data-thread-actions/,
+  );
+  assert.match(actions, /visibility: hidden/);
+  assert.match(actions, /pointer-events: none/);
+});
+
+test('全局按钮和菜单项聚焦时不显示边框或阴影', () => {
+  const source = fs.readFileSync(new URL('../src/app/styles/global.css', import.meta.url), 'utf8');
+  assert.match(source, /button:focus,[\s\S]*button:focus-visible/);
+  assert.match(source, /\[role='menuitem'\]:focus-visible[\s\S]*outline: none/);
+  assert.match(source, /box-shadow: none/);
+});
+
+test('顶部覆盖层仅保留主题菜单且不占用聊天区域高度', () => {
+  const component = fs.readFileSync(
+    new URL('../src/app/components/AppTopBar/index.tsx', import.meta.url),
+    'utf8',
+  );
+  const styles = fs.readFileSync(
+    new URL('../src/app/components/AppTopBar/index.module.css', import.meta.url),
+    'utf8',
+  );
+  const shell = fs.readFileSync(
+    new URL('../src/app/components/AppShell/index.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(component, /<ThemeMenu \/>/);
+  assert.doesNotMatch(component, /BrandMark|\bMenu\b|onToggleSidebar/);
+  assert.doesNotMatch(shell, /onToggleSidebar/);
+  assert.match(styles, /position:\s*absolute/);
+  assert.doesNotMatch(styles, /height:\s*62px/);
+});

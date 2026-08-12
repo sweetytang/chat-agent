@@ -12,13 +12,13 @@ interface AccountMenuProps {
 
 export function AccountMenu({ compact = false }: AccountMenuProps) {
   const email = useAuthStore((state) => state.email);
-  const label = email ?? '已登录';
+  const label = email ?? '已登录账户';
   const trigger = (
     <DropdownMenu.Trigger
       className={`${styles.trigger} ${compact ? styles.compact : ''}`}
       aria-label={compact ? '打开账户菜单' : undefined}
     >
-      <span className={styles.avatar}>{email?.charAt(0).toUpperCase() ?? 'L'}</span>
+      <span className={styles.avatar}>{email?.charAt(0).toUpperCase() ?? 'U'}</span>
       {!compact && (
         <span className={styles.identity}>
           <strong>{label}</strong>

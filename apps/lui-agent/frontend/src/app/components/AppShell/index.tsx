@@ -19,10 +19,6 @@ export function AppShell({
   const collapsed = useUiStore((state) => state.sidebarCollapsed);
   const mobileOpen = useUiStore((state) => state.mobileSidebarOpen);
   const setMobileOpen = useUiStore((state) => state.setMobileSidebarOpen);
-  function toggle() {
-    if (window.matchMedia('(max-width: 800px)').matches) setMobileOpen(!mobileOpen);
-    else useUiStore.getState().toggleSidebar();
-  }
   return (
     <div className={`${styles.shell} ${collapsed ? styles.collapsed : ''}`}>
       <div className={styles.desktopSidebar}>
@@ -38,7 +34,7 @@ export function AppShell({
         </Dialog.Portal>
       </Dialog.Root>
       <div className={styles.content}>
-        <AppTopBar onToggleSidebar={toggle} />
+        <AppTopBar />
         {children}
       </div>
       <AuthDialog />

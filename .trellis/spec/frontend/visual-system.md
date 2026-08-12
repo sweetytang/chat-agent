@@ -40,11 +40,12 @@ Required token groups: background/surfaces, text levels, borders, accent states,
 - `BrandMark` and favicon use the same neutral black/white token pair; do not reintroduce saturated brand colors.
 - Account avatars use the `--avatar-*` gray token group in both themes.
 - Inputs and textareas keep their normal border on focus and must not add a focus border, outline, or box shadow. Interactive buttons and menu items retain a visible keyboard focus indicator.
+- Theme surfaces use a restrained neutral scale: dark mode avoids pure-black panels and excessive shadow opacity; light mode avoids pure-white blocks where a raised neutral surface is sufficient.
 
 ## Component Ownership
 
 - `AppShell` owns page layout and responsive regions.
-- `TopBar` owns brand, sidebar trigger, and theme trigger.
+- `TopBar` is a transparent overlay that owns only the theme trigger; the sidebar owns brand and sidebar controls.
 - `Sidebar` owns thread search/list rendering and account entry placement, but thread data remains in the thread store.
 - `AuthDialog` owns form presentation; authentication requests remain in the auth store/service.
 - `ChatComposer` owns draft input behavior and keyboard handling; run creation remains in the chat/run boundary.
@@ -66,7 +67,7 @@ Radix Primitives may be used as needed for dialogs, dropdowns, collapsibles, scr
 Desktop:
 
 - Sidebar supports expanded and collapsed modes.
-- Expanded sidebar header owns the brand on the left and collapse control on the right. The desktop content top bar must not duplicate either control and keeps the theme control right-aligned.
+- Expanded sidebar header owns the brand on the left and collapse control on the right. The desktop content top bar is an absolute overlay with only the theme control right-aligned, so it does not reserve vertical space or duplicate sidebar controls.
 - Collapsed mode remains usable through icon buttons and tooltips for expand, new thread, search, and account access.
 - Expanded sidebar places search immediately before the collapse control; do not keep a second inline search field in the thread list.
 - Expanded and collapsed search controls open one shared Radix dialog. The dialog focuses its search input, filters real threads without changing backend order, and closes on result selection, `Esc`, overlay, or close control.
@@ -77,6 +78,7 @@ Desktop:
 Mobile:
 
 - Sidebar is a left drawer with overlay.
+- The content overlay does not restore brand or menu controls on mobile; the drawer remains owned by the existing sidebar/drawer mechanism.
 - Opening the drawer locks main-page scrolling.
 - Overlay click, thread selection, and the shared toggle close it.
 - Composer must remain visible without covering the last message.
@@ -85,6 +87,8 @@ Thread titles are one line with ellipsis. The displayed value comes from the bac
 
 - 每条展开态线程行在最右侧提供三点菜单，菜单只包含 `Rename`、`Pin chat`/`Unpin chat`、`Delete`，并保持该顺序。
 - 三点按钮在 hover、键盘 focus、当前线程或菜单打开时清晰可见；按钮不能触发线程导航，也不能挤压标题的单行省略布局。
+- 线程行 hover 使用独立于普通 muted surface 的 hover token；三点按钮默认 `visibility: hidden` 且不可点击，行 hover/focus 或菜单打开时才显示并恢复 pointer events。跨 CSS Module 的父子交互使用稳定的 `data-thread-actions-trigger` 属性，不依赖另一个模块的局部 class 名。
+- 账户底部区域及其登录/账户触发器使用同一 hover token，保证整块区域存在可感知反馈。
 - Rename 与 Delete 使用 Radix Dialog。Rename 禁止空标题；Delete 必须二次确认。关闭弹窗后焦点返回对应三点按钮。
 - 删除当前线程后，前端必须中止活动流、清理运行投影并立即加载后端返回的下一条线程；无剩余线程时回到空白初始态。
 
@@ -95,6 +99,8 @@ Thread titles are one line with ellipsis. The displayed value comes from the bac
 - Authentication appears in a dialog opened from the sidebar account entry.
 - Closing the dialog preserves form fields; successful authentication clears them.
 - Display the captured login email only when it was actually provided and stored. If a token exists without profile data, show a neutral authenticated label.
+- Persist the authenticated email beside the access/refresh tokens so a page refresh preserves the same account label and initial. If no email is available, always use the fixed neutral label `已登录账户` and initial `U`; never derive a random identity.
+- All buttons and menu items globally keep their normal visual surface on `:focus`/`:focus-visible`; the global rule removes outline and box shadow. Hover, active surface changes and menu highlight remain the interaction feedback.
 
 ## Composer Keyboard Contract
 
@@ -146,6 +152,9 @@ const shouldSubmit =
 | Presentation event repeats sequence | Ignore duplicate item |
 | Thread title is long | Ellipsis without changing list width |
 | Mobile drawer opens | Lock page scroll and trap focus through Radix |
+| Guest sidebar is rendered | Let guest content consume remaining height and keep the login action in the bottom account region |
+| First send from `demo-thread` | Create one persisted thread before starting the run; reject duplicate submits while creation is pending |
+| Page refresh with a valid token | Restore the persisted email or fixed neutral account label |
 
 ## Good, Base, and Bad Cases
 

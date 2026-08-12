@@ -6,6 +6,7 @@
   --surface: #fcfcfb;
   --surface-raised: #fff;
   --surface-muted: #f0f0ed;
+  --surface-hover: #e8e8e4;
   --text-primary: #1c1d21;
   --text-secondary: #5c606b;
   --text-muted: #8b8e97;
@@ -46,10 +47,10 @@
   --code-inline: #ececf2;
   --code-inline-text: #4b4d78;
   --shadow-xs: 0 1px 2px rgb(20 21 26 / 4%);
-  --shadow-sm: 0 4px 14px rgb(20 21 26 / 8%);
-  --shadow-md: 0 14px 36px rgb(20 21 26 / 12%);
-  --shadow-lg: 0 24px 70px rgb(20 21 26 / 20%);
-  --shadow-composer: 0 8px 30px rgb(30 31 38 / 8%);
+  --shadow-sm: 0 3px 10px rgb(20 21 26 / 6%);
+  --shadow-md: 0 10px 26px rgb(20 21 26 / 9%);
+  --shadow-lg: 0 18px 48px rgb(20 21 26 / 14%);
+  --shadow-composer: 0 6px 22px rgb(30 31 38 / 6%);
   --radius-sm: 7px;
   --radius-md: 11px;
   --radius-lg: 16px;
@@ -61,16 +62,17 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --background: #141417;
-  --sidebar: #19191d;
-  --surface: #1c1c21;
-  --surface-raised: #222228;
-  --surface-muted: #292930;
+  --background: #191a1d;
+  --sidebar: #1d1e22;
+  --surface: #222329;
+  --surface-raised: #282a30;
+  --surface-muted: #303238;
+  --surface-hover: #393b42;
   --text-primary: #f1f1f4;
   --text-secondary: #b0b0bb;
   --text-muted: #777984;
-  --border: #2e2f36;
-  --border-strong: #3b3c46;
+  --border: #383a42;
+  --border-strong: #484a54;
   --accent: #8988ff;
   --accent-hover: #9d9cff;
   --accent-soft: #292844;
@@ -95,7 +97,7 @@
   --user-message-border: #41466f;
   --user-message-text: #f0f0ff;
   --ambient-glow: rgb(103 91 228 / 13%);
-  --overlay: rgb(0 0 0 / 62%);
+  --overlay: rgb(0 0 0 / 48%);
   --tooltip: #ededf1;
   --tooltip-text: #18181c;
   --code-background: #101115;
@@ -106,10 +108,10 @@
   --code-inline: #292a34;
   --code-inline-text: #c8c6ff;
   --shadow-xs: 0 1px 2px rgb(0 0 0 / 18%);
-  --shadow-sm: 0 5px 18px rgb(0 0 0 / 24%);
-  --shadow-md: 0 16px 40px rgb(0 0 0 / 35%);
-  --shadow-lg: 0 26px 80px rgb(0 0 0 / 48%);
-  --shadow-composer: 0 10px 35px rgb(0 0 0 / 30%);
+  --shadow-sm: 0 4px 14px rgb(0 0 0 / 16%);
+  --shadow-md: 0 12px 32px rgb(0 0 0 / 24%);
+  --shadow-lg: 0 20px 58px rgb(0 0 0 / 32%);
+  --shadow-composer: 0 8px 28px rgb(0 0 0 / 22%);
 }
 
 * {
@@ -146,10 +148,12 @@ textarea {
   font: inherit;
 }
 
+button:focus,
 button:focus-visible,
+[role='menuitem']:focus,
 [role='menuitem']:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: none;
 }
 
 input:focus,

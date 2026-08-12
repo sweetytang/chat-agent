@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { login, logout, register } from '@/modules/auth/services/authApi';
 import {
   clearAuthSession,
+  getAuthEmail,
   getAccessToken,
   getRefreshToken,
   saveAuthSession,
@@ -20,13 +21,14 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set) => ({
   token: getAccessToken(),
-  email: null,
+  email: getAuthEmail(),
   error: null,
   login: async (email, password) => {
     try {
       const result = await login(email, password);
-      saveAuthSession(result.access_token, result.refresh_token);
-      set({ email, error: null });
+      const profileEmail = result.email ?? email;
+      saveAuthSession(result.access_token, result.refresh_token, profileEmail);
+      set({ email: profileEmail, error: null });
       return true;
     } catch (error) {
       set({ error: error instanceof Error ? error.message : '登录失败' });
@@ -36,8 +38,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   register: async (email, password) => {
     try {
       const result = await register(email, password);
-      saveAuthSession(result.access_token, result.refresh_token);
-      set({ email, error: null });
+      const profileEmail = result.email ?? email;
+      saveAuthSession(result.access_token, result.refresh_token, profileEmail);
+      set({ email: profileEmail, error: null });
       return true;
     } catch (error) {
       set({ error: error instanceof Error ? error.message : '注册失败' });

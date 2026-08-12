@@ -8,7 +8,6 @@ import { useUiStore } from '@/app/store/ui';
 import { AccountMenu } from '@/modules/auth/components/AccountMenu';
 import { useAuthStore } from '@/modules/auth/store/auth';
 import { ThreadActions } from '@/modules/threads/components/ThreadActions';
-import { createThread as createThreadRequest } from '@/modules/threads/services/threadApi';
 import { useThreadStore } from '@/modules/threads/store/thread';
 
 import styles from './index.module.css';
@@ -26,16 +25,8 @@ export function Sidebar({ disabled = false, collapsed = false, onNavigate }: Sid
 
   async function createThread() {
     if (!token || disabled) return;
-    try {
-      const thread = await createThreadRequest();
-      useThreadStore
-        .getState()
-        .setThread(thread.id, thread.title ?? '未命名会话', thread.current_checkpoint_id);
-      await useThreadStore.getState().loadThreads();
-      onNavigate?.();
-    } catch {
-      /* 请求错误由会话区空状态自然退化。 */
-    }
+    const thread = await useThreadStore.getState().createThread();
+    if (thread) onNavigate?.();
   }
 
   useEffect(() => {

@@ -9,7 +9,9 @@
   background: transparent;
   border: 0;
   border-radius: var(--radius-sm);
-  opacity: 0.18;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
   cursor: pointer;
   transition:
     opacity var(--motion-fast),
@@ -23,6 +25,8 @@
   color: var(--text-primary);
   background: var(--surface-muted);
   opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .trigger:disabled {

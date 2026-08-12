@@ -1,7 +1,5 @@
 import { Braces, ClipboardList, ListChecks, ScanText } from 'lucide-react';
 
-import { BrandMark } from '@/app/components/BrandMark';
-
 import styles from './index.module.css';
 
 const prompts = [
@@ -20,7 +18,6 @@ export function WelcomePanel({
 }) {
   return (
     <section className={styles.welcome}>
-      <BrandMark size={52} />
       <h1>{authenticated ? '今天想一起完成什么？' : '欢迎使用 LUI Agent'}</h1>
       <p>
         {authenticated

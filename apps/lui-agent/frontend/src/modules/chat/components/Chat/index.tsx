@@ -36,15 +36,17 @@ interface StartRunOptions {
   mode: RunMode;
   showUserMessage?: boolean;
   baseHistory?: HistoryMessage[];
+  threadId?: string;
 }
 
 export function Chat() {
   const [input, setInput] = useState('');
   const [canRetry, setCanRetry] = useState(false);
+  const [creatingThread, setCreatingThread] = useState(false);
+  const creatingThreadRef = useRef(false);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const lastRequest = useRef<StartRunOptions | null>(null);
   const threadId = useThreadStore((state) => state.threadId);
-  const currentCheckpointId = useThreadStore((state) => state.currentCheckpointId);
   const isRefreshing = useThreadStore((state) => state.isRefreshing);
   const token = useAuthStore((state) => state.token);
   const history = useRunStore((state) => state.history);
@@ -54,7 +56,7 @@ export function Chat() {
   const presentationItems = useRunStore((state) => state.presentationItems);
   const pendingApproval = useRunStore((state) => state.pendingApproval);
   const active = ACTIVE_RUN_STATUSES.has(status);
-  const controlsDisabled = active || isRefreshing;
+  const controlsDisabled = active || isRefreshing || creatingThread;
 
   useEffect(() => {
     abortActiveStream();
@@ -67,7 +69,7 @@ export function Chat() {
     lastRequest.current = options;
     setCanRetry(true);
     const request: RunStreamRequest = {
-      thread_id: threadId,
+      thread_id: options.threadId ?? useThreadStore.getState().threadId,
       content: options.content,
       checkpoint_id: options.checkpointId,
       mode: options.mode,
@@ -99,16 +101,34 @@ export function Chat() {
     }
   }
 
-  function submit() {
+  async function submit() {
     const content = input.trim();
-    if (!content || controlsDisabled || !token) return;
+    if (!content || controlsDisabled || !token || creatingThreadRef.current) return;
     setInput('');
-    void startRun({
-      content,
-      checkpointId: currentCheckpointId,
-      mode: 'send',
-      showUserMessage: true,
-    });
+    creatingThreadRef.current = true;
+    setCreatingThread(true);
+    try {
+      const currentThread = useThreadStore.getState();
+      const thread =
+        currentThread.threadId === 'demo-thread'
+          ? await currentThread.createThread()
+          : currentThread;
+      if (currentThread.threadId === 'demo-thread' && !thread) {
+        setInput(content);
+        return;
+      }
+      const target = useThreadStore.getState();
+      void startRun({
+        content,
+        checkpointId: target.currentCheckpointId,
+        mode: 'send',
+        showUserMessage: true,
+        threadId: target.threadId,
+      });
+    } finally {
+      creatingThreadRef.current = false;
+      setCreatingThread(false);
+    }
   }
 
   function editMessage(message: HistoryMessage, content: string) {
@@ -258,15 +278,17 @@ export function Chat() {
             )}
           </div>
         </section>
-        <ChatComposer
-          ref={composerRef}
-          value={input}
-          disabled={!token || isRefreshing}
-          running={active}
-          onChange={setInput}
-          onSubmit={submit}
-          onStop={() => void stop()}
-        />
+        <div className={styles.composerDock}>
+          <ChatComposer
+            ref={composerRef}
+            value={input}
+            disabled={!token || isRefreshing}
+            running={active}
+            onChange={setInput}
+            onSubmit={() => void submit()}
+            onStop={() => void stop()}
+          />
+        </div>
       </main>
     </AppShell>
   );

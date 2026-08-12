@@ -9,6 +9,7 @@ import { getPendingInterrupt } from '@/modules/interrupts/services/interruptApi'
 import { abortActiveStream } from '@/modules/runs/domain/activeStream';
 import { useRunStore } from '@/modules/runs/store/run';
 import {
+  createThread as createThreadRequest,
   deleteThread as deleteThreadRequest,
   getThreadHistory,
   listThreads,
@@ -37,6 +38,7 @@ interface ThreadState {
   renameThread: (threadId: string, title: string) => Promise<void>;
   setThreadPinned: (threadId: string, isPinned: boolean) => Promise<void>;
   deleteThread: (threadId: string) => Promise<void>;
+  createThread: () => Promise<ThreadSummary | null>;
   refreshCurrentThread: (preserveRunState?: boolean) => Promise<void>;
   switchCheckpoint: (checkpointId: string) => Promise<void>;
 }
@@ -64,6 +66,16 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
       set({ threads: await listThreads() });
     } catch {
       set({ threads: [] });
+    }
+  },
+  createThread: async () => {
+    try {
+      const thread = await createThreadRequest();
+      get().setThread(thread.id, thread.title ?? '未命名会话', thread.current_checkpoint_id);
+      await get().loadThreads();
+      return thread;
+    } catch {
+      return null;
     }
   },
   renameThread: async (threadId, title) => {
