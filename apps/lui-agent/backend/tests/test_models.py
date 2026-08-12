@@ -1,6 +1,6 @@
 from app.core.config import get_settings
 from app.db.base import Base
-from app.db.models import RefreshToken
+from app.db.models import RefreshToken, Thread
 
 
 def test_core_models_are_registered() -> None:
@@ -26,3 +26,10 @@ def test_refresh_token_columns_are_persisted_safely() -> None:
 
 def test_database_url_is_postgresql() -> None:
     assert "postgresql" in str(get_settings().database_url)
+
+
+def test_thread_pinning_defaults_to_unpinned() -> None:
+    column = Base.metadata.tables[Thread.__tablename__].c.is_pinned
+
+    assert column.nullable is False
+    assert column.server_default is not None

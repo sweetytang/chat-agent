@@ -83,6 +83,11 @@ Mobile:
 
 Thread titles are one line with ellipsis. The displayed value comes from the backend conversation summary; the frontend must not derive it from the first prompt. Thread ordering follows backend order. Never invent date groups without timestamp fields.
 
+- 每条展开态线程行在最右侧提供三点菜单，菜单只包含 `Rename`、`Pin chat`/`Unpin chat`、`Delete`，并保持该顺序。
+- 三点按钮在 hover、键盘 focus、当前线程或菜单打开时清晰可见；按钮不能触发线程导航，也不能挤压标题的单行省略布局。
+- Rename 与 Delete 使用 Radix Dialog。Rename 禁止空标题；Delete 必须二次确认。关闭弹窗后焦点返回对应三点按钮。
+- 删除当前线程后，前端必须中止活动流、清理运行投影并立即加载后端返回的下一条线程；无剩余线程时回到空白初始态。
+
 ## Authentication UI Contract
 
 - Unauthenticated users do not see the thread list or prompt suggestions.

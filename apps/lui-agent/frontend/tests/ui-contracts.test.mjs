@@ -78,3 +78,30 @@ test('HITL 恢复完成后同时刷新历史和线程列表', () => {
   assert.match(source, /refreshCurrentThread\(true\)/);
   assert.match(source, /loadThreads\(\)/);
 });
+
+test('线程操作菜单仅包含重命名、置顶和删除并保持产品顺序', () => {
+  const source = fs.readFileSync(
+    new URL('../src/modules/threads/components/ThreadActions/index.tsx', import.meta.url),
+    'utf8',
+  );
+  const rename = source.indexOf('Rename');
+  const pin = source.indexOf("thread.is_pinned ? 'Unpin chat' : 'Pin chat'");
+  const remove = source.lastIndexOf('Delete');
+
+  assert.ok(rename > 0);
+  assert.ok(pin > rename);
+  assert.ok(remove > pin);
+  assert.match(source, /title\.trim\(\)/);
+});
+
+test('删除当前线程会中止流、重置运行投影、选择首条线程并刷新历史', () => {
+  const source = fs.readFileSync(
+    new URL('../src/modules/threads/store/thread.ts', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(source, /abortActiveStream\(\);\s*useRunStore\.getState\(\)\.reset\(\)/);
+  assert.match(source, /const nextThread = threads\[0\]/);
+  assert.match(source, /await get\(\)\.refreshCurrentThread\(\)/);
+  assert.match(source, /threadId: 'demo-thread'/);
+});

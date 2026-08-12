@@ -9,3 +9,12 @@ export const createThread = (title?: string) =>
 
 export const getThreadHistory = (threadId: string) =>
   request<ThreadHistory>(`/threads/${threadId}/history`);
+
+export const updateThread = (threadId: string, update: { title?: string; is_pinned?: boolean }) =>
+  request<ThreadSummary>(`/threads/${threadId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(update),
+  });
+
+export const deleteThread = (threadId: string) =>
+  request<void>(`/threads/${threadId}`, { method: 'DELETE' });

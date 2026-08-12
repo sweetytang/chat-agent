@@ -33,3 +33,15 @@ def test_refresh_token_migration_has_expected_revision_chain_and_columns() -> No
         assert f'"{column}"' in source
     assert 'op.create_table(\n        "refresh_tokens"' in source
     assert 'op.drop_table("refresh_tokens")' in source
+
+
+def test_thread_pinning_migration_is_persisted_and_reversible() -> None:
+    migration = Path(__file__).parents[1] / "migrations" / "versions" / "0003_thread_pinning.py"
+    source = migration.read_text()
+
+    assert 'revision: str = "0003_thread_pinning"' in source
+    assert 'down_revision: str | None = "0002_refresh_tokens"' in source
+    assert (
+        'sa.Column("is_pinned", sa.Boolean(), server_default=sa.false(), nullable=False)' in source
+    )
+    assert 'op.drop_column("threads", "is_pinned")' in source

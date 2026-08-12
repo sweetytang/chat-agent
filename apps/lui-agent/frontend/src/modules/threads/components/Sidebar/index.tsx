@@ -1,12 +1,13 @@
 import * as ScrollArea from '@radix-ui/react-scroll-area';
 import * as Tooltip from '@radix-ui/react-tooltip';
-import { LogIn, PanelLeftClose, PanelLeftOpen, Search, SquarePen } from 'lucide-react';
+import { LogIn, PanelLeftClose, PanelLeftOpen, Pin, Search, SquarePen } from 'lucide-react';
 import { useEffect } from 'react';
 
 import { BrandMark } from '@/app/components/BrandMark';
 import { useUiStore } from '@/app/store/ui';
 import { AccountMenu } from '@/modules/auth/components/AccountMenu';
 import { useAuthStore } from '@/modules/auth/store/auth';
+import { ThreadActions } from '@/modules/threads/components/ThreadActions';
 import { createThread as createThreadRequest } from '@/modules/threads/services/threadApi';
 import { useThreadStore } from '@/modules/threads/store/thread';
 
@@ -192,24 +193,30 @@ export function Sidebar({ disabled = false, collapsed = false, onNavigate }: Sid
                 </div>
               ) : (
                 threads.map((thread) => (
-                  <button
+                  <div
                     className={`${styles.item} ${thread.id === threadId ? styles.active : ''}`}
-                    disabled={disabled}
                     key={thread.id}
-                    onClick={() => {
-                      useThreadStore
-                        .getState()
-                        .setThread(
-                          thread.id,
-                          thread.title ?? '未命名会话',
-                          thread.current_checkpoint_id,
-                        );
-                      onNavigate?.();
-                    }}
-                    type="button"
                   >
-                    <span>{thread.title ?? '未命名会话'}</span>
-                  </button>
+                    <button
+                      className={styles.itemLink}
+                      disabled={disabled}
+                      onClick={() => {
+                        useThreadStore
+                          .getState()
+                          .setThread(
+                            thread.id,
+                            thread.title ?? '未命名会话',
+                            thread.current_checkpoint_id,
+                          );
+                        onNavigate?.();
+                      }}
+                      type="button"
+                    >
+                      {thread.is_pinned && <Pin className={styles.pin} size={13} />}
+                      <span>{thread.title ?? '未命名会话'}</span>
+                    </button>
+                    <ThreadActions disabled={disabled} thread={thread} onDeleted={onNavigate} />
+                  </div>
                 ))
               )}
             </ScrollArea.Viewport>

@@ -3,13 +3,13 @@ import enum
 from typing import Any
 import uuid
 
-from sqlalchemy import JSON, DateTime, Enum, ForeignKey, String, Text, func
+from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 
 
-class RunStatus(str, enum.Enum):
+class RunStatus(enum.StrEnum):
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
     INTERRUPTED = "INTERRUPTED"
@@ -19,14 +19,14 @@ class RunStatus(str, enum.Enum):
     CANCELLED = "CANCELLED"
 
 
-class MessageRole(str, enum.Enum):
+class MessageRole(enum.StrEnum):
     USER = "user"
     ASSISTANT = "assistant"
     TOOL = "tool"
     SYSTEM = "system"
 
 
-class InterruptStatus(str, enum.Enum):
+class InterruptStatus(enum.StrEnum):
     PENDING = "PENDING"
     APPROVED = "APPROVED"
     EDITED = "EDITED"
@@ -69,6 +69,7 @@ class Thread(TimestampMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     title: Mapped[str | None] = mapped_column(String(255))
+    is_pinned: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     current_checkpoint_id: Mapped[uuid.UUID | None] = mapped_column(index=True)
 
 

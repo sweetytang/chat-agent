@@ -1,6 +1,6 @@
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Checkpoint, Message, MessageRole, Thread
@@ -24,9 +24,28 @@ class ThreadRepository:
 
     async def list_owned(self, user_id: UUID) -> list[Thread]:
         result = await self.session.execute(
-            select(Thread).where(Thread.user_id == user_id).order_by(Thread.updated_at.desc())
+            select(Thread)
+            .where(Thread.user_id == user_id)
+            .order_by(Thread.is_pinned.desc(), Thread.updated_at.desc())
         )
         return list(result.scalars())
+
+    async def update(
+        self,
+        thread: Thread,
+        *,
+        title: str | None = None,
+        is_pinned: bool | None = None,
+    ) -> Thread:
+        if title is not None:
+            thread.title = title
+        if is_pinned is not None:
+            thread.is_pinned = is_pinned
+        await self.session.flush()
+        return thread
+
+    async def delete(self, thread: Thread) -> None:
+        await self.session.execute(delete(Thread).where(Thread.id == thread.id))
 
     async def list_messages(self, thread_id: UUID) -> list[Message]:
         result = await self.session.execute(

@@ -13,6 +13,7 @@ from app.modules.threads.schemas import (
     MessageResponse,
     ThreadHistoryResponse,
     ThreadResponse,
+    UpdateThreadRequest,
 )
 from app.modules.threads.title import can_generate_thread_title, local_thread_title
 
@@ -77,6 +78,36 @@ async def get_thread(
     if thread is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="线程不存在")
     return ThreadResponse.model_validate(thread)
+
+
+@router.patch("/{thread_id}", response_model=ThreadResponse)
+async def update_thread(
+    thread_id: UUID,
+    payload: UpdateThreadRequest,
+    user_id: UUID = Depends(current_user_id),
+    session: AsyncSession = Depends(get_db_session),
+) -> ThreadResponse:
+    repository = ThreadRepository(session)
+    thread = await repository.get_owned(thread_id, user_id)
+    if thread is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="线程不存在")
+    await repository.update(thread, title=payload.title, is_pinned=payload.is_pinned)
+    await session.commit()
+    return ThreadResponse.model_validate(thread)
+
+
+@router.delete("/{thread_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_thread(
+    thread_id: UUID,
+    user_id: UUID = Depends(current_user_id),
+    session: AsyncSession = Depends(get_db_session),
+) -> None:
+    repository = ThreadRepository(session)
+    thread = await repository.get_owned(thread_id, user_id)
+    if thread is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="线程不存在")
+    await repository.delete(thread)
+    await session.commit()
 
 
 @router.get("/{thread_id}/messages", response_model=list[MessageResponse])

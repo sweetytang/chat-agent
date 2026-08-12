@@ -6,8 +6,14 @@ import {
 } from '@/modules/checkpoints/services/checkpointApi';
 import type { CheckpointSummary } from '@/modules/checkpoints/types';
 import { getPendingInterrupt } from '@/modules/interrupts/services/interruptApi';
+import { abortActiveStream } from '@/modules/runs/domain/activeStream';
 import { useRunStore } from '@/modules/runs/store/run';
-import { getThreadHistory, listThreads } from '@/modules/threads/services/threadApi';
+import {
+  deleteThread as deleteThreadRequest,
+  getThreadHistory,
+  listThreads,
+  updateThread as updateThreadRequest,
+} from '@/modules/threads/services/threadApi';
 import type { ThreadSummary } from '@/modules/threads/types/thread';
 
 async function loadThreadSnapshot(threadId: string) {
@@ -28,6 +34,9 @@ interface ThreadState {
   isRefreshing: boolean;
   setThread: (threadId: string, title?: string, currentCheckpointId?: string | null) => void;
   loadThreads: () => Promise<void>;
+  renameThread: (threadId: string, title: string) => Promise<void>;
+  setThreadPinned: (threadId: string, isPinned: boolean) => Promise<void>;
+  deleteThread: (threadId: string) => Promise<void>;
   refreshCurrentThread: (preserveRunState?: boolean) => Promise<void>;
   switchCheckpoint: (checkpointId: string) => Promise<void>;
 }
@@ -56,6 +65,48 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
     } catch {
       set({ threads: [] });
     }
+  },
+  renameThread: async (threadId, title) => {
+    const updated = await updateThreadRequest(threadId, { title });
+    const threads = await listThreads();
+    set((state) => ({
+      threads,
+      title: state.threadId === threadId ? (updated.title ?? '未命名会话') : state.title,
+    }));
+  },
+  setThreadPinned: async (threadId, isPinned) => {
+    await updateThreadRequest(threadId, { is_pinned: isPinned });
+    set({ threads: await listThreads() });
+  },
+  deleteThread: async (threadId) => {
+    await deleteThreadRequest(threadId);
+    const threads = await listThreads();
+    if (get().threadId !== threadId) {
+      set({ threads });
+      return;
+    }
+
+    abortActiveStream();
+    useRunStore.getState().reset();
+    const nextThread = threads[0];
+    if (nextThread) {
+      set({ threads });
+      get().setThread(
+        nextThread.id,
+        nextThread.title ?? '未命名会话',
+        nextThread.current_checkpoint_id,
+      );
+      await get().refreshCurrentThread();
+      return;
+    }
+    set({
+      threadId: 'demo-thread',
+      currentCheckpointId: null,
+      title: '未命名会话',
+      threads: [],
+      checkpoints: [],
+      isRefreshing: false,
+    });
   },
   refreshCurrentThread: async (preserveRunState = false) => {
     const threadId = get().threadId;
