@@ -1,7 +1,0 @@
-{
-  "node_version": "20",
-  "graphs": {
-    "chat_agent": "./backend/agent/graph.ts:graph"
-  },
-  "env": "../../.env"
-}

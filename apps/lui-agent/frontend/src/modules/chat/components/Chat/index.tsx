@@ -147,7 +147,6 @@ export function Chat() {
         <AuthPanel />
         <header className={styles.header}>
           <h1>LUI Agent</h1>
-          <p>FastAPI + LangGraph 对话工作台</p>
         </header>
         <QueuePanel />
         <section className={styles.messages} aria-live="polite">
