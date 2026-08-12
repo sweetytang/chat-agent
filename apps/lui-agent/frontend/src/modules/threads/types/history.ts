@@ -1,4 +1,4 @@
-export type HistoryMessageRole = "user" | "assistant" | "tool" | "system";
+export type HistoryMessageRole = 'user' | 'assistant' | 'tool' | 'system';
 
 export interface MessageBranchOption {
   checkpoint_id: string;
@@ -20,7 +20,7 @@ export interface ThreadHistory {
   messages: HistoryMessage[];
 }
 
-export type RunMode = "send" | "edit" | "regenerate";
+export type RunMode = 'send' | 'edit' | 'regenerate';
 
 export interface RunStreamRequest {
   thread_id: string;

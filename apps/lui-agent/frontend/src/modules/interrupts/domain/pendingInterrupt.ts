@@ -1,5 +1,5 @@
-import type { PendingInterruptResponse } from "@/modules/interrupts/types";
-import type { RunStatus } from "@/modules/runs/types/events";
+import type { PendingInterruptResponse } from '@/modules/interrupts/types';
+import type { RunStatus } from '@/modules/runs/types/events';
 
 export interface PendingApproval {
   requestId: string;
@@ -9,26 +9,21 @@ export interface PendingApproval {
 
 export interface PendingApprovalState {
   runId: string | null;
-  status: RunStatus | "idle";
+  status: RunStatus | 'idle';
   pendingApproval: PendingApproval | null;
 }
 
-const STREAMING_STATUSES = new Set<RunStatus>(["queued", "running", "resuming"]);
+const STREAMING_STATUSES = new Set<RunStatus>(['queued', 'running', 'resuming']);
 
 function optionalText(value: unknown): string | null {
-  return typeof value === "string" && value.length > 0 ? value : null;
+  return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
-export function pendingApprovalFromInterrupt(
-  interrupt: PendingInterruptResponse,
-): PendingApproval {
+export function pendingApprovalFromInterrupt(interrupt: PendingInterruptResponse): PendingApproval {
   return {
     requestId: interrupt.request_id,
     runId: interrupt.run_id,
-    tool:
-      optionalText(interrupt.tool) ??
-      optionalText(interrupt.payload.tool) ??
-      interrupt.kind,
+    tool: optionalText(interrupt.tool) ?? optionalText(interrupt.payload.tool) ?? interrupt.kind,
   };
 }
 
@@ -41,7 +36,7 @@ export function syncPendingApproval(
     const pendingApproval = pendingApprovalFromInterrupt(interrupt);
     return {
       runId: pendingApproval.runId,
-      status: "interrupted",
+      status: 'interrupted',
       pendingApproval,
     };
   }

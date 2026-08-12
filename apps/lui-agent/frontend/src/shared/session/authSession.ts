@@ -1,12 +1,12 @@
-export const ACCESS_TOKEN_KEY = "lui-agent.access-token";
-export const REFRESH_TOKEN_KEY = "lui-agent.refresh-token";
+export const ACCESS_TOKEN_KEY = 'lui-agent.access-token';
+export const REFRESH_TOKEN_KEY = 'lui-agent.refresh-token';
 
 type SessionListener = (accessToken: string | null) => void;
 
 const listeners = new Set<SessionListener>();
 
 function storage(): Storage | null {
-  return typeof window === "undefined" ? null : window.localStorage;
+  return typeof window === 'undefined' ? null : window.localStorage;
 }
 
 export function getAccessToken(): string | null {
@@ -31,7 +31,7 @@ export function clearAuthSession(): void {
 }
 
 export function notifyAuthExpired(): void {
-  if (typeof window !== "undefined") window.dispatchEvent(new Event("lui-agent:auth-expired"));
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('lui-agent:auth-expired'));
 }
 
 export function subscribeAuthSession(listener: SessionListener): () => void {

@@ -1,5 +1,5 @@
-import { fetchWithAuth } from "@/shared/http/client";
-import { isAgentEvent, type AgentEvent } from "@/modules/runs/types/events";
+import { isAgentEvent, type AgentEvent } from '@/modules/runs/types/events';
+import { fetchWithAuth } from '@/shared/http/client';
 
 export interface SseRequest {
   url: string;
@@ -9,11 +9,11 @@ export interface SseRequest {
 
 function parseEvent(block: string): AgentEvent | null {
   const data = block
-    .split("\n")
-    .filter((line) => line.startsWith("data:"))
+    .split('\n')
+    .filter((line) => line.startsWith('data:'))
     .map((line) => line.slice(5).trimStart())
-    .join("\n");
-  if (!data || data === "[DONE]") return null;
+    .join('\n');
+  if (!data || data === '[DONE]') return null;
 
   try {
     const parsed: unknown = JSON.parse(data);
@@ -28,21 +28,25 @@ export async function* streamAgentEvents({
   body,
   signal,
 }: SseRequest): AsyncGenerator<AgentEvent> {
-  const response = await fetchWithAuth(url, {
-    method: "POST",
-    headers: {
-      Accept: "text/event-stream",
-      "Content-Type": "application/json",
+  const response = await fetchWithAuth(
+    url,
+    {
+      method: 'POST',
+      headers: {
+        Accept: 'text/event-stream',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal,
     },
-    body: JSON.stringify(body),
-    signal,
-  }, true);
+    true,
+  );
   if (!response.ok) throw new Error(`请求失败（${response.status}）`);
-  if (!response.body) throw new Error("服务端未返回流式响应");
+  if (!response.body) throw new Error('服务端未返回流式响应');
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = "";
+  let buffer = '';
   let lastSequence = -1;
 
   try {
@@ -50,7 +54,7 @@ export async function* streamAgentEvents({
       const { done, value } = await reader.read();
       buffer += decoder.decode(value, { stream: !done });
       const blocks = buffer.split(/\r?\n\r?\n/);
-      buffer = blocks.pop() ?? "";
+      buffer = blocks.pop() ?? '';
       for (const block of blocks) {
         const event = parseEvent(block);
         if (event && event.sequence > lastSequence) {

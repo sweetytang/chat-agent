@@ -1,11 +1,5 @@
 export type RunStatus =
-  | "queued"
-  | "running"
-  | "interrupted"
-  | "resuming"
-  | "completed"
-  | "failed"
-  | "cancelled";
+  'queued' | 'running' | 'interrupted' | 'resuming' | 'completed' | 'failed' | 'cancelled';
 
 export interface EventBase {
   version: 1;
@@ -18,41 +12,41 @@ export interface EventBase {
 
 export type AgentEvent = EventBase & {
   event:
-    | "run.queued"
-    | "run.started"
-    | "run.resuming"
-    | "run.cancelled"
-    | "run.completed"
-    | "run.failed"
-    | "message.started"
-    | "message.delta"
-    | "message.completed"
-    | "reasoning.delta"
-    | "reasoning.completed"
-    | "tool.call"
-    | "tool.approval_required"
-    | "tool.result"
-    | "checkpoint.created"
-    | "thread.updated"
-    | "structured_output.delta"
-    | "generative_ui.delta";
+    | 'run.queued'
+    | 'run.started'
+    | 'run.resuming'
+    | 'run.cancelled'
+    | 'run.completed'
+    | 'run.failed'
+    | 'message.started'
+    | 'message.delta'
+    | 'message.completed'
+    | 'reasoning.delta'
+    | 'reasoning.completed'
+    | 'tool.call'
+    | 'tool.approval_required'
+    | 'tool.result'
+    | 'checkpoint.created'
+    | 'thread.updated'
+    | 'structured_output.delta'
+    | 'generative_ui.delta';
 };
 
 export function isAgentEvent(value: unknown): value is AgentEvent {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== 'object' || value === null) return false;
   const event = value as Partial<EventBase>;
   return (
     event.version === 1 &&
-    typeof event.event === "string" &&
-    typeof event.run_id === "string" &&
-    typeof event.thread_id === "string" &&
-    typeof event.sequence === "number" &&
-    typeof event.data === "object" &&
+    typeof event.event === 'string' &&
+    typeof event.run_id === 'string' &&
+    typeof event.thread_id === 'string' &&
+    typeof event.sequence === 'number' &&
+    typeof event.data === 'object' &&
     event.data !== null
   );
 }
 
 export function eventText(event: AgentEvent): string {
   const content = event.data.content;
-  return typeof content === "string" ? content : "";
+  return typeof content === 'string' ? content : '';
 }
