@@ -33,6 +33,8 @@ interface ThreadState {
   threads: ThreadSummary[];
   checkpoints: CheckpointSummary[];
   isRefreshing: boolean;
+  startNewThread: () => void;
+  setCurrentThreadTitle: (title: string) => void;
   setThread: (threadId: string, title?: string, currentCheckpointId?: string | null) => void;
   loadThreads: () => Promise<void>;
   renameThread: (threadId: string, title: string) => Promise<void>;
@@ -50,6 +52,24 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
   threads: [],
   checkpoints: [],
   isRefreshing: false,
+  startNewThread: () => {
+    abortActiveStream();
+    useRunStore.getState().reset();
+    set({
+      threadId: 'demo-thread',
+      currentCheckpointId: null,
+      title: '未命名会话',
+      checkpoints: [],
+      isRefreshing: false,
+    });
+  },
+  setCurrentThreadTitle: (title) =>
+    set((state) => ({
+      title,
+      threads: state.threads.map((thread) =>
+        thread.id === state.threadId ? { ...thread, title } : thread,
+      ),
+    })),
   setThread: (threadId, title = '未命名会话', currentCheckpointId = null) => {
     if (threadId === get().threadId) return;
     useRunStore.getState().reset();
@@ -63,7 +83,17 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
   },
   loadThreads: async () => {
     try {
-      set({ threads: await listThreads() });
+      const threads = await listThreads();
+      set((state) => {
+        const current = threads.find((thread) => thread.id === state.threadId);
+        return {
+          threads,
+          title:
+            state.threadId === 'demo-thread' || current?.title == null
+              ? state.title
+              : current.title,
+        };
+      });
     } catch {
       set({ threads: [] });
     }

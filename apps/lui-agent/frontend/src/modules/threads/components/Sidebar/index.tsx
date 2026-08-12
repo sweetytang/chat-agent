@@ -23,10 +23,10 @@ export function Sidebar({ disabled = false, collapsed = false, onNavigate }: Sid
   const threadId = useThreadStore((state) => state.threadId);
   const token = useAuthStore((state) => state.token);
 
-  async function createThread() {
+  function startNewThread() {
     if (!token || disabled) return;
-    const thread = await useThreadStore.getState().createThread();
-    if (thread) onNavigate?.();
+    useThreadStore.getState().startNewThread();
+    onNavigate?.();
   }
 
   useEffect(() => {
@@ -59,7 +59,7 @@ export function Sidebar({ disabled = false, collapsed = false, onNavigate }: Sid
               <button
                 className={styles.iconButton}
                 disabled={disabled || !token}
-                onClick={() => void createThread()}
+                onClick={startNewThread}
                 type="button"
                 aria-label="新建会话"
               >
@@ -165,7 +165,7 @@ export function Sidebar({ disabled = false, collapsed = false, onNavigate }: Sid
       <button
         className={styles.newButton}
         disabled={disabled || !token}
-        onClick={() => void createThread()}
+        onClick={startNewThread}
         type="button"
       >
         <SquarePen size={18} />
@@ -178,7 +178,7 @@ export function Sidebar({ disabled = false, collapsed = false, onNavigate }: Sid
               {threads.length === 0 ? (
                 <div className={styles.empty}>
                   <p>还没有保存的会话</p>
-                  <button disabled={disabled} onClick={() => void createThread()} type="button">
+                  <button disabled={disabled} onClick={startNewThread} type="button">
                     开始新会话
                   </button>
                 </div>

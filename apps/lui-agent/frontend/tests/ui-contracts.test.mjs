@@ -116,6 +116,29 @@ test('首条发送会先把 demo-thread 替换为真实线程', () => {
   assert.match(source, /threadId: target\.threadId/);
 });
 
+test('新建会话只进入欢迎态，首次发送后才创建真实线程并先展示输入标题', () => {
+  const sidebar = fs.readFileSync(
+    new URL('../src/modules/threads/components/Sidebar/index.tsx', import.meta.url),
+    'utf8',
+  );
+  const chat = fs.readFileSync(
+    new URL('../src/modules/chat/components/Chat/index.tsx', import.meta.url),
+    'utf8',
+  );
+  const store = fs.readFileSync(
+    new URL('../src/modules/threads/store/thread.ts', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(sidebar, /startNewThread\(\)/);
+  assert.doesNotMatch(
+    sidebar,
+    /const thread = await useThreadStore\.getState\(\)\.createThread\(\)/,
+  );
+  assert.match(store, /startNewThread:/);
+  assert.match(chat, /setCurrentThreadTitle\(content\)/);
+});
+
 test('认证邮箱持久化，缺少 profile 时使用固定中性身份', () => {
   const session = fs.readFileSync(
     new URL('../src/shared/session/authSession.ts', import.meta.url),

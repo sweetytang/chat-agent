@@ -118,6 +118,7 @@ export function Chat() {
         return;
       }
       const target = useThreadStore.getState();
+      target.setCurrentThreadTitle(content);
       void startRun({
         content,
         checkpointId: target.currentCheckpointId,
