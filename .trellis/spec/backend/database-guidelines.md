@@ -50,6 +50,102 @@ Questions to answer:
 
 (To be filled by the team)
 
+## 场景：SQLAlchemy Enum 与 Alembic 列类型一致
+
+### 1. Scope / Trigger
+
+- 新增或修改 enum 字段，或排查 PostgreSQL `type "..." does not exist`。
+
+### 2. Signatures
+
+```python
+def string_enum(enum_type: type[enum.Enum], *, name: str, length: int) -> Enum:
+    return Enum(enum_type, name=name, native_enum=False, create_constraint=False, length=length)
+```
+
+### 3. Contracts
+
+- Alembic 使用 `sa.String` 的 enum 字段，ORM 必须使用 `native_enum=False`。
+- 已发布迁移不可只通过修改 ORM 改成原生 PostgreSQL enum。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|---|---|
+| 迁移为 VARCHAR、ORM 为原生 Enum | 禁止；asyncpg 会生成 `::enum_name` 并报 500 |
+| 两端均为 VARCHAR enum | 查询、写入正常 |
+| 需要原生 enum | 新迁移显式创建/转换类型，并覆盖升级与降级 |
+
+### 5. Good/Base/Bad Cases
+
+- Good：模型和迁移均明确使用 VARCHAR enum。
+- Base：新枚举值只需应用发布，不依赖数据库类型 ALTER。
+- Bad：仅在 SQLite/fake session 测试，未检查 PostgreSQL 编译 SQL。
+
+### 6. Tests Required
+
+- 模型列断言 `native_enum is False`。
+- 迁移 upgrade/downgrade 测试。
+- 至少一个 PostgreSQL 编译或真实查询测试，断言没有 `::mcp_scope`。
+
+### 7. Wrong vs Correct
+
+```python
+# Wrong: migration is VARCHAR, ORM assumes PostgreSQL enum
+mapped_column(Enum(McpScope, name="mcp_scope"))
+
+# Correct
+mapped_column(string_enum(McpScope, name="mcp_scope", length=16))
+```
+
+## 场景：MCP 动态工具默认审核
+
+### 1. Scope / Trigger
+
+- 将数据库中的 MCP Tool 动态绑定到 Agent graph。
+
+### 2. Signatures
+
+```python
+stream_graph_events(..., approval_tool_names: frozenset[str])
+```
+
+### 3. Contracts
+
+- MCP Tool Call 必须先产生并持久化 interrupt，ToolNode 不得提前执行。
+- interrupt 冻结 internal/remote name、arguments、server_id 和 security_version。
+- approve/edit 后才调用；reject 不调用；安全版本变化返回 409。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|---|---|
+| MCP call 未审核 | 只发 approval event，不执行 |
+| approve/edit | 校验当前安全版本后执行 |
+| reject | 返回拒绝结果，不执行 |
+| server security_version 变化 | 409，旧审核失效 |
+
+### 5. Good/Base/Bad Cases
+
+- Good：模型选择写工具后 UI 先显示审核卡片。
+- Base：读工具仍按 V1 默认审核策略处理。
+- Bad：把 MCP StructuredTool 与内置工具一起直接交给 ToolNode。
+
+### 6. Tests Required
+
+- Graph 测试断言审核前 caller 调用次数为 0。
+- approve/edit/reject 测试及安全版本失效测试。
+
+### 7. Wrong vs Correct
+
+```python
+# Wrong
+ToolNode([*builtin_tools, *mcp_tools])
+
+# Correct: router sends MCP calls to interrupt first
+stream_graph_events(..., approval_tool_names=frozenset(mcp_tool_names))
+```
+
 ## Scenario: Thread title generation from the first completed round
 
 ### 1. Scope / Trigger

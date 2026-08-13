@@ -25,7 +25,9 @@ def test_jwt_subject_round_trip() -> None:
 
 def test_tampered_jwt_is_rejected() -> None:
     token = create_access_token("user-1")
-    tampered = f"{token[:-1]}x"
+    header, payload, signature = token.split(".")
+    replacement = "A" if signature[0] != "A" else "B"
+    tampered = f"{header}.{payload}.{replacement}{signature[1:]}"
 
     try:
         get_subject(tampered)

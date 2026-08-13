@@ -10,11 +10,13 @@ interface UiState {
   mobileSidebarOpen: boolean;
   authDialogOpen: boolean;
   threadSearchOpen: boolean;
+  mcpSettingsOpen: boolean;
   setThemePreference: (preference: ThemePreference) => void;
   toggleSidebar: () => void;
   setMobileSidebarOpen: (open: boolean) => void;
   setAuthDialogOpen: (open: boolean) => void;
   setThreadSearchOpen: (open: boolean) => void;
+  setMcpSettingsOpen: (open: boolean) => void;
 }
 
 const SIDEBAR_KEY = 'lui-agent:sidebar-collapsed';
@@ -35,6 +37,7 @@ export const useUiStore = create<UiState>((set) => ({
   mobileSidebarOpen: false,
   authDialogOpen: false,
   threadSearchOpen: false,
+  mcpSettingsOpen: false,
   setThemePreference: (themePreference) => set({ themePreference }),
   toggleSidebar: () =>
     set((state) => {
@@ -45,4 +48,5 @@ export const useUiStore = create<UiState>((set) => ({
   setMobileSidebarOpen: (mobileSidebarOpen) => set({ mobileSidebarOpen }),
   setAuthDialogOpen: (authDialogOpen) => set({ authDialogOpen }),
   setThreadSearchOpen: (threadSearchOpen) => set({ threadSearchOpen }),
+  setMcpSettingsOpen: (mcpSettingsOpen) => set({ mcpSettingsOpen }),
 }));

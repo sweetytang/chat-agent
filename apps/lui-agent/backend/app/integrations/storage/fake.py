@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import quote
 
 from .ports import ObjectMetadata
@@ -34,7 +34,7 @@ class InMemoryObjectStorage:
         return f"{self.base_url}/{quote(key)}?expires={expires_seconds}"
 
     async def cleanup_expired(self, *, now: datetime | None = None) -> int:
-        now = now or datetime.now(timezone.utc)
+        now = now or datetime.now(UTC)
         keys = [key for key, (_, meta) in self.objects.items() if meta.expires_at <= now]
         for key in keys:
             await self.delete(key)

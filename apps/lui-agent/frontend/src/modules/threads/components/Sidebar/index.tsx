@@ -1,6 +1,6 @@
 import * as ScrollArea from '@radix-ui/react-scroll-area';
 import * as Tooltip from '@radix-ui/react-tooltip';
-import { LogIn, PanelLeftClose, PanelLeftOpen, Pin, Search, SquarePen } from 'lucide-react';
+import { Blocks, LogIn, PanelLeftClose, PanelLeftOpen, Pin, Search, SquarePen } from 'lucide-react';
 import { useEffect } from 'react';
 
 import { BrandMark } from '@/app/components/BrandMark';
@@ -171,6 +171,18 @@ export function Sidebar({ disabled = false, collapsed = false, onNavigate }: Sid
       >
         <SquarePen size={18} />
         新建会话
+      </button>
+      <button
+        className={styles.mcpButton}
+        disabled={!token}
+        onClick={() => {
+          useUiStore.getState().setMcpSettingsOpen(true);
+          onNavigate?.();
+        }}
+        type="button"
+      >
+        <Blocks size={18} />
+        MCP 插件配置
       </button>
       {token ? (
         <>

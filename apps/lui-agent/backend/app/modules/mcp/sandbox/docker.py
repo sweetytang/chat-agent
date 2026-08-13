@@ -1,7 +1,7 @@
 """Docker 编排策略验证器；实际 Docker 客户端由部署层注入。"""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .ports import SandboxDefinition, SandboxLimits
 
@@ -18,7 +18,7 @@ class DockerContainerConfig:
     tmpfs: tuple[str, ...] = ("/tmp:rw,noexec,nosuid,size=64m",)
     binds: tuple[str, ...] = ()
     docker_socket: bool = False
-    limits: SandboxLimits = SandboxLimits()
+    limits: SandboxLimits = field(default_factory=SandboxLimits)
 
 
 class DockerPolicyError(ValueError):

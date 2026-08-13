@@ -88,3 +88,41 @@ async def test_stream_adapter_executes_langchain_tool_and_maps_result() -> None:
 
     assert [event.event for event in events] == ["tool.call", "tool.result"]
     assert events[1].data["content"] == "4"
+
+
+@pytest.mark.asyncio
+async def test_stream_adapter_does_not_execute_tool_requiring_approval() -> None:
+    calls: list[str] = []
+
+    @tool("mcp__srv__create_issue")
+    def create_issue(title: str) -> str:
+        """创建 issue。"""
+        calls.append(title)
+        return "created"
+
+    model = FakeChatModel(
+        response="",
+        chunks=[],
+        tool_calls=[
+            {
+                "name": "mcp__srv__create_issue",
+                "args": {"title": "bug"},
+                "id": "call-1",
+            }
+        ],
+    )
+    events = [
+        event
+        async for event in stream_graph_events(
+            model,
+            [{"role": "user", "content": "create"}],
+            run_id="run-1",
+            thread_id="thread-1",
+            tools=[create_issue],
+            approval_tool_names=frozenset({"mcp__srv__create_issue"}),
+        )
+    ]
+
+    assert calls == []
+    assert [event.event for event in events] == ["tool.approval_requested"]
+    assert events[0].data["arguments"] == {"title": "bug"}

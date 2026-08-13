@@ -120,6 +120,10 @@ After implementation:
       casting payload fields locally
 - [ ] Checked that derived state points back to the source event identifier
       (`seq`, `id`, `version`) instead of inventing a second cursor
+- [ ] 对照 Alembic 与 ORM 的真实列类型，特别检查 enum 是否会生成 PostgreSQL
+      `::type_name` cast
+- [ ] 动态外部工具从配置到 graph 的路径包含审核边界，确认 ToolNode 不会在
+      interrupt 持久化前执行
 
 ---
 

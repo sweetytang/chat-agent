@@ -20,7 +20,9 @@
   "subtasks": [],
   "children": [
     "08-12-lui-agent-frontend-visual-overhaul",
-    "08-13-mcp-plugin-system"
+    "08-13-mcp-plugin-system",
+    "08-13-mcp-settings-entry",
+    "08-13-mcp-v1-audit-fix"
   ],
   "parent": null,
   "relatedFiles": [],

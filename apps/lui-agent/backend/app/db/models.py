@@ -3,7 +3,17 @@ import enum
 from typing import Any
 import uuid
 
-from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, String, Text, func
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -57,6 +67,17 @@ class McpServerStatus(enum.StrEnum):
     ERROR = "ERROR"
 
 
+def string_enum(enum_type: type[enum.Enum], *, name: str, length: int) -> Enum:
+    """将 Python enum 映射到 VARCHAR，与现有迁移保持一致。"""
+    return Enum(
+        enum_type,
+        name=name,
+        native_enum=False,
+        create_constraint=False,
+        length=length,
+    )
+
+
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -70,7 +91,9 @@ class User(TimestampMixin, Base):
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole, name="user_role"), default=UserRole.USER, server_default="USER"
+        string_enum(UserRole, name="user_role", length=16),
+        default=UserRole.USER,
+        server_default="USER",
     )
 
 
@@ -160,13 +183,15 @@ class McpServerDefinition(TimestampMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     name: Mapped[str] = mapped_column(String(255))
-    scope: Mapped[McpScope] = mapped_column(Enum(McpScope, name="mcp_scope"))
-    transport: Mapped[McpTransport] = mapped_column(Enum(McpTransport, name="mcp_transport"))
+    scope: Mapped[McpScope] = mapped_column(string_enum(McpScope, name="mcp_scope", length=16))
+    transport: Mapped[McpTransport] = mapped_column(
+        string_enum(McpTransport, name="mcp_transport", length=32)
+    )
     endpoint: Mapped[str | None] = mapped_column(Text)
     encrypted_credentials: Mapped[str | None] = mapped_column(Text)
     approved_config: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     status: Mapped[McpServerStatus] = mapped_column(
-        Enum(McpServerStatus, name="mcp_server_status"),
+        string_enum(McpServerStatus, name="mcp_server_status", length=16),
         default=McpServerStatus.DISABLED,
         server_default="DISABLED",
     )
@@ -176,8 +201,11 @@ class McpServerDefinition(TimestampMixin, Base):
 
 class McpUserServer(TimestampMixin, Base):
     __tablename__ = "mcp_user_servers"
+    __table_args__ = (UniqueConstraint("user_id", "server_id", name="uq_mcp_user_server"),)
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     server_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("mcp_server_definitions.id", ondelete="CASCADE"), index=True
     )
@@ -198,14 +226,23 @@ class McpTool(TimestampMixin, Base):
     input_schema: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     output_schema: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     annotations: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    compatibility: Mapped[str] = mapped_column(String(32), default="COMPATIBLE", server_default="COMPATIBLE")
+    compatibility: Mapped[str] = mapped_column(
+        String(32), default="COMPATIBLE", server_default="COMPATIBLE"
+    )
     is_present: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
 
 class McpUserTool(TimestampMixin, Base):
     __tablename__ = "mcp_user_tools"
+    __table_args__ = (UniqueConstraint("user_id", "tool_id", name="uq_mcp_user_tool"),)
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    tool_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mcp_tools.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    tool_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("mcp_tools.id", ondelete="CASCADE"), index=True
+    )
     enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
-    approval_level: Mapped[str] = mapped_column(String(32), default="REQUIRED", server_default="REQUIRED")
+    approval_level: Mapped[str] = mapped_column(
+        String(32), default="REQUIRED", server_default="REQUIRED"
+    )

@@ -4,6 +4,7 @@ export interface McpTool {
   internal_name: string;
   description?: string | null;
   compatibility: string;
+  risk?: string;
   is_present: boolean;
   enabled: boolean;
 }
@@ -15,6 +16,8 @@ export interface McpServer {
   transport: 'STREAMABLE_HTTP' | 'STDIO';
   endpoint?: string | null;
   status: string;
+  enabled: boolean;
+  last_error?: string | null;
   credential_configured: boolean;
   security_version: number;
   tools?: McpTool[];

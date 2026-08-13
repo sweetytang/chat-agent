@@ -3,9 +3,10 @@
 Graph 只接收 LangChain 工具，不直接依赖 MCP SDK。调用端由 Host 注入，
 因此 run 可以冻结本模块产生的快照，配置变化不会影响已经创建的 run。
 """
+
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -27,6 +28,7 @@ class McpToolSnapshot:
     input_schema: Mapping[str, Any]
     caller: McpToolCaller
     enabled: bool = True
+    security_version: int = 1
 
 
 def build_langchain_tools(snapshots: Sequence[McpToolSnapshot]) -> list[StructuredTool]:
@@ -48,7 +50,7 @@ def build_langchain_tools(snapshots: Sequence[McpToolSnapshot]) -> list[Structur
                 coroutine=invoke,
                 name=snapshot.identity.internal_name,
                 description=snapshot.description or snapshot.identity.remote_name,
-                args_schema=snapshot.input_schema,
+                args_schema=dict(snapshot.input_schema),
             )
         )
     return tools

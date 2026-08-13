@@ -4,6 +4,7 @@ import ipaddress
 import socket
 from urllib.parse import urljoin, urlparse
 
+
 class NetworkPolicyError(ValueError):
     pass
 

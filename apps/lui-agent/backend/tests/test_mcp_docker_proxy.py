@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 import pytest
 
 from app.modules.mcp.sandbox.docker_proxy import DockerSandboxProxy
@@ -6,7 +8,7 @@ from app.modules.mcp.sandbox.policy import SandboxPolicy
 
 class FakeContainer:
     id = "container-1"
-    labels = {"lui-agent.mcp.managed": "true"}
+    labels: ClassVar[dict[str, str]] = {"lui-agent.mcp.managed": "true"}
     removed = False
 
     def remove(self, *, force: bool) -> None:

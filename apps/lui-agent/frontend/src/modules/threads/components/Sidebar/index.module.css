@@ -84,6 +84,31 @@
   cursor: not-allowed;
 }
 
+.mcpButton {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 11px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.mcpButton:hover {
+  color: var(--text-primary);
+  background: var(--surface-muted);
+}
+
+.mcpButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .scroll {
   min-height: 0;
   flex: 1;

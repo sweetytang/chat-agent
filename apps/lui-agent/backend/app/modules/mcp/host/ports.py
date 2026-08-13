@@ -1,4 +1,4 @@
-from collections.abc import AsyncContextManager
+from contextlib import AbstractAsyncContextManager
 from typing import Any, Protocol
 
 
@@ -9,4 +9,4 @@ class McpClientPort(Protocol):
 
 
 class McpClientFactory(Protocol):
-    def connect(self, *, endpoint: str, headers: dict[str, str]) -> AsyncContextManager[McpClientPort]: ...
+    def connect(self, *, endpoint: str, headers: dict[str, str]) -> AbstractAsyncContextManager[McpClientPort]: ...

@@ -45,3 +45,21 @@ def test_thread_pinning_migration_is_persisted_and_reversible() -> None:
         'sa.Column("is_pinned", sa.Boolean(), server_default=sa.false(), nullable=False)' in source
     )
     assert 'op.drop_column("threads", "is_pinned")' in source
+
+
+def test_mcp_preference_migration_deduplicates_and_adds_unique_constraints() -> None:
+    migration = (
+        Path(__file__).parents[1]
+        / "migrations"
+        / "versions"
+        / "0005_mcp_preferences_unique.py"
+    )
+    source = migration.read_text()
+
+    assert 'revision = "0005_mcp_preferences_unique"' in source
+    assert 'down_revision = "0004_mcp_core"' in source
+    assert "DELETE FROM mcp_user_servers AS stale" in source
+    assert "DELETE FROM mcp_user_tools AS stale" in source
+    assert '"uq_mcp_user_server"' in source
+    assert '"uq_mcp_user_tool"' in source
+    assert 'type_="unique"' in source

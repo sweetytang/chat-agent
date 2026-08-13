@@ -1,7 +1,7 @@
 """S3/MinIO 适配器。boto3 延迟导入，未安装时返回受控错误。"""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from .ports import ObjectMetadata
 
@@ -44,7 +44,7 @@ class S3ObjectStorage:
         return self.client.generate_presigned_url("get_object", Params={"Bucket": self.bucket, "Key": key}, ExpiresIn=expires_seconds)
 
     async def cleanup_expired(self, *, now: datetime | None = None) -> int:
-        now = now or datetime.now(timezone.utc)
+        now = now or datetime.now(UTC)
         keys = [key for key, meta in self._metadata.items() if meta.expires_at <= now]
         for key in keys:
             await self.delete(key)

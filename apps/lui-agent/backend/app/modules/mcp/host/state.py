@@ -1,4 +1,5 @@
 from enum import StrEnum
+from typing import ClassVar
 
 
 class McpConnectionState(StrEnum):
@@ -10,7 +11,7 @@ class McpConnectionState(StrEnum):
 
 
 class McpStateMachine:
-    _allowed = {
+    _allowed: ClassVar[dict[McpConnectionState, set[McpConnectionState]]] = {
         McpConnectionState.DISABLED: {McpConnectionState.CONNECTING},
         McpConnectionState.CONNECTING: {
             McpConnectionState.CONNECTED,
@@ -39,6 +40,9 @@ class McpStateMachine:
         self.state = state
 
     def transition(self, target: McpConnectionState) -> McpConnectionState:
+        # 状态刷新可能重复到达；重复设置是幂等操作。
+        if target is self.state:
+            return self.state
         if target not in self._allowed[self.state]:
             raise ValueError(f"非法 MCP 状态转换: {self.state} -> {target}")
         self.state = target

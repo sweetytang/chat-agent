@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+import json
 import re
+from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -12,8 +15,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.events import BusinessEvent
+from app.core.config import get_settings
 from app.core.security import get_optional_subject
-from app.db.models import InterruptStatus, MessageRole, Run, RunStatus, Thread
+from app.db.models import InterruptStatus, McpServerDefinition, MessageRole, Run, RunStatus, Thread
 from app.db.session import get_optional_db_session
 from app.graph.runtime import stream_graph_events
 from app.integrations.llm.config import get_provider_config
@@ -31,6 +35,10 @@ from app.modules.checkpoints.service import (
     model_messages,
 )
 from app.modules.interrupts.repository import InterruptRepository
+from app.modules.mcp.agent import McpToolSnapshot, build_langchain_tools, load_mcp_snapshots
+from app.modules.mcp.agent.results import normalize_tool_result
+from app.modules.mcp.crypto import CredentialCrypto
+from app.modules.mcp.host import McpHost
 from app.modules.runs.repository import RunRepository
 from app.modules.threads.repository import ThreadRepository
 from app.modules.threads.title import (
@@ -62,9 +70,33 @@ class PendingReview:
     request: RunRequest
     branch_context: RunBranchContext | None
     persisted: bool = False
+    mcp_snapshot: McpToolSnapshot | None = None
+    arguments: dict[str, Any] | None = None
 
 
 _pending_reviews: dict[str, PendingReview] = {}
+_mcp_host: McpHost | None = None
+
+
+def configure_mcp_host(host: McpHost | None) -> None:
+    global _mcp_host
+    _mcp_host = host
+
+
+def _decode_mcp_credentials(encrypted: str | None) -> dict[str, str]:
+    if encrypted is None:
+        return {}
+    key_text = get_settings().mcp_encryption_key
+    if not key_text:
+        raise ValueError("MCP 凭据加密未配置")
+    value = json.loads(
+        CredentialCrypto(base64.urlsafe_b64decode(key_text.encode())).decrypt(encrypted)
+    )
+    if not isinstance(value, dict) or not all(
+        isinstance(key, str) and isinstance(item, str) for key, item in value.items()
+    ):
+        raise ValueError("MCP 凭据不可用")
+    return value
 
 
 def _thread_lock(thread_id: str) -> asyncio.Lock:
@@ -175,6 +207,7 @@ async def run_events(
     request: RunRequest,
     session: AsyncSession | None = None,
     branch_context: RunBranchContext | None = None,
+    mcp_snapshots: tuple[McpToolSnapshot, ...] = (),
 ) -> AsyncIterator[str]:
     """先提供稳定的业务事件协议，再把模型节点接入同一事件出口。"""
 
@@ -327,14 +360,73 @@ async def run_events(
                 else create_chat_model(provider)
             )
             chunks: list[str] = []
+            mcp_tools = tuple(build_langchain_tools(mcp_snapshots))
+            snapshots_by_name = {
+                snapshot.identity.internal_name: snapshot for snapshot in mcp_snapshots
+            }
             async for graph_event in stream_graph_events(
                 model,
                 input_messages,
                 run_id=run_id,
                 thread_id=request.thread_id,
-                tools=default_langchain_tools(),
+                tools=[*default_langchain_tools(), *mcp_tools],
                 continue_after_tools=True,
+                approval_tool_names=frozenset(snapshots_by_name),
             ):
+                if graph_event.event == "tool.approval_requested":
+                    tool_name = str(graph_event.data.get("tool", ""))
+                    snapshot = snapshots_by_name.get(tool_name)
+                    if snapshot is None:
+                        continue
+                    arguments = graph_event.data.get("arguments")
+                    if not isinstance(arguments, dict):
+                        arguments = {}
+                    request_id = str(uuid4())
+                    payload = {
+                        "tool": tool_name,
+                        "remote_name": snapshot.identity.remote_name,
+                        "server_id": snapshot.identity.server_id,
+                        "arguments": arguments,
+                        "security_version": snapshot.security_version,
+                    }
+                    if repository is not None:
+                        await InterruptRepository(session).create(
+                            UUID(run_id),
+                            request_id,
+                            "mcp_tool",
+                            payload,
+                            branch_context.checkpoint_id if branch_context else None,
+                        )
+                        await repository.update_status(UUID(run_id), RunStatus.INTERRUPTED)
+                        await session.commit()
+                    _pending_reviews[request_id] = PendingReview(
+                        run_id,
+                        request,
+                        branch_context,
+                        persisted=repository is not None,
+                        mcp_snapshot=snapshot,
+                        arguments=arguments,
+                    )
+                    sequence += 1
+                    yield _event(
+                        run_id,
+                        request.thread_id,
+                        sequence,
+                        "tool.call",
+                        tool=tool_name,
+                        request_id=request_id,
+                        arguments=arguments,
+                    ).to_sse()
+                    sequence += 1
+                    yield _event(
+                        run_id,
+                        request.thread_id,
+                        sequence,
+                        "tool.approval_required",
+                        tool=tool_name,
+                        request_id=request_id,
+                    ).to_sse()
+                    return
                 if graph_event.event == "message.delta":
                     chunks.append(str(graph_event.data.get("content", "")))
                 sequence += 1
@@ -410,6 +502,8 @@ async def resumed_run_events(
     decision: str,
     session: AsyncSession | None,
     branch_context: RunBranchContext | None,
+    pending: PendingReview | None = None,
+    edited_payload: dict[str, object] | None = None,
 ) -> AsyncIterator[str]:
     sequence = 0
     # 演示线程可以在有 PostgreSQL 会话时运行，但它没有对应的数据库 run。
@@ -431,16 +525,30 @@ async def resumed_run_events(
         await persisted_session.commit()
     yield _event(run_id, request.thread_id, sequence, "run.resuming").to_sse()
     sequence += 1
-    result = {"query": request.content.split(":", 1)[-1].strip(), "results": []}
-    if decision == "reject":
-        result = {"error": "用户拒绝执行搜索"}
+    if pending is not None and pending.mcp_snapshot is not None:
+        snapshot = pending.mcp_snapshot
+        if decision == "reject":
+            result: object = {"error": "用户拒绝执行 MCP 工具"}
+        else:
+            arguments = pending.arguments or {}
+            if decision == "edit" and edited_payload is not None:
+                candidate = edited_payload.get("arguments", edited_payload)
+                if isinstance(candidate, dict):
+                    arguments = candidate
+            result = normalize_tool_result(await snapshot.caller(snapshot.identity, arguments))
+        tool_name = snapshot.identity.internal_name
+    else:
+        result = {"query": request.content.split(":", 1)[-1].strip(), "results": []}
+        if decision == "reject":
+            result = {"error": "用户拒绝执行搜索"}
+        tool_name = "web_search"
     yield _event(
-        run_id, request.thread_id, sequence, "tool.result", tool="web_search", content=result
+        run_id, request.thread_id, sequence, "tool.result", tool=tool_name, content=result
     ).to_sse()
     sequence += 1
     yield _event(run_id, request.thread_id, sequence, "message.started", role="assistant").to_sse()
     sequence += 1
-    answer = "已完成搜索。" if decision != "reject" else "已按要求拒绝搜索。"
+    answer = "工具执行完成。" if decision != "reject" else "已按要求拒绝工具执行。"
     yield _event(run_id, request.thread_id, sequence, "message.delta", content=answer).to_sse()
     sequence += 1
     yield _event(run_id, request.thread_id, sequence, "message.completed").to_sse()
@@ -519,8 +627,21 @@ async def stream_run(
     except ValueError, OSError, RuntimeError:
         if session is not None:
             await session.rollback()
+    mcp_snapshots: tuple[McpToolSnapshot, ...] = ()
+    if persistence_session is not None and _mcp_host is not None and subject is not None:
+        try:
+            mcp_snapshots = tuple(
+                await load_mcp_snapshots(
+                    persistence_session,
+                    UUID(subject),
+                    _mcp_host,
+                    _decode_mcp_credentials,
+                )
+            )
+        except ValueError, OSError, RuntimeError:
+            await persistence_session.rollback()
     return StreamingResponse(
-        run_events(run_id, request, persistence_session, branch_context),
+        run_events(run_id, request, persistence_session, branch_context, mcp_snapshots),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -581,8 +702,64 @@ async def resume_run(
                 branch_context,
                 persisted=True,
             )
+            if interrupt.kind == "mcp_tool":
+                server_id = interrupt.payload.get("server_id")
+                tool_name = interrupt.payload.get("tool")
+                security_version = interrupt.payload.get("security_version")
+                arguments = interrupt.payload.get("arguments")
+                try:
+                    server = await session.get(McpServerDefinition, UUID(str(server_id)))
+                except ValueError:
+                    server = None
+                if (
+                    server is None
+                    or server.security_version != security_version
+                    or _mcp_host is None
+                    or subject is None
+                ):
+                    raise HTTPException(
+                        status_code=409,
+                        detail="MCP 安全配置已变化，审核请求已失效",
+                    )
+                snapshots = await load_mcp_snapshots(
+                    session,
+                    UUID(subject),
+                    _mcp_host,
+                    _decode_mcp_credentials,
+                )
+                snapshot = next(
+                    (item for item in snapshots if item.identity.internal_name == tool_name),
+                    None,
+                )
+                if snapshot is None:
+                    raise HTTPException(status_code=409, detail="MCP 工具已不可用")
+                pending = PendingReview(
+                    run_id,
+                    RunRequest(
+                        thread_id=str(persisted_run.thread_id),
+                        content="MCP 工具审核",
+                    ),
+                    branch_context,
+                    persisted=True,
+                    mcp_snapshot=snapshot,
+                    arguments=arguments if isinstance(arguments, dict) else {},
+                )
     if pending is None or pending.run_id != run_id:
         raise HTTPException(status_code=409, detail="审核请求不存在或已过期")
+    if pending.mcp_snapshot is not None:
+        if session is None:
+            raise HTTPException(status_code=503, detail="持久化服务不可用")
+        try:
+            server_id = UUID(pending.mcp_snapshot.identity.server_id)
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail="MCP 审核快照无效") from error
+        server = await session.get(McpServerDefinition, server_id)
+        if (
+            server is None
+            or server.security_version != pending.mcp_snapshot.security_version
+            or server.deleted_at is not None
+        ):
+            raise HTTPException(status_code=409, detail="MCP 安全配置已变化，审核请求已失效")
     _pending_reviews.pop(request.request_id, None)
     return StreamingResponse(
         resumed_run_events(
@@ -592,6 +769,8 @@ async def resume_run(
             request.decision,
             session,
             pending.branch_context,
+            pending,
+            request.payload,
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},

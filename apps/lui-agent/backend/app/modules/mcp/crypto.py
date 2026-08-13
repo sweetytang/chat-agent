@@ -23,4 +23,5 @@ class CredentialCrypto:
         payload = base64.urlsafe_b64decode(value[3:].encode())
         if len(payload) <= 12:
             raise ValueError("MCP 凭据密文无效")
-        return AESGCM(self._key).decrypt(payload[:12], payload[12:], None).decode()
+        decrypted: bytes = AESGCM(self._key).decrypt(payload[:12], payload[12:], None)
+        return decrypted.decode()

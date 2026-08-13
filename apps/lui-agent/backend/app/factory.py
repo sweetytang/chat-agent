@@ -7,15 +7,20 @@ from app.api.interrupts import (
     router as interrupts_router,
     thread_router as thread_interrupts_router,
 )
-from app.api.runs import router as runs_router
+from app.api.runs import configure_mcp_host, router as runs_router
 from app.api.threads import router as threads_router
-from app.modules.mcp.router import router as mcp_router
 from app.core.config import get_settings
+from app.modules.mcp.host import McpHost, StreamableHttpClientFactory
+from app.modules.mcp.router import get_mcp_host, router as mcp_router
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
     application = FastAPI(title=settings.app_name, version="0.1.0")
+    mcp_host = McpHost(StreamableHttpClientFactory())
+    application.state.mcp_host = mcp_host
+    configure_mcp_host(mcp_host)
+    application.dependency_overrides[get_mcp_host] = lambda: mcp_host
     application.add_middleware(
         CORSMiddleware,
         allow_origins=[

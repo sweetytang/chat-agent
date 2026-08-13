@@ -66,6 +66,7 @@ async def stream_graph_events(
     thread_id: str,
     tools: Sequence[Any] = (),
     continue_after_tools: bool = False,
+    approval_tool_names: frozenset[str] = frozenset(),
 ) -> AsyncIterator[BusinessEvent]:
     """把进程内 LangGraph 事件转换为稳定的业务事件。"""
 
@@ -94,7 +95,12 @@ async def stream_graph_events(
                 )
         return
 
-    graph = create_streaming_graph(model, tools=tools, continue_after_tools=continue_after_tools)
+    graph = create_streaming_graph(
+        model,
+        tools=tools,
+        continue_after_tools=continue_after_tools,
+        approval_tool_names=approval_tool_names,
+    )
     sequence = 0
     message_started = False
     reasoning_started = False
@@ -160,6 +166,21 @@ async def stream_graph_events(
                 tool=item.get("name", "tool"),
                 content=output,
             )
+        elif kind == "on_chat_model_end" and approval_tool_names:
+            output = data.get("output")
+            for call in getattr(output, "tool_calls", None) or []:
+                if call.get("name") not in approval_tool_names:
+                    continue
+                sequence += 1
+                yield _event(
+                    run_id,
+                    thread_id,
+                    sequence,
+                    "tool.approval_requested",
+                    tool=call["name"],
+                    tool_call_id=call.get("id"),
+                    arguments=call.get("args", {}),
+                )
 
     if reasoning_started:
         sequence += 1
@@ -174,6 +195,7 @@ def create_streaming_graph(
     tools: Sequence[Any] = (),
     *,
     continue_after_tools: bool = False,
+    approval_tool_names: frozenset[str] = frozenset(),
 ):
     """创建使用模型 ``astream`` 的 LangGraph 图，供事件适配器消费。"""
 
@@ -191,10 +213,17 @@ def create_streaming_graph(
         if ToolNode is None:
             return graph.compile()
         graph.add_node("tools", ToolNode(list(tools)))
-        graph.add_conditional_edges(
-            "call_model",
-            lambda state: "tools" if getattr(state["messages"][-1], "tool_calls", None) else END,
-        )
+
+        def route_tool_calls(state: MessagesState) -> str:
+            calls = getattr(state["messages"][-1], "tool_calls", None) or []
+            if not calls:
+                return END
+            # MCP 默认先中断审核，ToolNode 不能提前执行其中任何一个调用。
+            if any(call.get("name") in approval_tool_names for call in calls):
+                return END
+            return "tools"
+
+        graph.add_conditional_edges("call_model", route_tool_calls)
         graph.add_edge("tools", "call_model" if continue_after_tools else END)
     else:
         graph.add_edge("call_model", END)

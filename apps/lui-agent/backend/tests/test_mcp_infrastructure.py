@@ -1,9 +1,13 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from app.integrations.storage import InMemoryObjectStorage, ObjectMetadata
-from app.modules.mcp.sandbox import FakeSandboxOrchestrator, SandboxDefinition, build_container_config
+from app.modules.mcp.sandbox import (
+    FakeSandboxOrchestrator,
+    SandboxDefinition,
+    build_container_config,
+)
 
 
 @pytest.mark.asyncio
@@ -28,7 +32,15 @@ def test_docker_policy_defaults_are_restricted() -> None:
 @pytest.mark.asyncio
 async def test_storage_ownership_and_idempotent_cleanup() -> None:
     storage = InMemoryObjectStorage()
-    metadata = ObjectMetadata("result.bin", "application/octet-stream", 1, "u", "r", "call", datetime.now(timezone.utc) - timedelta(seconds=1))
+    metadata = ObjectMetadata(
+        "result.bin",
+        "application/octet-stream",
+        1,
+        "u",
+        "r",
+        "call",
+        datetime.now(UTC) - timedelta(seconds=1),
+    )
     await storage.put(b"x", metadata)
     with pytest.raises(PermissionError):
         await storage.presign("result.bin", owner_id="other", run_id="r", tool_call_id="call")
