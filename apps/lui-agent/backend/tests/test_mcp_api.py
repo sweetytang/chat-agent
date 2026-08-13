@@ -12,6 +12,7 @@ from app.db.models import (
     McpTool,
     McpTransport,
     McpUserServer,
+    McpUserTool,
     User,
     UserRole,
 )
@@ -23,6 +24,7 @@ from app.modules.mcp.router import (
     set_server_enabled,
     set_tool_enabled,
 )
+from app.modules.mcp.service import ensure_user_tool_bindings
 
 
 class Rows:
@@ -220,3 +222,28 @@ async def test_refresh_syncs_catalog_and_returns_connected_state() -> None:
     assert isinstance(session.added[0], McpTool)
     assert session.added[0].remote_name == "search"
     assert session.added[0].compatibility == "COMPATIBLE"
+
+
+@pytest.mark.asyncio
+async def test_catalog_creates_closed_user_tool_binding_for_agent_query() -> None:
+    current = user()
+    definition = server(current.id)
+    tool = McpTool(
+        id=uuid4(),
+        server_id=definition.id,
+        remote_name="search",
+        internal_name="mcp__srv__search",
+        input_schema={},
+        annotations={},
+        compatibility="COMPATIBLE",
+        is_present=True,
+    )
+    session = FakeSession(scalars_values=[[tool], []])
+
+    await ensure_user_tool_bindings(session, current.id, definition.id)
+
+    assert len(session.added) == 1
+    assert isinstance(session.added[0], McpUserTool)
+    assert session.added[0].user_id == current.id
+    assert session.added[0].tool_id == tool.id
+    assert session.added[0].enabled is False

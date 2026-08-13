@@ -9,13 +9,23 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import McpServerDefinition, McpTool, McpUserServer, McpUserTool
+from app.db.models import (
+    McpServerDefinition,
+    McpServerStatus,
+    McpTool,
+    McpUserServer,
+    McpUserTool,
+)
 from app.modules.mcp.host.client import McpHost
 from app.modules.mcp.host.schema import project_input_schema
 from app.modules.mcp.host.state import McpConnectionState
 from app.modules.mcp.naming import ToolIdentity
 
 from .tools import McpToolSnapshot
+
+
+def clean_mcp_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in arguments.items() if value is not None and value != ""}
 
 
 async def load_mcp_snapshots(
@@ -34,6 +44,7 @@ async def load_mcp_snapshots(
             McpUserServer.enabled.is_(True),
             McpUserTool.user_id == user_id,
             McpUserTool.enabled.is_(True),
+            McpServerDefinition.status != McpServerStatus.DISABLED,
             McpTool.is_present.is_(True),
             McpTool.compatibility == "COMPATIBLE",
             McpServerDefinition.deleted_at.is_(None),
@@ -66,7 +77,9 @@ async def load_mcp_snapshots(
             *,
             sid: UUID = server.id,
         ) -> Any:
-            return await host.call(sid, identity.remote_name, arguments)
+            # GitHub issue_write 的可选 type 在未启用 Issue Types 时必须省略，
+            # 传空字符串会被远端校验为“parameter type must not be empty”。
+            return await host.call(sid, identity.remote_name, clean_mcp_arguments(arguments))
 
         snapshots.append(
             McpToolSnapshot(
@@ -75,6 +88,7 @@ async def load_mcp_snapshots(
                 projected_schema,
                 caller,
                 security_version=server.security_version,
+                server_name=server.name,
             )
         )
     return snapshots

@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
+from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -208,6 +209,7 @@ async def run_events(
     session: AsyncSession | None = None,
     branch_context: RunBranchContext | None = None,
     mcp_snapshots: tuple[McpToolSnapshot, ...] = (),
+    mcp_load_error: str | None = None,
 ) -> AsyncIterator[str]:
     """先提供稳定的业务事件协议，再把模型节点接入同一事件出口。"""
 
@@ -222,6 +224,15 @@ async def run_events(
 
         sequence += 1
         yield _event(run_id, request.thread_id, sequence, "run.started").to_sse()
+        if mcp_load_error:
+            sequence += 1
+            yield _event(
+                run_id,
+                request.thread_id,
+                sequence,
+                "mcp.error",
+                error=mcp_load_error,
+            ).to_sse()
         repository = RunRepository(session) if session is not None else None
         if repository is not None:
             await repository.update_status(UUID(run_id), RunStatus.RUNNING)
@@ -514,7 +525,7 @@ async def resumed_run_events(
             persisted_session = (
                 session if await session.get(Run, UUID(run_id)) is not None else None
             )
-        except ValueError, OSError, RuntimeError:
+        except (ValueError, OSError, RuntimeError):
             await session.rollback()
     repository = RunRepository(persisted_session) if persisted_session is not None else None
     if repository is not None:
@@ -535,7 +546,28 @@ async def resumed_run_events(
                 candidate = edited_payload.get("arguments", edited_payload)
                 if isinstance(candidate, dict):
                     arguments = candidate
-            result = normalize_tool_result(await snapshot.caller(snapshot.identity, arguments))
+            try:
+                result = normalize_tool_result(await snapshot.caller(snapshot.identity, arguments))
+            except Exception:
+                # MCP 调用发生在 StreamingResponse 已返回 200 之后。若异常直接冒泡，
+                # 浏览器只能看到连接中断并显示 network error，丢失真正的失败原因。
+                error = "MCP 工具调用失败，请检查 Server 状态、地址和凭据"
+                yield _event(
+                    run_id,
+                    request.thread_id,
+                    sequence,
+                    "tool.result",
+                    tool=snapshot.identity.internal_name,
+                    content={"error": error},
+                ).to_sse()
+                sequence += 1
+                yield _event(
+                    run_id, request.thread_id, sequence, "run.failed", error=error
+                ).to_sse()
+                if repository is not None:
+                    await repository.update_status(UUID(run_id), RunStatus.FAILED)
+                    await persisted_session.commit()
+                return
         tool_name = snapshot.identity.internal_name
     else:
         result = {"query": request.content.split(":", 1)[-1].strip(), "results": []}
@@ -546,9 +578,39 @@ async def resumed_run_events(
         run_id, request.thread_id, sequence, "tool.result", tool=tool_name, content=result
     ).to_sse()
     sequence += 1
+    # 审核恢复必须把工具结果重新交给模型，而不是直接伪造“工具执行完成”。
+    answer = "已按要求拒绝工具执行。" if decision == "reject" else "工具执行完成。"
+    try:
+        provider = get_provider_config()
+        model = (
+            FakeChatModel(chunks=("收到工具结果：",))
+            if provider.provider == "fake"
+            else create_chat_model(provider)
+        )
+        response = await model.ainvoke(
+            [
+                HumanMessage(content=request.content),
+                HumanMessage(
+                    content=(
+                        "以下是 MCP 工具返回结果，请基于用户问题给出最终答复：\n"
+                        + json.dumps(result, ensure_ascii=False)
+                    )
+                ),
+            ]
+        )
+        content = getattr(response, "content", response)
+        if isinstance(content, list):
+            content = "".join(
+                str(item.get("text", "")) if isinstance(item, dict) else str(item)
+                for item in content
+            )
+        if isinstance(content, str) and content.strip():
+            answer = content
+    except Exception:
+        # 工具已成功执行时，即使二次模型调用失败，也返回可解释的降级答复。
+        answer = "工具已执行，但生成最终答复失败，请重试。"
     yield _event(run_id, request.thread_id, sequence, "message.started", role="assistant").to_sse()
     sequence += 1
-    answer = "工具执行完成。" if decision != "reject" else "已按要求拒绝工具执行。"
     yield _event(run_id, request.thread_id, sequence, "message.delta", content=answer).to_sse()
     sequence += 1
     yield _event(run_id, request.thread_id, sequence, "message.completed").to_sse()
@@ -624,10 +686,11 @@ async def stream_run(
                 )
         if branch_context is not None:
             persistence_session = session
-    except ValueError, OSError, RuntimeError:
+    except (ValueError, OSError, RuntimeError):
         if session is not None:
             await session.rollback()
     mcp_snapshots: tuple[McpToolSnapshot, ...] = ()
+    mcp_load_error: str | None = None
     if persistence_session is not None and _mcp_host is not None and subject is not None:
         try:
             mcp_snapshots = tuple(
@@ -638,10 +701,19 @@ async def stream_run(
                     _decode_mcp_credentials,
                 )
             )
-        except ValueError, OSError, RuntimeError:
+        except (ValueError, OSError, RuntimeError):
             await persistence_session.rollback()
+            # 连接/凭据错误不能静默退化成“只有内置工具”，否则用户会误以为 MCP 已接入。
+            mcp_load_error = "MCP 工具加载失败，请检查 Server 状态并刷新"
     return StreamingResponse(
-        run_events(run_id, request, persistence_session, branch_context, mcp_snapshots),
+        run_events(
+            run_id,
+            request,
+            persistence_session,
+            branch_context,
+            mcp_snapshots,
+            mcp_load_error,
+        ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

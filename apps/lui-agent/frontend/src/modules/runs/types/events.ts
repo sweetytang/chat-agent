@@ -33,6 +33,7 @@ export type AgentEvent = EventBase & {
     | 'tool.call'
     | 'tool.approval_required'
     | 'tool.result'
+    | 'mcp.error'
     | 'checkpoint.created'
     | 'thread.updated'
     | 'structured_output.delta'

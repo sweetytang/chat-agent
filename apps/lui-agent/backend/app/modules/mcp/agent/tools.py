@@ -29,6 +29,17 @@ class McpToolSnapshot:
     caller: McpToolCaller
     enabled: bool = True
     security_version: int = 1
+    server_name: str = "MCP Server"
+
+    @property
+    def model_description(self) -> str:
+        """把远端可见身份带入描述，避免模型只认识内部安全名。"""
+        return (
+            f"MCP Server={self.server_name}; "
+            f"远端工具={self.identity.remote_name}; "
+            f"内部调用名={self.identity.internal_name}. "
+            f"{self.description}"
+        )
 
 
 def build_langchain_tools(snapshots: Sequence[McpToolSnapshot]) -> list[StructuredTool]:
@@ -49,7 +60,7 @@ def build_langchain_tools(snapshots: Sequence[McpToolSnapshot]) -> list[Structur
             StructuredTool.from_function(
                 coroutine=invoke,
                 name=snapshot.identity.internal_name,
-                description=snapshot.description or snapshot.identity.remote_name,
+                description=snapshot.model_description,
                 args_schema=dict(snapshot.input_schema),
             )
         )

@@ -99,7 +99,12 @@ def _validated_endpoint(transport: McpTransport, endpoint: str | None) -> str | 
     if transport is not McpTransport.STREAMABLE_HTTP or endpoint is None:
         return endpoint
     try:
-        return validate_public_http_url(endpoint)
+        settings = get_settings()
+        return validate_public_http_url(
+            endpoint,
+            allow_http=settings.environment == "development",
+            allow_local=settings.environment == "development",
+        )
     except NetworkPolicyError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
@@ -284,6 +289,7 @@ async def set_server_enabled(
     await session.execute(statement)
     await session.commit()
     if not payload.enabled:
+        server.security_version += 1
         await host.disconnect(server_id)
         server.status = McpServerStatus.DISABLED
         await session.commit()

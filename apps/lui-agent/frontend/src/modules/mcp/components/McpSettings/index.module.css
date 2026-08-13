@@ -1,151 +1,949 @@
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 20;
+  z-index: 40;
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgb(15 23 42 / 28%);
+  background: var(--overlay);
+  backdrop-filter: blur(4px);
 }
 
-.panel {
-  width: min(720px, 100%);
-  max-height: min(720px, 90vh);
-  overflow: auto;
-  padding: 16px;
+.dialog {
+  position: relative;
   display: grid;
-  gap: 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  box-shadow: 0 20px 60px rgb(15 23 42 / 20%);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(1080px, 96vw);
+  height: min(760px, 92vh);
+  overflow: hidden;
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+  box-shadow: var(--shadow-lg);
 }
 
-.titlebar {
-  display: flex;
+.topbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
   align-items: center;
-  justify-content: space-between;
+  min-height: 72px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
 }
 
-.close {
+.productTitle {
   display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  color: var(--text-secondary);
+  gap: 3px;
+}
+
+.categoryTabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.categoryTabs button {
+  min-width: 64px;
+  padding: 7px 12px;
+  color: var(--text-muted);
   background: transparent;
   border: 0;
-  border-radius: 8px;
-  cursor: pointer;
+  border-radius: 7px;
 }
 
-.close:hover {
-  background: var(--surface-muted);
+.categoryTabs .categoryActive {
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-xs);
 }
 
-.card {
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  padding: 12px;
+.topbar strong {
+  font-size: 16px;
 }
 
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  cursor: pointer;
-}
-
-.meta {
+.topbar span,
+.detailHeading p,
+.serverTitle p,
+.toolRow p,
+.diagnostic p,
+.securityNote p,
+.emptyDetail p {
+  margin: 0;
   color: var(--text-muted);
   font-size: 12px;
 }
 
-.tools {
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.tool {
-  display: flex;
+.iconButton,
+.backButton,
+.secondaryButton,
+.dangerButton,
+.primaryButton,
+.toolToolbar button {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 7px 11px;
+  color: var(--text-secondary);
   background: var(--surface-muted);
+  border: 1px solid var(--border);
   border-radius: 8px;
+  cursor: pointer;
 }
 
-.tag {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.copy {
-  border: 0;
+.iconButton {
+  width: 34px;
+  padding: 0;
   background: transparent;
-  cursor: pointer;
-  color: var(--text-muted);
+  border-color: transparent;
 }
 
-.empty {
-  color: var(--text-muted);
-  font-size: 13px;
+.topbar > .iconButton {
+  justify-self: end;
 }
 
-.form {
+.iconButton:hover,
+.secondaryButton:hover,
+.backButton:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+.workspace {
   display: grid;
-  grid-template-columns: 1fr 2fr 1fr auto;
-  gap: 8px;
+  grid-template-columns: 330px minmax(0, 1fr);
+  min-height: 0;
 }
 
-.form input {
+.sidebar {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
   min-width: 0;
-  padding: 8px;
-  color: var(--text);
-  background: var(--surface-muted);
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
+  padding: 14px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
 }
 
-.form button,
-.error button {
-  padding: 6px 10px;
-  color: var(--text);
-  background: var(--surface-muted);
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.actions {
+.searchBox {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  padding: 0 10px;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 9px;
 }
 
-.actions button {
-  display: grid;
-  padding: 4px;
-  color: var(--text-muted);
+.searchBox input {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0;
+  color: var(--text-primary);
   background: transparent;
   border: 0;
+}
+
+.serverList,
+.toolList {
+  min-height: 0;
+  overflow: auto;
+}
+
+.serverList {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+}
+
+.serverItem {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px;
+  color: var(--text-secondary);
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
   cursor: pointer;
+}
+
+.addServerItem {
+  margin-top: 5px;
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border-color: var(--border);
+  box-shadow: var(--shadow-xs);
+}
+
+.addServerItem:hover {
+  background: var(--surface-hover);
+}
+
+.serverItem:hover {
+  background: var(--surface-hover);
+}
+
+.serverItemActive {
+  color: var(--text-primary);
+  background: var(--surface-muted);
+  border-color: var(--border);
+}
+
+.serverIcon,
+.largeServerIcon,
+.toolIcon {
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.serverIcon {
+  width: 38px;
+  height: 38px;
+}
+
+.largeServerIcon {
+  width: 46px;
+  height: 46px;
+}
+
+.serverCopy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.serverCopy strong {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.serverCopy small,
+.serverTitle p {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.connected,
+.connecting,
+.error,
+.disabled {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.connected {
+  background: var(--success);
+}
+
+.connecting {
+  background: var(--warning);
 }
 
 .error {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px;
-  color: var(--danger, #b91c1c);
-  background: rgb(248 113 113 / 10%);
-  border-radius: 6px;
+  background: var(--danger);
 }
 
-@media (width <= 700px) {
-  .form {
+.disabled {
+  background: var(--text-muted);
+}
+
+.detail {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--surface-raised);
+}
+
+.serverHeader {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 24px 16px;
+}
+
+.serverTitle h2,
+.detailHeading h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.switchLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.switchLabel input {
+  width: 34px;
+  height: 18px;
+  accent-color: var(--text-primary);
+}
+
+.detailTabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.detailTabs button {
+  position: relative;
+  padding: 10px 12px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.tabCount {
+  margin-left: 4px;
+  padding: 1px 5px;
+  background: var(--surface-muted);
+  border-radius: 10px;
+  font-size: 10px;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.detailTabs .detailTabActive {
+  color: var(--text-primary);
+}
+
+.detailTabs .detailTabActive::after {
+  position: absolute;
+  right: 8px;
+  bottom: -1px;
+  left: 8px;
+  height: 2px;
+  background: var(--text-primary);
+  content: '';
+}
+
+.tabContent,
+.addPanel {
+  display: grid;
+  align-content: start;
+  min-height: 0;
+  gap: 18px;
+  padding: 22px 24px;
+}
+
+.addPanel {
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.infoGrid > div {
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.infoGrid span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.infoGrid strong {
+  font-size: 13px;
+}
+
+.diagnostic,
+.securityNote,
+.localHint {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px 14px;
+  border-radius: 10px;
+}
+
+.diagnostic {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-border);
+}
+
+.diagnostic strong,
+.securityNote strong {
+  font-size: 12px;
+}
+
+.securityNote,
+.localHint {
+  color: var(--text-secondary);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+}
+
+.localHint {
+  grid-column: 1 / -1;
+  font-size: 12px;
+}
+
+.actionRow,
+.toolToolbar,
+.editorFooter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.actionRow {
+  justify-content: space-between;
+}
+
+.dangerButton {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+}
+
+.primaryButton {
+  color: var(--surface-raised);
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+}
+
+.toolToolbar .searchBox {
+  flex: 1;
+}
+
+.toolToolbar button {
+  white-space: nowrap;
+}
+
+.toolList {
+  display: grid;
+  gap: 7px;
+}
+
+.toolRow {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.toolIcon {
+  width: 36px;
+  height: 36px;
+}
+
+.toolRow > div {
+  min-width: 0;
+}
+
+.toolRow strong {
+  font-size: 12px;
+}
+
+.toolRow p {
+  margin: 3px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolRow small {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.compactSwitch input {
+  width: 32px;
+  height: 18px;
+  accent-color: var(--text-primary);
+}
+
+.settingsForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.settingsForm label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.settingsForm input,
+.settingsForm select {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  color: var(--text-primary);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+}
+
+.inlineJson {
+  min-height: 72px;
+  padding: 9px 10px;
+  color: var(--text-primary);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  font:
+    12px/1.5 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  resize: vertical;
+}
+
+.fullField,
+.settingsForm > .primaryButton {
+  grid-column: 1 / -1;
+}
+
+.settingsForm > .primaryButton {
+  justify-self: end;
+}
+
+.detailHeading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.modeSwitch {
+  display: inline-flex;
+  justify-self: start;
+  padding: 3px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.modeSwitch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.modeSwitch .modeActive {
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-xs);
+}
+
+.jsonEditor {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+}
+
+.codeViewport {
+  position: relative;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  min-height: 0;
+  max-height: 100%;
+  overflow: auto;
+  background: var(--surface);
+  color: var(--text-primary);
+  border-top: 1px solid var(--border);
+}
+
+.lineNumbers {
+  display: grid;
+  align-content: start;
+  padding: 16px 10px;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  border-right: 1px solid var(--border);
+  font:
+    12px/1.65 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  text-align: right;
+  user-select: none;
+}
+
+.lineNumbers span {
+  display: block;
+}
+
+.codeViewport pre,
+.codeViewport textarea {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  border: 0;
+  font:
+    12px/1.65 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  tab-size: 2;
+  white-space: pre;
+}
+
+.codeViewport pre {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.jsonCode {
+  display: grid;
+  align-content: start;
+  padding: 16px;
+}
+
+.jsonCode > span {
+  display: block;
+  min-height: 1.65em;
+  margin: 0 -6px;
+  padding: 0 6px;
+}
+
+.activeJsonLine {
+  background: var(--ambient-glow);
+}
+
+.codeViewport textarea {
+  position: relative;
+  z-index: 1;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--text-primary);
+  background: transparent;
+  resize: none;
+}
+
+.codeViewport textarea::selection {
+  background: var(--accent-border);
+}
+
+.codeViewport :global(.jsonKey) {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.codeViewport :global(.jsonString) {
+  color: var(--success);
+}
+
+.codeViewport :global(.jsonBoolean) {
+  color: var(--accent);
+}
+
+.codeViewport :global(.jsonNumber) {
+  color: var(--warning);
+}
+
+.codeViewport :global(.jsonPunctuation) {
+  color: var(--text-muted);
+}
+
+.editorActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toast button {
+  display: grid;
+  padding: 2px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+button:disabled,
+input:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.editorActions button:not(.primaryButton) {
+  padding: 6px 8px;
+  color: var(--text-secondary);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.editorActions .primaryButton {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.jsonEditor textarea {
+  min-height: 350px;
+  padding: 16px;
+  color: var(--text-primary);
+  background: var(--surface);
+  border: 0;
+  resize: vertical;
+  font:
+    12px/1.65 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  tab-size: 2;
+}
+
+/* 编辑层透明，只负责输入；高亮由下方 pre 图层渲染。 */
+.jsonEditor .codeViewport textarea {
+  color: transparent;
+  background: transparent;
+  resize: none;
+}
+
+.editorFooter {
+  justify-content: space-between;
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  background: var(--surface);
+  padding: 10px 12px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+}
+
+.jsonValid,
+.jsonInvalid { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; }
+.jsonValid { background: var(--success); }
+.jsonInvalid { background: var(--danger); }
+
+.emptyDetail {
+  display: grid;
+  min-height: 100%;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.listMessage {
+  padding: 20px 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.toast {
+  position: absolute;
+  right: 20px;
+  bottom: 48px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 440px;
+  padding: 10px 12px;
+  color: var(--text-secondary);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  box-shadow: var(--shadow-md);
+  font-size: 12px;
+}
+
+.toastError {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+  padding: 11px 16px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+}
+
+.spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+.toolToolbar button:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (width <= 820px) {
+  .overlay {
+    padding: 10px;
+  }
+
+  .dialog {
+    width: 100%;
+    height: 95vh;
+  }
+
+  .workspace {
     grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    max-height: 220px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .serverList {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .topbar {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .categoryTabs button {
+    min-width: auto;
+  }
+
+  .footer {
+    display: none;
+  }
+
+  .toast {
+    bottom: 16px;
+  }
+}
+
+@media (width <= 560px) {
+  .productTitle span {
+    display: none;
+  }
+
+  .categoryTabs button:not(.categoryActive) {
+    display: none;
+  }
+
+  .serverList {
+    grid-template-columns: 1fr;
+  }
+
+  .infoGrid,
+  .settingsForm {
+    grid-template-columns: 1fr;
+  }
+
+  .detailTabs {
+    overflow-x: auto;
+  }
+
+  .toolToolbar {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .toolToolbar .searchBox {
+    flex-basis: 100%;
+  }
+
+  .serverHeader {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .switchLabel {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinning {
+    animation: none;
   }
 }

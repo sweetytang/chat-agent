@@ -20,13 +20,18 @@ def _blocked(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     )
 
 
-def validate_public_http_url(url: str, *, allow_http: bool = False) -> str:
+def validate_public_http_url(
+    url: str, *, allow_http: bool = False, allow_local: bool = False
+) -> str:
     parsed = urlparse(url)
     allowed_schemes = {"https"} | ({"http"} if allow_http else set())
     if parsed.scheme not in allowed_schemes or not parsed.hostname:
         raise NetworkPolicyError("MCP 地址必须使用允许的 HTTP(S) scheme")
     if parsed.username or parsed.password:
         raise NetworkPolicyError("MCP 地址不能内嵌用户凭据")
+    local_host = parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+    if local_host and allow_local and parsed.scheme == "http":
+        return parsed.geturl()
     try:
         addresses = {
             ipaddress.ip_address(item[4][0])
@@ -39,7 +44,15 @@ def validate_public_http_url(url: str, *, allow_http: bool = False) -> str:
     return parsed.geturl()
 
 
-def validate_redirect(base_url: str, location: str, *, allow_http: bool = False) -> str:
+def validate_redirect(
+    base_url: str,
+    location: str,
+    *,
+    allow_http: bool = False,
+    allow_local: bool = False,
+) -> str:
     """Resolve and re-apply policy to every redirect hop."""
 
-    return validate_public_http_url(urljoin(base_url, location), allow_http=allow_http)
+    return validate_public_http_url(
+        urljoin(base_url, location), allow_http=allow_http, allow_local=allow_local
+    )

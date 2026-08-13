@@ -3,6 +3,7 @@
 协议层只依赖 ``McpClientFactory``，因此测试和部署层可以替换真实 SDK
 客户端。Host 不把异常原文返回给用户，只暴露稳定的脱敏错误。
 """
+
 from __future__ import annotations
 
 from contextlib import suppress
@@ -98,7 +99,9 @@ class McpHost:
         if machine.state is not McpConnectionState.DISABLED:
             machine.transition(McpConnectionState.DISABLED)
         if context is not None:
-            await context.__aexit__(None, None, None)
+            # 停用必须幂等；远端连接关闭失败不能把用户的 DB 开关操作变成 500。
+            with suppress(Exception):
+                await context.__aexit__(None, None, None)
 
     async def call(self, server_id: UUID | str, remote_name: str, arguments: dict[str, Any]) -> Any:
         client = self._clients.get(str(server_id))

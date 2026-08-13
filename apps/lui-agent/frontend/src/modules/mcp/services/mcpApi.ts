@@ -27,14 +27,34 @@ export function setToolEnabled(toolId: string, enabled: boolean) {
 export function createMcpServer(payload: {
   name: string;
   scope: 'PRIVATE';
-  transport: 'STREAMABLE_HTTP';
+  transport: 'STREAMABLE_HTTP' | 'STDIO';
   endpoint: string;
   bearer_token?: string;
+  headers?: Record<string, string>;
 }) {
   return request<McpServer>('/mcp/servers', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export function updateMcpServer(
+  serverId: string,
+  payload: {
+    name?: string;
+    endpoint?: string;
+    bearer_token?: string;
+    headers?: Record<string, string>;
+  },
+) {
+  return request<McpServer>(`/mcp/servers/${serverId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteMcpServer(serverId: string) {
+  return request<void>(`/mcp/servers/${serverId}`, { method: 'DELETE' });
 }
 
 /** Refresh is intentionally a separate action so a failed discovery can be retried. */

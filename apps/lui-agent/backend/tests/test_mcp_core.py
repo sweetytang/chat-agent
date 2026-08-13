@@ -56,6 +56,14 @@ def test_network_policy_accepts_public_address(monkeypatch: pytest.MonkeyPatch) 
     assert validate_public_http_url("https://example.test/mcp") == "https://example.test/mcp"
 
 
+def test_network_policy_allows_local_http_only_for_explicit_dev_mode() -> None:
+    assert validate_public_http_url(
+        "http://127.0.0.1:8765/mcp", allow_http=True, allow_local=True
+    ) == "http://127.0.0.1:8765/mcp"
+    with pytest.raises(NetworkPolicyError):
+        validate_public_http_url("http://127.0.0.1:8765/mcp")
+
+
 def test_mcp_state_machine_rejects_invalid_transition() -> None:
     machine = McpStateMachine()
     machine.transition(McpConnectionState.CONNECTING)
@@ -78,6 +86,17 @@ def test_schema_projection_rejects_unsupported_shapes() -> None:
         {"type": "object", "properties": {"q": {"type": "string"}}}
     )
     assert error is None and projected["properties"]["q"]["type"] == "string"
+    projected, error = project_input_schema(
+        {
+            "type": "object",
+            "properties": {
+                "owner": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+                "repository": {"$ref": "#/definitions/repository"},
+            },
+        }
+    )
+    assert error is None
+    assert projected["properties"]["owner"]["type"] == "string"
 
 
 def test_binary_result_is_not_embedded_without_object_storage() -> None:
@@ -147,3 +166,25 @@ async def test_host_closes_failed_context() -> None:
     with pytest.raises(McpHostError, match="RuntimeError"):
         await McpHost(Factory()).connect("srv", endpoint="https://example.test/mcp")
     assert exits == 1
+
+
+@pytest.mark.asyncio
+async def test_host_disconnect_swallows_close_error_and_is_idempotent() -> None:
+    class Context:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            raise RuntimeError("close failed")
+
+        async def list_tools(self):
+            return []
+
+    class Factory:
+        def connect(self, **_kwargs):
+            return Context()
+
+    host = McpHost(Factory())
+    await host.connect("srv", endpoint="https://example.test/mcp")
+    await host.disconnect("srv")
+    await host.disconnect("srv")

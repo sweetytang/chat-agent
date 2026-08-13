@@ -4,7 +4,13 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import McpServerDefinition, McpServerStatus, McpTool, McpUserServer
+from app.db.models import (
+    McpServerDefinition,
+    McpServerStatus,
+    McpTool,
+    McpUserServer,
+    McpUserTool,
+)
 from app.modules.mcp.host.client import McpHost, McpHostError, McpToolDescriptor
 from app.modules.mcp.host.schema import project_input_schema
 from app.modules.mcp.naming import ToolNameMapper
@@ -31,6 +37,7 @@ async def refresh_server_catalog(
     try:
         descriptors = await host.connect(server.id, endpoint=server.endpoint, headers=headers or {})
         await _sync_catalog(session, server, descriptors)
+        await ensure_user_tool_bindings(session, user_id, server.id)
     except McpHostError as error:
         server.status = McpServerStatus.ERROR
         binding.last_error = str(error)
@@ -86,6 +93,34 @@ async def _sync_catalog(
         tool.compatibility = "INCOMPATIBLE" if incompatibility else "COMPATIBLE"
         tool.is_present = True
 
+        # 首次发现的工具默认关闭；如果该用户已有偏好则保留其选择。
+        # 这样 Server 开关只负责连接/发现，工具仍由 UI 的下级开关明确启用。
+        # 绑定创建在 refresh 的用户上下文内完成，避免 Agent 查询因缺行而静默丢工具。
+
     for tool in existing:
         if tool.remote_name not in discovered_names:
             tool.is_present = False
+
+
+async def ensure_user_tool_bindings(
+    session: AsyncSession,
+    user_id: UUID,
+    server_id: UUID,
+) -> None:
+    """为 catalog 中缺失的用户偏好创建关闭状态绑定。"""
+
+    tools = (await session.scalars(select(McpTool).where(McpTool.server_id == server_id))).all()
+    existing = {
+        item.tool_id
+        for item in (
+            await session.scalars(
+                select(McpUserTool).where(
+                    McpUserTool.user_id == user_id,
+                    McpUserTool.tool_id.in_([tool.id for tool in tools]),
+                )
+            )
+        ).all()
+    }
+    for tool in tools:
+        if tool.id not in existing:
+            session.add(McpUserTool(user_id=user_id, tool_id=tool.id, enabled=False))

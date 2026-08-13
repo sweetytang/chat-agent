@@ -53,6 +53,7 @@ const presentationKindByEvent: Partial<Record<AgentEvent['event'], PresentationK
   'structured_output.delta': 'structured-output',
   'generative_ui.delta': 'generative-ui',
   'run.failed': 'error',
+  'mcp.error': 'error',
 };
 
 export const useRunStore = create<RunState>((set) => ({
@@ -182,7 +183,12 @@ export const useRunStore = create<RunState>((set) => ({
           history = [...history.slice(0, -1), { ...last, is_streaming: false }];
       }
       const error =
-        event.event === 'run.failed' ? eventString(event.data.error, '运行失败') : state.error;
+        event.event === 'run.failed' || event.event === 'mcp.error'
+          ? eventString(
+              event.data.error,
+              event.event === 'mcp.error' ? 'MCP 工具加载失败' : '运行失败',
+            )
+          : state.error;
       return {
         ...state,
         runId: event.run_id,
