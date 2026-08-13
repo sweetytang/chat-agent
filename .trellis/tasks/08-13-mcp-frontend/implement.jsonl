@@ -1,0 +1,2 @@
+{"file":".trellis/spec/frontend/visual-system.md","reason":"MCP 卡片、设置、管理员控制台、主题、响应式和无障碍遵循现有视觉合同。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"前端 types/decoder/store 必须统一承接后端 API 与事件合同。"}

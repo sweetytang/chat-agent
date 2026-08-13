@@ -1,0 +1,2 @@
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"总验收需检查配置到模型、执行、结果、存储和 UI 的完整数据流。"}
+{"file":".trellis/spec/frontend/visual-system.md","reason":"检查 MCP 设置、管理员页面、状态、媒体和无障碍是否符合现有视觉系统。"}

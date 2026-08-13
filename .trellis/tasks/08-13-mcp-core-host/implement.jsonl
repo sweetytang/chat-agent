@@ -1,0 +1,2 @@
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"核心 Host 定义数据库、API、SDK adapter、Mapper 与后续消费者的合同。"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"权限、状态、Schema 和 payload 解码必须保持单一实现。"}

@@ -1,8 +1,8 @@
 {
-  "id": "lui-agent-fullstack-rebuild",
-  "name": "lui-agent-fullstack-rebuild",
-  "title": "新建 lui-agent 全功能 Python/FastAPI 重构",
-  "description": "",
+  "id": "mcp-core-host",
+  "name": "mcp-core-host",
+  "title": "MCP 核心管理与协议",
+  "description": "实现角色权限、MCP 配置持久化、Streamable HTTP Client、工具发现、Mapper、Schema 兼容、状态机和审计基础。",
   "status": "in_progress",
   "dev_type": null,
   "scope": null,
@@ -10,7 +10,7 @@
   "priority": "P2",
   "creator": "leo",
   "assignee": "leo",
-  "createdAt": "2026-07-31",
+  "createdAt": "2026-08-13",
   "completedAt": null,
   "branch": null,
   "base_branch": "master",
@@ -18,11 +18,8 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [
-    "08-12-lui-agent-frontend-visual-overhaul",
-    "08-13-mcp-plugin-system"
-  ],
-  "parent": null,
+  "children": [],
+  "parent": "08-13-mcp-plugin-system",
   "relatedFiles": [],
   "notes": "",
   "meta": {}

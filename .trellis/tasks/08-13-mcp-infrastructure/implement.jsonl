@@ -1,0 +1,2 @@
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"沙箱代理和对象存储是外部基础设施边界，需明确 DTO、错误和生命周期。"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"编排与存储必须通过 ports/adapters 复用，禁止业务层散落 SDK 调用。"}

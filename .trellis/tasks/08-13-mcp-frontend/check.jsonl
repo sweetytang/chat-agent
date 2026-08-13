@@ -1,0 +1,2 @@
+{"file":".trellis/spec/frontend/visual-system.md","reason":"检查交互、主题、动效、响应式与无障碍一致性。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"检查 DTO 解码、状态与组件没有私有合同漂移。"}

@@ -1,0 +1,2 @@
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"MCP 总任务跨数据库、API、Host、Agent、事件与前端，实施时必须统一边界合同和解码责任。"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Mapper、状态、配额、事件和 DTO 必须由 MCP 模块单一所有，避免跨子任务复制。"}
