@@ -3,7 +3,7 @@
   "name": "mcp-agent-integration",
   "title": "MCP Agent 与 HITL 集成",
   "description": "把已启用 MCP Tools 接入 LangGraph/run，落实工具快照、审核恢复、事件与结果处理。",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,

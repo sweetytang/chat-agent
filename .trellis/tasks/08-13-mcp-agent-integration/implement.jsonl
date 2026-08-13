@@ -1,2 +1,4 @@
 {"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Agent 集成横跨 snapshot、LangGraph、interrupt、事件、消息和前端回放。"}
 {"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"统一工具事件 decoder 与执行策略，避免 run/graph 各自解析 MCP。"}
+{"file":"apps/lui-agent/backend/app/modules/mcp/agent/tools.py","reason":"新增冻结的 MCP 工具快照与 LangChain StructuredTool 边界适配，Graph 不直接依赖 MCP SDK。"}
+{"file":"apps/lui-agent/backend/tests/test_mcp_agent_tools.py","reason":"覆盖启用过滤、工具名映射和调用身份路由。"}
