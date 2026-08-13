@@ -26,9 +26,12 @@ export function setToolEnabled(toolId: string, enabled: boolean) {
 
 export function createMcpServer(payload: {
   name: string;
-  scope: 'PRIVATE';
+  scope: 'PRIVATE' | 'SHARED';
   transport: 'STREAMABLE_HTTP' | 'STDIO';
-  endpoint: string;
+  endpoint?: string;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
   bearer_token?: string;
   headers?: Record<string, string>;
 }) {
@@ -45,6 +48,9 @@ export function updateMcpServer(
     endpoint?: string;
     bearer_token?: string;
     headers?: Record<string, string>;
+    command?: string;
+    args?: string[];
+    env?: Record<string, string>;
   },
 ) {
   return request<McpServer>(`/mcp/servers/${serverId}`, {

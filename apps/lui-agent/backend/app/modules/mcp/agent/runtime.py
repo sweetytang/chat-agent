@@ -56,7 +56,8 @@ async def load_mcp_snapshots(
     for tool, server in rows:
         if server.id not in connected_servers:
             if host.state(server.id) is not McpConnectionState.CONNECTED:
-                if not server.endpoint:
+                approved = server.approved_config or {}
+                if not server.endpoint and not approved.get("command"):
                     continue
                 await host.connect(
                     server.id,
@@ -64,6 +65,9 @@ async def load_mcp_snapshots(
                     headers=decode_credentials(server.encrypted_credentials)
                     if decode_credentials is not None
                     else {},
+                    command=approved.get("command"),
+                    args=approved.get("args"),
+                    env=approved.get("env"),
                 )
             connected_servers.add(server.id)
         projected_schema, incompatibility = project_input_schema(tool.input_schema)

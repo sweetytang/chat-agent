@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     database_url: PostgresDsn = "postgresql+asyncpg://lui_agent:lui_agent@localhost:5433/lui_agent"
     jwt_secret: str = "change-me-in-development"
     mcp_encryption_key: str = ""
+    mcp_stdio_commands: str = "npx"
 
     @field_validator("database_url", mode="after")
     @classmethod

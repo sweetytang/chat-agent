@@ -15,6 +15,9 @@ export interface McpServer {
   scope: 'PRIVATE' | 'SHARED';
   transport: 'STREAMABLE_HTTP' | 'STDIO';
   endpoint?: string | null;
+  command?: string | null;
+  args?: string[];
+  env?: Record<string, string>;
   status: string;
   enabled: boolean;
   last_error?: string | null;

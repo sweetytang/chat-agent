@@ -37,6 +37,13 @@ from app.modules.mcp.service import McpRefreshError, refresh_server_catalog
 router = APIRouter(prefix="/api/mcp", tags=["mcp"])
 
 
+@router.get("/stdio/definitions")
+async def list_stdio_definitions(user: User = Depends(current_user)) -> list[dict[str, str]]:
+    """返回部署时批准的 stdio 命令；命令不会来自用户输入。"""
+    commands = [item.strip() for item in get_settings().mcp_stdio_commands.split(",") if item.strip()]
+    return [{"command": command} for command in commands]
+
+
 def get_mcp_host() -> McpHost:
     raise HTTPException(status_code=503, detail="MCP Host 未配置")
 
@@ -48,6 +55,7 @@ class TogglePayload(BaseModel):
 def _server_response(
     server: McpServerDefinition, binding: McpUserServer | None = None
 ) -> McpServerResponse:
+    approved = server.approved_config if server.transport is McpTransport.STDIO else {}
     return McpServerResponse(
         id=server.id,
         name=server.name,
@@ -59,6 +67,9 @@ def _server_response(
         last_error=binding.last_error if binding is not None else None,
         credential_configured=bool(server.encrypted_credentials),
         security_version=server.security_version,
+        command=approved.get("command"),
+        args=approved.get("args", []),
+        env=approved.get("env", {}),
     )
 
 
@@ -160,6 +171,10 @@ async def create_server(
         raise HTTPException(status_code=403, detail="只有管理员可以创建共享 MCP")
     if payload.transport is McpTransport.STDIO and user.role is not UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="只有管理员可以创建 stdio MCP")
+    if payload.transport is McpTransport.STDIO:
+        allowed = {item.strip() for item in get_settings().mcp_stdio_commands.split(",") if item.strip()}
+        if payload.command not in allowed:
+            raise HTTPException(status_code=403, detail="stdio command 不在管理员预装清单中")
 
     server = McpServerDefinition(
         owner_id=None if payload.scope is McpScope.SHARED else user.id,
@@ -168,7 +183,15 @@ async def create_server(
         transport=payload.transport,
         endpoint=_validated_endpoint(payload.transport, payload.endpoint),
         encrypted_credentials=_encrypt_credentials(payload.headers, payload.bearer_token),
-        approved_config={},
+        approved_config=(
+            {
+                "command": payload.command,
+                "args": payload.args,
+                "env": {key: value.strip() for key, value in payload.env.items()},
+            }
+            if payload.transport is McpTransport.STDIO
+            else {}
+        ),
     )
     session.add(server)
     await session.commit()
@@ -200,6 +223,26 @@ async def update_server(
         server.encrypted_credentials = _encrypt_credentials(
             payload.headers or {}, payload.bearer_token
         )
+        security_changed = True
+    if server.transport is McpTransport.STDIO and any(
+        field in payload.model_fields_set for field in ("command", "args", "env")
+    ):
+        if user.role is not UserRole.ADMIN:
+            raise HTTPException(status_code=403, detail="只有管理员可以修改 stdio MCP")
+        allowed = {item.strip() for item in get_settings().mcp_stdio_commands.split(",") if item.strip()}
+        command = payload.command if "command" in payload.model_fields_set else server.approved_config.get("command")
+        if command not in allowed:
+            raise HTTPException(status_code=403, detail="stdio command 不在管理员预装清单中")
+        approved = dict(server.approved_config or {})
+        if "command" in payload.model_fields_set:
+            approved["command"] = command
+        if "args" in payload.model_fields_set:
+            approved["args"] = payload.args or []
+        if "env" in payload.model_fields_set:
+            approved["env"] = {
+                key: value.strip() for key, value in (payload.env or {}).items()
+            }
+        server.approved_config = approved
         security_changed = True
     if security_changed:
         server.security_version += 1
@@ -294,18 +337,6 @@ async def set_server_enabled(
         server.status = McpServerStatus.DISABLED
         await session.commit()
         return {"enabled": False}
-    if server.transport is McpTransport.STDIO:
-        server.status = McpServerStatus.ERROR
-        binding = await session.scalar(
-            select(McpUserServer).where(
-                McpUserServer.user_id == user.id,
-                McpUserServer.server_id == server.id,
-            )
-        )
-        if binding is not None:
-            binding.last_error = "stdio MCP 编排服务尚未配置"
-        await session.commit()
-        raise HTTPException(status_code=503, detail="stdio MCP 编排服务尚未配置")
     try:
         await refresh_server_catalog(
             session,

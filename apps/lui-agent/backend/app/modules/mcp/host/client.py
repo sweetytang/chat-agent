@@ -30,7 +30,13 @@ class McpHostError(RuntimeError):
 
 def _safe_error(error: BaseException) -> str:
     # 连接异常可能包含 URL、Header 或 token；统一返回稳定消息。
+    if isinstance(error, BaseExceptionGroup):
+        children = [item for item in error.exceptions if isinstance(item, BaseException)]
+        detail = _safe_error(children[0]) if children else "子进程启动失败"
+        return f"MCP 操作失败：{detail}"
     name = type(error).__name__
+    if isinstance(error, (FileNotFoundError, PermissionError)):
+        return f"MCP 操作失败：stdio 命令不可执行（{name}）"
     return f"MCP 操作失败（{name}）"
 
 
@@ -52,8 +58,11 @@ class McpHost:
         self,
         server_id: UUID | str,
         *,
-        endpoint: str,
+        endpoint: str | None = None,
         headers: dict[str, str] | None = None,
+        command: str | None = None,
+        args: list[str] | None = None,
+        env: dict[str, str] | None = None,
     ) -> tuple[McpToolDescriptor, ...]:
         key = str(server_id)
         # 刷新和安全配置更新后的重连必须先关闭旧会话，避免连接与凭据泄漏。
@@ -63,7 +72,7 @@ class McpHost:
         context = None
         entered = False
         try:
-            context = self.factory.connect(endpoint=endpoint, headers=headers or {})
+            context = self.factory.connect(endpoint=endpoint, headers=headers or {}, command=command, args=args, env=env)
             client = await context.__aenter__()
             entered = True
             tools = await client.list_tools()

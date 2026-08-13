@@ -5,9 +5,11 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
-import httpx2
+import httpx
+import os
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from mcp.client.stdio import StdioServerParameters, stdio_client
 
 
 class SdkMcpClient:
@@ -26,11 +28,26 @@ class SdkMcpClient:
 class StreamableHttpClientFactory:
     @asynccontextmanager
     async def connect(
-        self, *, endpoint: str, headers: dict[str, str]
+        self, *, endpoint: str | None = None, headers: dict[str, str] | None = None,
+        command: str | None = None, args: list[str] | None = None, env: dict[str, str] | None = None
     ) -> AsyncIterator[SdkMcpClient]:
+        if command:
+            runtime_env = dict(os.environ)
+            runtime_env.update(env or {})
+            # Node 24 的原生 fetch 默认不读取 HTTP(S)_PROXY；显式打开环境代理支持，
+            # 使 npx 启动的 MCP 子进程与后端 curl 使用同一网络出口。
+            if any(runtime_env.get(key) for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY")):
+                runtime_env.setdefault("NODE_USE_ENV_PROXY", "1")
+            params = StdioServerParameters(command=command, args=args or [], env=runtime_env)
+            async with stdio_client(params) as streams, ClientSession(*streams) as session:
+                await session.initialize()
+                yield SdkMcpClient(session)
+            return
+        if not endpoint:
+            raise ValueError("MCP endpoint 或 stdio command 必须提供")
         # 禁止自动重定向；重定向目标必须重新经过 SSRF 校验后才能连接。
         async with (
-            httpx2.AsyncClient(headers=headers, follow_redirects=False) as http_client,
+            httpx.AsyncClient(headers=headers or {}, follow_redirects=False) as http_client,
             streamable_http_client(endpoint, http_client=http_client) as streams,
             ClientSession(*streams) as session,
         ):

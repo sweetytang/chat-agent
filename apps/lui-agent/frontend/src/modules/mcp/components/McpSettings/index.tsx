@@ -255,9 +255,31 @@ export function McpSettings() {
                     )}
                     {form.transport === 'STDIO' && (
                       <>
-                        <label className={styles.fullField}>受控命令（只读安装清单）<input value={form.command} disabled placeholder="由管理员预装" onChange={(event) => setForm({ ...form, command: event.target.value })} /></label>
-                        <label>参数（JSON 数组）<input value={form.args} disabled placeholder='["--config", "mcp.json"]' onChange={(event) => setForm({ ...form, args: event.target.value })} /></label>
-                        <label>环境变量（JSON 对象）<input value={form.env} disabled placeholder='{"KEY":"value"}' onChange={(event) => setForm({ ...form, env: event.target.value })} /></label>
+                        <label className={styles.fullField}>
+                          受控命令（管理员预装清单）
+                          <input
+                            required
+                            value={form.command}
+                            placeholder="例如 tat-mcp"
+                            onChange={(event) => setForm({ ...form, command: event.target.value })}
+                          />
+                        </label>
+                        <label>
+                          参数（JSON 数组）
+                          <input
+                            value={form.args}
+                            placeholder='["--config", "mcp.json"]'
+                            onChange={(event) => setForm({ ...form, args: event.target.value })}
+                          />
+                        </label>
+                        <label>
+                          环境变量（JSON 对象）
+                          <input
+                            value={form.env}
+                            placeholder='{"KEY":"value"}'
+                            onChange={(event) => setForm({ ...form, env: event.target.value })}
+                          />
+                        </label>
                       </>
                     )}
                     <label className={styles.fullField}>
@@ -327,8 +349,12 @@ export function McpSettings() {
                     </div>
                     <div className={styles.editorFooter}>
                       <span>
-                        <i className={jsonValidation.valid ? styles.jsonValid : styles.jsonInvalid} />
-                        {jsonConfig.trim() ? `${jsonValidation.label} · ${jsonValidation.detail}` : '通用 MCP 配置模板 · 点击编辑'}
+                        <i
+                          className={jsonValidation.valid ? styles.jsonValid : styles.jsonInvalid}
+                        />
+                        {jsonConfig.trim()
+                          ? `${jsonValidation.label} · ${jsonValidation.detail}`
+                          : '通用 MCP 配置模板 · 点击编辑'}
                       </span>
                       <div className={styles.editorActions}>
                         <button

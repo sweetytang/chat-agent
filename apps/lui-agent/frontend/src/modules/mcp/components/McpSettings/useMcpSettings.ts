@@ -58,8 +58,17 @@ export function serializeMcpServers(servers: McpServer[]) {
         servers.map((server) => [
           server.name,
           {
-            ...(server.endpoint ? { url: server.endpoint } : {}),
-            type: server.transport === 'STDIO' ? 'stdio' : 'http',
+            ...(server.transport === 'STDIO'
+              ? {
+                  type: 'stdio',
+                  ...(server.command ? { command: server.command } : {}),
+                  ...(server.args ? { args: server.args } : {}),
+                  ...(server.env && Object.keys(server.env).length ? { env: server.env } : {}),
+                }
+              : {
+                  type: 'http',
+                  ...(server.endpoint ? { url: server.endpoint } : {}),
+                }),
             scope: server.scope,
             enabled: server.enabled,
             ...(server.credential_configured
@@ -79,8 +88,11 @@ export function serializeMcpServers(servers: McpServer[]) {
 
 export interface ParsedMcpServerConfig {
   name: string;
-  endpoint: string;
-  transport: 'STREAMABLE_HTTP';
+  endpoint?: string;
+  transport: 'STREAMABLE_HTTP' | 'STDIO';
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
   headers: Record<string, string>;
   bearerToken: string;
   enabled?: boolean;
@@ -99,8 +111,37 @@ export function parseRemoteServers(source: string): ParsedMcpServerConfig[] {
     const config = item as Record<string, unknown>;
     const transport = config.transport;
     const type = config.type;
-    if (typeof config.command === 'string' || type === 'stdio')
-      throw new Error(`${name} 是 stdio 配置；当前部署尚未启用受控安装服务`);
+    const isStdio = typeof config.command === 'string' || type === 'stdio';
+    if (isStdio) {
+      if (typeof config.command !== 'string' || !config.command.trim())
+        throw new Error(`${name} 的 stdio command 不能为空`);
+      const args =
+        Array.isArray(config.args) && config.args.every((item) => typeof item === 'string')
+          ? (config.args)
+          : [];
+      const env =
+        typeof config.env === 'object' && config.env !== null
+          ? (Object.fromEntries(
+              Object.entries(config.env)
+                .filter(([, value]) => typeof value === 'string')
+                .map(([key, value]) => [key, String(value).trim()]),
+            ) as Record<string, string>)
+          : {};
+      return {
+        name,
+        transport: 'STDIO',
+        command: config.command,
+        args,
+        env,
+        headers: {},
+        bearerToken: '',
+        enabled: typeof config.enabled === 'boolean' ? config.enabled : undefined,
+        tools:
+          typeof config.tools === 'object' && config.tools !== null
+            ? (config.tools as Record<string, unknown>)
+            : undefined,
+      };
+    }
     const remoteType = type ?? transport;
     if (
       remoteType &&
@@ -111,9 +152,7 @@ export function parseRemoteServers(source: string): ParsedMcpServerConfig[] {
       throw new Error(`${name} 使用了当前 V1 不支持的 type：${JSON.stringify(remoteType)}`);
     const unsupported = ['timeout'].filter((key) => key in config);
     if (unsupported.length)
-      throw new Error(
-        `${name} 包含当前 V1 不支持的字段：${unsupported.join(', ')}`,
-      );
+      throw new Error(`${name} 包含当前 V1 不支持的字段：${unsupported.join(', ')}`);
     const endpoint =
       typeof config.url === 'string'
         ? config.url
@@ -328,15 +367,21 @@ export function useMcpSettings() {
     setBusy(true);
     setError(null);
     try {
-      if (form.transport === 'STDIO')
-        throw new Error('stdio 仅支持管理员受控安装，不能从此处直接执行本地命令');
       if (form.transport === 'SSE')
         throw new Error('SSE 传输暂未接入当前 MCP Host，请使用 Streamable HTTP');
+      let args: string[] = [];
+      let env: Record<string, string> = {};
+      if (form.transport === 'STDIO') {
+        if (!form.command.trim()) throw new Error('stdio 必须选择管理员预装命令');
+        args = form.args.trim() ? (JSON.parse(form.args) as string[]) : [];
+        env = form.env.trim() ? (JSON.parse(form.env) as Record<string, string>) : {};
+      }
       const created = await createMcpServer({
         name: form.name,
-        endpoint: form.endpoint,
+        ...(form.transport !== 'STDIO' ? { endpoint: form.endpoint } : {}),
         scope: 'PRIVATE',
-        transport: 'STREAMABLE_HTTP',
+        transport: form.transport === 'STDIO' ? 'STDIO' : 'STREAMABLE_HTTP',
+        ...(form.transport === 'STDIO' ? { command: form.command, args, env } : {}),
         ...(form.headers.trim()
           ? { headers: JSON.parse(form.headers) as Record<string, string> }
           : {}),
@@ -358,7 +403,28 @@ export function useMcpSettings() {
     setError(null);
     try {
       const configs = parseRemoteServers(jsonConfig);
+      const configuredNames = new Set(configs.map((config) => config.name));
       for (const config of configs) {
+        if (config.transport === 'STDIO') {
+          const existing = servers.find((server) => server.name === config.name);
+          const saved = existing
+            ? await updateMcpServer(existing.id, {
+                command: config.command,
+                args: config.args,
+                env: config.env,
+              })
+            : await createMcpServer({
+                name: config.name,
+                scope: 'SHARED',
+                transport: 'STDIO',
+                command: config.command,
+                args: config.args,
+                env: config.env,
+              });
+          if (typeof config.enabled === 'boolean' && saved.enabled !== config.enabled)
+            await setServerEnabled(saved.id, config.enabled);
+          continue;
+        }
         const existing = servers.find((server) => server.name === config.name);
         const saved = existing
           ? await updateMcpServer(existing.id, {
@@ -390,6 +456,12 @@ export function useMcpSettings() {
           );
         }
       }
+      // JSON 是当前用户可见 MCP 的声明式全量配置：未出现在 JSON 中的 Server 删除。
+      await Promise.all(
+        servers
+          .filter((server) => !configuredNames.has(server.name))
+          .map((server) => deleteMcpServer(server.id)),
+      );
       await load();
       setShowAdd(false);
       setJsonConfig('');

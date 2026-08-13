@@ -789,9 +789,21 @@ input:disabled {
 }
 
 .jsonValid,
-.jsonInvalid { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; }
-.jsonValid { background: var(--success); }
-.jsonInvalid { background: var(--danger); }
+.jsonInvalid {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+}
+
+.jsonValid {
+  background: var(--success);
+}
+
+.jsonInvalid {
+  background: var(--danger);
+}
 
 .emptyDetail {
   display: grid;

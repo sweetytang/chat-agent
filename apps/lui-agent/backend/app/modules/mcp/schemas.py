@@ -12,6 +12,9 @@ class McpServerCreate(BaseModel):
     endpoint: str | None = None
     headers: dict[str, str] = Field(default_factory=dict)
     bearer_token: str | None = Field(default=None, min_length=1)
+    command: str | None = None
+    args: list[str] = Field(default_factory=list)
+    env: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_transport(self) -> McpServerCreate:
@@ -19,6 +22,8 @@ class McpServerCreate(BaseModel):
             raise ValueError("HTTP MCP 必须提供 endpoint")
         if self.transport is McpTransport.STDIO and self.scope is not McpScope.SHARED:
             raise ValueError("stdio MCP 只能由管理员作为共享定义预装")
+        if self.transport is McpTransport.STDIO and not self.command:
+            raise ValueError("stdio MCP 必须提供管理员批准的 command")
         return self
 
 
@@ -27,6 +32,9 @@ class McpServerUpdate(BaseModel):
     endpoint: str | None = None
     headers: dict[str, str] | None = None
     bearer_token: str | None = Field(default=None, min_length=1)
+    command: str | None = None
+    args: list[str] | None = None
+    env: dict[str, str] | None = None
 
     @model_validator(mode="after")
     def require_change(self) -> McpServerUpdate:
@@ -46,6 +54,9 @@ class McpServerResponse(BaseModel):
     last_error: str | None = None
     credential_configured: bool
     security_version: int
+    command: str | None = None
+    args: list[str] = Field(default_factory=list)
+    env: dict[str, str] = Field(default_factory=dict)
 
 
 class McpToolResponse(BaseModel):

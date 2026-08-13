@@ -29,13 +29,26 @@ async def refresh_server_catalog(
     headers: dict[str, str] | None = None,
 ) -> None:
     binding = await _get_binding(session, user_id, server.id)
-    if not server.endpoint:
+    if not server.endpoint and server.transport.value != "STDIO":
         raise McpRefreshError("MCP Server 缺少连接地址")
 
     server.status = McpServerStatus.CONNECTING
     binding.last_error = None
     try:
-        descriptors = await host.connect(server.id, endpoint=server.endpoint, headers=headers or {})
+        approved = server.approved_config or {}
+        if server.transport.value == "STDIO":
+            descriptors = await host.connect(
+                server.id,
+                endpoint=server.endpoint,
+                headers=headers or {},
+                command=approved.get("command"),
+                args=approved.get("args"),
+                env=approved.get("env"),
+            )
+        else:
+            descriptors = await host.connect(
+                server.id, endpoint=server.endpoint, headers=headers or {}
+            )
         await _sync_catalog(session, server, descriptors)
         await ensure_user_tool_bindings(session, user_id, server.id)
     except McpHostError as error:
