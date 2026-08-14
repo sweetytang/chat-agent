@@ -1,6 +1,6 @@
 import pytest
 
-from app.api.runs import PendingReview, RunRequest, resumed_run_events
+from app.api.runs import PendingReview, RunRequest, resumed_run_events, safe_resumed_run_events
 from app.modules.mcp.agent import freeze_snapshot, normalize_tool_result, snapshot_metadata
 from app.modules.mcp.agent.tools import McpToolSnapshot
 from app.modules.mcp.host import McpHostError
@@ -87,3 +87,23 @@ async def test_resumed_mcp_success_generates_final_answer(monkeypatch: pytest.Mo
     ]
     assert any("仓库的基本信息已整理" in event for event in events)
     assert not any("生成最终答复失败" in event for event in events)
+
+
+@pytest.mark.asyncio
+async def test_safe_resumed_events_converts_unexpected_exception_to_failed_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def broken(*_args, **_kwargs):
+        raise RuntimeError("stream broke")
+        yield "never"
+
+    from app.api import runs
+
+    monkeypatch.setattr(runs, "resumed_run_events", broken)
+    request = RunRequest(thread_id="thread-3", content="查询 MCP")
+    events = [
+        event
+        async for event in safe_resumed_run_events("run-3", request, "request-3", "approve", None, None)
+    ]
+
+    assert any('"event":"run.failed"' in event for event in events)

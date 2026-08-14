@@ -31,11 +31,15 @@ const JSON_TEMPLATE = `{
   }
 }`;
 
+const EMPTY_JSON_CONFIG = `{
+  "mcpServers": {}
+}`;
+
 function highlightJson(source: string) {
   const escaped = source.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   return escaped.replace(
     /("(?:\\.|[^"\\])*")\s*(?=:)|("(?:\\.|[^"\\])*")|(-?\d+(?:\.\d+)?)|(true|false|null)|([{}[\],:])/g,
-    (token, key, string, number, bool, punctuation) => {
+    (_token, key, string, number, bool, punctuation) => {
       if (key) return `<span class="jsonKey">${key}</span>`;
       if (string) return `<span class="jsonString">${string}</span>`;
       if (number) return `<span class="jsonNumber">${number}</span>`;
@@ -86,7 +90,9 @@ export function McpSettings() {
     importJson,
     removeSelected,
   } = useMcpSettings();
-  const jsonSource = jsonConfig || (servers.length ? serializeMcpServers(servers) : JSON_TEMPLATE);
+  // 没有草稿时始终从当前 Server 目录生成全量配置，避免沿用旧 JSON 只显示一条 Server。
+  const jsonSource =
+    jsonConfig || (servers.length ? serializeMcpServers(servers) : EMPTY_JSON_CONFIG);
   const jsonLines = jsonSource.split('\n');
   const [activeJsonLine, setActiveJsonLine] = useState(1);
 

@@ -45,6 +45,7 @@ export function updateMcpServer(
   serverId: string,
   payload: {
     name?: string;
+    transport?: 'STREAMABLE_HTTP' | 'STDIO';
     endpoint?: string;
     bearer_token?: string;
     headers?: Record<string, string>;

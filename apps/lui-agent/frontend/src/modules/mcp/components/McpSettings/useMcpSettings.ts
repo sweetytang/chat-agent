@@ -61,19 +61,22 @@ export function serializeMcpServers(servers: McpServer[]) {
             ...(server.transport === 'STDIO'
               ? {
                   type: 'stdio',
-                  ...(server.command ? { command: server.command } : {}),
-                  ...(server.args ? { args: server.args } : {}),
-                  ...(server.env && Object.keys(server.env).length ? { env: server.env } : {}),
+                  command: server.command ?? '',
+                  args: server.args ?? [],
+                  env: server.env ?? {},
                 }
               : {
                   type: 'http',
-                  ...(server.endpoint ? { url: server.endpoint } : {}),
+                  url: server.endpoint ?? '',
                 }),
             scope: server.scope,
             enabled: server.enabled,
-            ...(server.credential_configured
-              ? { headers: { Authorization: 'Bearer <configured>' } }
-              : {}),
+            headers:
+              server.transport === 'STDIO'
+                ? {}
+                : server.credential_configured
+                  ? { Authorization: 'Bearer <configured>' }
+                  : {},
             tools: Object.fromEntries(
               (server.tools ?? []).map((tool) => [tool.remote_name, tool.enabled]),
             ),
@@ -95,8 +98,8 @@ export interface ParsedMcpServerConfig {
   env?: Record<string, string>;
   headers: Record<string, string>;
   bearerToken: string;
-  enabled?: boolean;
-  tools?: Record<string, unknown>;
+  enabled: boolean;
+  tools: Record<string, unknown>;
 }
 
 export function parseRemoteServers(source: string): ParsedMcpServerConfig[] {
@@ -109,15 +112,15 @@ export function parseRemoteServers(source: string): ParsedMcpServerConfig[] {
   return Object.entries(root.mcpServers as Record<string, unknown>).map(([name, item]) => {
     if (typeof item !== 'object' || item === null) throw new Error(`${name} 配置无效`);
     const config = item as Record<string, unknown>;
-    const transport = config.transport;
     const type = config.type;
-    const isStdio = typeof config.command === 'string' || type === 'stdio';
+    // 兼容官方配置：type 缺省时由本次 JSON 中的 command/url 推断，不继承数据库旧协议。
+    const isStdio = type === 'stdio' || typeof config.command === 'string';
     if (isStdio) {
       if (typeof config.command !== 'string' || !config.command.trim())
         throw new Error(`${name} 的 stdio command 不能为空`);
       const args =
         Array.isArray(config.args) && config.args.every((item) => typeof item === 'string')
-          ? (config.args)
+          ? config.args
           : [];
       const env =
         typeof config.env === 'object' && config.env !== null
@@ -135,14 +138,14 @@ export function parseRemoteServers(source: string): ParsedMcpServerConfig[] {
         env,
         headers: {},
         bearerToken: '',
-        enabled: typeof config.enabled === 'boolean' ? config.enabled : undefined,
+        enabled: typeof config.enabled === 'boolean' ? config.enabled : false,
         tools:
           typeof config.tools === 'object' && config.tools !== null
             ? (config.tools as Record<string, unknown>)
-            : undefined,
+            : {},
       };
     }
-    const remoteType = type ?? transport;
+    const remoteType = type ?? config.transport;
     if (
       remoteType &&
       remoteType !== 'http' &&
@@ -170,11 +173,12 @@ export function parseRemoteServers(source: string): ParsedMcpServerConfig[] {
         .filter(([key]) => key.toLowerCase() !== 'authorization')
         .filter(([, value]) => typeof value === 'string'),
     ) as Record<string, string>;
-    const enabled = typeof config.enabled === 'boolean' ? config.enabled : undefined;
+    // JSON 是声明式全量配置：未声明开关时按安全默认值关闭，避免沿用旧状态。
+    const enabled = typeof config.enabled === 'boolean' ? config.enabled : false;
     const tools =
       typeof config.tools === 'object' && config.tools !== null
         ? (config.tools as Record<string, unknown>)
-        : undefined;
+        : {};
     return {
       name,
       endpoint,
@@ -290,6 +294,7 @@ export function useMcpSettings() {
     try {
       await setServerEnabled(server.id, !server.enabled);
       await load();
+      setJsonConfig('');
     } catch {
       setError('Server 状态保存失败');
     } finally {
@@ -302,6 +307,7 @@ export function useMcpSettings() {
     try {
       await setToolEnabled(tool.id, !tool.enabled);
       await load();
+      setJsonConfig('');
     } catch {
       setError('工具状态保存失败');
     }
@@ -318,6 +324,7 @@ export function useMcpSettings() {
       );
       await Promise.all(candidates.map((tool) => setToolEnabled(tool.id, enabled)));
       await load();
+      setJsonConfig('');
     } catch {
       setError('批量更新工具失败');
     } finally {
@@ -333,6 +340,7 @@ export function useMcpSettings() {
     try {
       await refreshMcpServer(selected.id);
       await load();
+      setJsonConfig('');
       setNotice('连接成功，工具目录已刷新');
     } catch {
       setError('连接测试失败，请检查地址、凭据或 Server 日志');
@@ -354,6 +362,7 @@ export function useMcpSettings() {
       });
       setForm(EMPTY_FORM);
       await load();
+      setJsonConfig('');
       setNotice('配置已保存；留空的凭据保持不变');
     } catch {
       setError('保存失败，请检查配置');
@@ -379,7 +388,7 @@ export function useMcpSettings() {
       const created = await createMcpServer({
         name: form.name,
         ...(form.transport !== 'STDIO' ? { endpoint: form.endpoint } : {}),
-        scope: 'PRIVATE',
+        scope: form.transport === 'STDIO' ? 'SHARED' : 'PRIVATE',
         transport: form.transport === 'STDIO' ? 'STDIO' : 'STREAMABLE_HTTP',
         ...(form.transport === 'STDIO' ? { command: form.command, args, env } : {}),
         ...(form.headers.trim()
@@ -388,6 +397,7 @@ export function useMcpSettings() {
         ...(form.bearerToken ? { bearer_token: form.bearerToken } : {}),
       });
       await load();
+      setJsonConfig('');
       setShowAdd(false);
       setSelectedId(created.id);
       setForm(EMPTY_FORM);
@@ -409,6 +419,7 @@ export function useMcpSettings() {
           const existing = servers.find((server) => server.name === config.name);
           const saved = existing
             ? await updateMcpServer(existing.id, {
+                transport: 'STDIO',
                 command: config.command,
                 args: config.args,
                 env: config.env,
@@ -421,16 +432,23 @@ export function useMcpSettings() {
                 args: config.args,
                 env: config.env,
               });
-          if (typeof config.enabled === 'boolean' && saved.enabled !== config.enabled)
-            await setServerEnabled(saved.id, config.enabled);
+          if (saved.enabled !== config.enabled) await setServerEnabled(saved.id, config.enabled);
+          const currentTools = await listMcpTools(saved.id);
+          await Promise.all(
+            currentTools
+              .filter((tool) => tool.enabled !== (config.tools?.[tool.remote_name] === true))
+              .map((tool) => setToolEnabled(tool.id, config.tools?.[tool.remote_name] === true)),
+          );
           continue;
         }
         const existing = servers.find((server) => server.name === config.name);
         const saved = existing
           ? await updateMcpServer(existing.id, {
               name: config.name,
+              transport: config.transport,
               endpoint: config.endpoint,
-              ...(Object.keys(config.headers).length ? { headers: config.headers } : {}),
+              // JSON 是全量配置：未声明 headers 时清空旧凭据，避免公开 MCP 继续携带旧 Authorization。
+              headers: config.headers,
               ...(config.bearerToken ? { bearer_token: config.bearerToken } : {}),
             })
           : await createMcpServer({
@@ -438,23 +456,16 @@ export function useMcpSettings() {
               endpoint: config.endpoint,
               scope: 'PRIVATE',
               transport: config.transport,
-              ...(Object.keys(config.headers).length ? { headers: config.headers } : {}),
+              headers: config.headers,
               ...(config.bearerToken ? { bearer_token: config.bearerToken } : {}),
             });
-        if (typeof config.enabled === 'boolean' && saved.enabled !== config.enabled)
-          await setServerEnabled(saved.id, config.enabled);
-        if (config.tools) {
-          const currentTools = await listMcpTools(saved.id);
-          await Promise.all(
-            currentTools
-              .filter(
-                (tool) =>
-                  typeof config.tools?.[tool.remote_name] === 'boolean' &&
-                  config.tools[tool.remote_name] !== tool.enabled,
-              )
-              .map((tool) => setToolEnabled(tool.id, config.tools?.[tool.remote_name] as boolean)),
-          );
-        }
+        if (saved.enabled !== config.enabled) await setServerEnabled(saved.id, config.enabled);
+        const currentTools = await listMcpTools(saved.id);
+        await Promise.all(
+          currentTools
+            .filter((tool) => tool.enabled !== (config.tools?.[tool.remote_name] === true))
+            .map((tool) => setToolEnabled(tool.id, config.tools?.[tool.remote_name] === true)),
+        );
       }
       // JSON 是当前用户可见 MCP 的声明式全量配置：未出现在 JSON 中的 Server 删除。
       await Promise.all(
@@ -480,6 +491,7 @@ export function useMcpSettings() {
     try {
       await deleteMcpServer(selected.id);
       await load();
+      setJsonConfig('');
     } catch {
       setError('删除失败，请重试');
     } finally {

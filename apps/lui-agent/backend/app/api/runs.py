@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 import json
 import re
@@ -39,7 +39,7 @@ from app.modules.interrupts.repository import InterruptRepository
 from app.modules.mcp.agent import McpToolSnapshot, build_langchain_tools, load_mcp_snapshots
 from app.modules.mcp.agent.results import normalize_tool_result
 from app.modules.mcp.crypto import CredentialCrypto
-from app.modules.mcp.host import McpHost
+from app.modules.mcp.host import McpHost, McpHostError
 from app.modules.runs.repository import RunRepository
 from app.modules.threads.repository import ThreadRepository
 from app.modules.threads.title import (
@@ -210,6 +210,7 @@ async def run_events(
     branch_context: RunBranchContext | None = None,
     mcp_snapshots: tuple[McpToolSnapshot, ...] = (),
     mcp_load_error: str | None = None,
+    mcp_loader: Callable[[], Awaitable[tuple[McpToolSnapshot, ...]]] | None = None,
 ) -> AsyncIterator[str]:
     """先提供稳定的业务事件协议，再把模型节点接入同一事件出口。"""
 
@@ -224,6 +225,13 @@ async def run_events(
 
         sequence += 1
         yield _event(run_id, request.thread_id, sequence, "run.started").to_sse()
+        if mcp_loader is not None:
+            try:
+                mcp_snapshots = await mcp_loader()
+            except (ValueError, OSError, RuntimeError):
+                if session is not None:
+                    await session.rollback()
+                mcp_load_error = "MCP 工具加载失败，请检查 Server 状态并刷新"
         if mcp_load_error:
             sequence += 1
             yield _event(
@@ -418,6 +426,10 @@ async def run_events(
                         mcp_snapshot=snapshot,
                         arguments=arguments,
                     )
+                    # MCP SDK 的 AnyIO 上下文必须在建立它的 SSE 任务中关闭，
+                    # 审核会切换到另一个请求任务，因此这里先释放连接，恢复时再懒加载。
+                    if _mcp_host is not None:
+                        await _mcp_host.disconnect(snapshot.identity.server_id)
                     sequence += 1
                     yield _event(
                         run_id,
@@ -548,9 +560,28 @@ async def resumed_run_events(
                     arguments = candidate
             try:
                 result = normalize_tool_result(await snapshot.caller(snapshot.identity, arguments))
-            except Exception:
+            except McpHostError as cause:
                 # MCP 调用发生在 StreamingResponse 已返回 200 之后。若异常直接冒泡，
                 # 浏览器只能看到连接中断并显示 network error，丢失真正的失败原因。
+                error = str(cause)
+                yield _event(
+                    run_id,
+                    request.thread_id,
+                    sequence,
+                    "tool.result",
+                    tool=snapshot.identity.internal_name,
+                    content={"error": error},
+                ).to_sse()
+                sequence += 1
+                yield _event(
+                    run_id, request.thread_id, sequence, "run.failed", error=error
+                ).to_sse()
+                if repository is not None:
+                    await repository.update_status(UUID(run_id), RunStatus.FAILED)
+                    await persisted_session.commit()
+                return
+            except Exception:
+                # 非 Host 异常仍使用通用文案，避免意外泄露内部信息。
                 error = "MCP 工具调用失败，请检查 Server 状态、地址和凭据"
                 yield _event(
                     run_id,
@@ -659,6 +690,32 @@ async def resumed_run_events(
     yield _event(run_id, request.thread_id, sequence, "run.completed").to_sse()
 
 
+async def safe_resumed_run_events(*args: Any, **kwargs: Any) -> AsyncIterator[str]:
+    """恢复流的最后一道边界，避免未捕获异常直接表现为浏览器 network error。"""
+    run_id = str(args[0]) if args else str(kwargs.get("run_id", "unknown"))
+    request = args[1] if len(args) > 1 else kwargs.get("request")
+    thread_id = getattr(request, "thread_id", "")
+    try:
+        async for event in resumed_run_events(*args, **kwargs):
+            yield event
+    except McpHostError as error:
+        yield _event(
+            run_id,
+            thread_id,
+            1,
+            "run.failed",
+            error=str(error),
+        ).to_sse()
+    except Exception as error:
+        yield _event(
+            run_id,
+            thread_id,
+            1,
+            "run.failed",
+            error=f"MCP 恢复失败（{type(error).__name__}）",
+        ).to_sse()
+
+
 @router.post("/stream")
 async def stream_run(
     request: RunRequest,
@@ -689,11 +746,10 @@ async def stream_run(
     except (ValueError, OSError, RuntimeError):
         if session is not None:
             await session.rollback()
-    mcp_snapshots: tuple[McpToolSnapshot, ...] = ()
-    mcp_load_error: str | None = None
+    mcp_loader = None
     if persistence_session is not None and _mcp_host is not None and subject is not None:
-        try:
-            mcp_snapshots = tuple(
+        async def mcp_loader() -> tuple[McpToolSnapshot, ...]:
+            return tuple(
                 await load_mcp_snapshots(
                     persistence_session,
                     UUID(subject),
@@ -701,18 +757,13 @@ async def stream_run(
                     _decode_mcp_credentials,
                 )
             )
-        except (ValueError, OSError, RuntimeError):
-            await persistence_session.rollback()
-            # 连接/凭据错误不能静默退化成“只有内置工具”，否则用户会误以为 MCP 已接入。
-            mcp_load_error = "MCP 工具加载失败，请检查 Server 状态并刷新"
     return StreamingResponse(
         run_events(
             run_id,
             request,
             persistence_session,
             branch_context,
-            mcp_snapshots,
-            mcp_load_error,
+            mcp_loader=mcp_loader,
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
@@ -834,7 +885,7 @@ async def resume_run(
             raise HTTPException(status_code=409, detail="MCP 安全配置已变化，审核请求已失效")
     _pending_reviews.pop(request.request_id, None)
     return StreamingResponse(
-        resumed_run_events(
+        safe_resumed_run_events(
             run_id,
             pending.request,
             request.request_id,

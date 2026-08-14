@@ -43,3 +43,17 @@ async def test_snapshot_caller_omits_empty_optional_arguments() -> None:
         "method": "create",
         "title": "x",
     }
+
+
+def test_clean_mcp_arguments_omits_optional_numeric_zero() -> None:
+    schema = {
+        "type": "object",
+        "properties": {
+            "milestone": {"type": "number"},
+            "title": {"type": "string"},
+        },
+        "required": ["title"],
+    }
+    assert clean_mcp_arguments(
+        {"milestone": 0, "title": "官方github mcp测试"}, schema
+    ) == {"title": "官方github mcp测试"}

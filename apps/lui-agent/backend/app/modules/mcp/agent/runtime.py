@@ -24,8 +24,32 @@ from app.modules.mcp.naming import ToolIdentity
 from .tools import McpToolSnapshot
 
 
-def clean_mcp_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in arguments.items() if value is not None and value != ""}
+def clean_mcp_arguments(
+    arguments: dict[str, Any], input_schema: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """去掉模型为可选参数生成的空占位值。
+
+    部分模型会把可选 number 参数补成 ``0``。GitHub MCP 的 milestone
+    编号从 1 开始，这种占位值会直接触发 GitHub API 的 422 Validation Failed。
+    仅对 schema 中声明为可选数字字段的 0 做清理，避免影响必填字段或合法的
+    布尔值 false。
+    """
+    properties = (input_schema or {}).get("properties", {})
+    required = set((input_schema or {}).get("required", []))
+    cleaned: dict[str, Any] = {}
+    for key, value in arguments.items():
+        if value is None or value == "":
+            continue
+        property_schema = properties.get(key, {}) if isinstance(properties, dict) else {}
+        if (
+            key not in required
+            and value == 0
+            and not isinstance(value, bool)
+            and property_schema.get("type") in {"number", "integer"}
+        ):
+            continue
+        cleaned[key] = value
+    return cleaned
 
 
 async def load_mcp_snapshots(
@@ -74,16 +98,23 @@ async def load_mcp_snapshots(
         if incompatibility is not None:
             continue
         identity = ToolIdentity(str(server.id), tool.remote_name, tool.internal_name)
+        schema_value = dict(projected_schema)
 
         async def caller(
             identity: ToolIdentity,
             arguments: dict[str, Any],
             *,
             sid: UUID = server.id,
+            schema: dict[str, Any] | None = None,
+            schema_items: tuple[tuple[str, Any], ...] = tuple(schema_value.items()),
         ) -> Any:
             # GitHub issue_write 的可选 type 在未启用 Issue Types 时必须省略，
             # 传空字符串会被远端校验为“parameter type must not be empty”。
-            return await host.call(sid, identity.remote_name, clean_mcp_arguments(arguments))
+            return await host.call(
+                sid,
+                identity.remote_name,
+                clean_mcp_arguments(arguments, schema or dict(schema_items)),
+            )
 
         snapshots.append(
             McpToolSnapshot(

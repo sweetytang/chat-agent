@@ -212,19 +212,49 @@ async def update_server(
         raise HTTPException(status_code=403, detail="无权修改 MCP Server")
 
     security_changed = False
+    target_transport = payload.transport if "transport" in payload.model_fields_set else server.transport
+    if "transport" in payload.model_fields_set and target_transport is not server.transport:
+        if target_transport is McpTransport.STDIO:
+            if user.role is not UserRole.ADMIN or server.scope is not McpScope.SHARED:
+                raise HTTPException(status_code=403, detail="stdio MCP 只能由管理员预装为共享服务")
+            if not payload.command:
+                raise HTTPException(status_code=422, detail="stdio MCP 必须提供管理员批准的 command")
+            allowed = {item.strip() for item in get_settings().mcp_stdio_commands.split(",") if item.strip()}
+            if payload.command not in allowed:
+                raise HTTPException(status_code=403, detail="stdio command 不在管理员预装清单中")
+            server.endpoint = None
+            server.encrypted_credentials = None
+            server.approved_config = {
+                "command": payload.command,
+                "args": payload.args or [],
+                "env": {key: value.strip() for key, value in (payload.env or {}).items()},
+            }
+        else:
+            if not payload.endpoint:
+                raise HTTPException(status_code=422, detail="HTTP MCP 必须提供 endpoint")
+            server.endpoint = _validated_endpoint(target_transport, payload.endpoint)
+            server.approved_config = {}
+            server.encrypted_credentials = _encrypt_credentials(
+                payload.headers or {}, payload.bearer_token
+            )
+        server.transport = target_transport
+        security_changed = True
     if "name" in payload.model_fields_set and payload.name is not None:
         server.name = payload.name.strip()
-    if "endpoint" in payload.model_fields_set:
-        if server.transport is McpTransport.STREAMABLE_HTTP and not payload.endpoint:
+    if "endpoint" in payload.model_fields_set and target_transport is McpTransport.STREAMABLE_HTTP:
+        if not payload.endpoint:
             raise HTTPException(status_code=422, detail="HTTP MCP 必须提供 endpoint")
-        server.endpoint = _validated_endpoint(server.transport, payload.endpoint)
+        server.endpoint = _validated_endpoint(target_transport, payload.endpoint)
         security_changed = True
-    if "headers" in payload.model_fields_set or "bearer_token" in payload.model_fields_set:
+    if (
+        ("headers" in payload.model_fields_set or "bearer_token" in payload.model_fields_set)
+        and target_transport is McpTransport.STREAMABLE_HTTP
+    ):
         server.encrypted_credentials = _encrypt_credentials(
             payload.headers or {}, payload.bearer_token
         )
         security_changed = True
-    if server.transport is McpTransport.STDIO and any(
+    if target_transport is McpTransport.STDIO and any(
         field in payload.model_fields_set for field in ("command", "args", "env")
     ):
         if user.role is not UserRole.ADMIN:
@@ -244,6 +274,8 @@ async def update_server(
             }
         server.approved_config = approved
         security_changed = True
+    if target_transport is McpTransport.STREAMABLE_HTTP and "transport" in payload.model_fields_set:
+        server.approved_config = {}
     if security_changed:
         server.security_version += 1
 

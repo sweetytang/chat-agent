@@ -137,11 +137,111 @@ async def test_host_discovers_routes_and_sanitizes_errors() -> None:
     assert tools[0].remote_name == "search"
     assert await host.call("srv", "search", {"q": "x"}) == {"q": "x"}
     await host.connect("srv", endpoint="https://example.test/mcp")
-    assert exits == 1
-    await host.disconnect("srv")
     assert exits == 2
-    with pytest.raises(McpHostError, match="未连接"):
-        await host.call("srv", "search", {})
+    await host.disconnect("srv")
+    assert exits == 3
+    # disconnect 只释放会话，保留已校验配置，恢复审核时可按需重连。
+    assert await host.call("srv", "search", {}) == {}
+
+
+@pytest.mark.asyncio
+async def test_host_persists_agent_times_identity_between_tool_calls() -> None:
+    seen: list[dict] = []
+
+    class Context:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def list_tools(self):
+            return [{"name": "tat_search", "inputSchema": {"type": "object"}}]
+
+        async def call_tool(self, _name, arguments):
+            seen.append(arguments)
+            return {"agent_id": "agent-1", "content": []}
+
+    class Factory:
+        def connect(self, **_kwargs):
+            return Context()
+
+    host = McpHost(Factory())
+    await host.connect("tat", endpoint="https://theagenttimes.com/mcp")
+    await host.call("tat", "tat_search", {"query": "MCP"})
+    await host.call("tat", "tat_search", {"query": "AI"})
+    assert seen == [
+        {"query": "MCP"},
+        {"query": "AI", "agent_id": "agent-1"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_host_extracts_agent_times_identity_from_text_content() -> None:
+    seen: list[dict] = []
+
+    class Context:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def list_tools(self):
+            return [{"name": "tat_ask", "inputSchema": {"type": "object"}}]
+
+        async def call_tool(self, _name, arguments):
+            seen.append(arguments)
+            return {"content": [{"type": "text", "text": '{"agent_id":"agent-text"}'}]}
+
+    class Factory:
+        def connect(self, **_kwargs):
+            return Context()
+
+    host = McpHost(Factory())
+    await host.connect("tat-text", endpoint="https://theagenttimes.com/mcp")
+    await host.call("tat-text", "tat_ask", {"question": "MCP"})
+    await host.call("tat-text", "tat_ask", {"question": "AI"})
+    assert seen[1]["agent_id"] == "agent-text"
+
+
+def test_host_error_keeps_safe_remote_detail() -> None:
+    from app.modules.mcp.host.client import _safe_error
+
+    error = _safe_error(RuntimeError("invalid arguments at https://secret.example/mcp"))
+
+    assert error == "MCP 操作失败（RuntimeError）：invalid arguments at <url>"
+
+
+@pytest.mark.asyncio
+async def test_host_reconnects_once_after_connection_closed() -> None:
+    attempts = 0
+
+    class Context:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def list_tools(self):
+            return [{"name": "tat_search", "inputSchema": {"type": "object"}}]
+
+        async def call_tool(self, _name, _arguments):
+            if attempts == 2:
+                raise RuntimeError("Connection closed")
+            return {"content": []}
+
+    class Factory:
+        def connect(self, **_kwargs):
+            nonlocal attempts
+            attempts += 1
+            return Context()
+
+    host = McpHost(Factory())
+    await host.connect("tat-reconnect", endpoint="https://theagenttimes.com/mcp")
+    assert await host.call("tat-reconnect", "tat_search", {"query": "MCP"}) == {"content": []}
+    assert attempts == 3
 
 
 @pytest.mark.asyncio

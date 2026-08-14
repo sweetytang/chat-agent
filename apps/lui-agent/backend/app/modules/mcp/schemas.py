@@ -29,6 +29,7 @@ class McpServerCreate(BaseModel):
 
 class McpServerUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
+    transport: McpTransport | None = None
     endpoint: str | None = None
     headers: dict[str, str] | None = None
     bearer_token: str | None = Field(default=None, min_length=1)
