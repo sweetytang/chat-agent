@@ -19,6 +19,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Error Handling](./error-handling.md) | Error types, handling strategies | To fill |
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
 | [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
+| [统一任务运行时架构](./task-runtime-architecture.md) | Chat、Code、General 与多 Agent 演进的运行时边界和实施顺序 | 已定义 |
 
 ---
 
@@ -35,4 +36,4 @@ The goal is to help AI assistants and new team members understand how YOUR proje
 
 ---
 
-**Language**: All documentation should be written in **English**.
+**语言**：项目规范统一使用中文。
