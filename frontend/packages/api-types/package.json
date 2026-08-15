@@ -1,0 +1,10 @@
+{
+  "name": "@lui-agent/api-types",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "PYTHONPATH=../../../backend/apps/api-server:../../../backend/packages/lui-agent-runtime/src python ../../../backend/scripts/export_openapi.py && python scripts/generate_types.py",
+    "check": "pnpm generate && git diff --exit-code -- src/openapi.d.ts openapi.json"
+  }
+}

@@ -1,0 +1,5 @@
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"DTO 生成和目录迁移跨越 FastAPI、TypeScript、SSE 与数据库边界。"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"删除 Prisma 时必须保持 SQLAlchemy/Alembic/PostgreSQL 合同。"}
+{"file":".trellis/spec/backend/error-handling.md","reason":"移动和类型生成不得破坏鉴权刷新与 API 错误行为。"}
+{"file":".trellis/spec/frontend/visual-system.md","reason":"迁移必须完整保留当前主题改动和关键 UI 合同。"}
+{"file":".trellis/tasks/08-14-uv-python-workspace-migration/research/isolated-workspaces.md","reason":"实现所需的官方工作区约束、包边界和本地路径证据。"}

@@ -1,0 +1,6 @@
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"检查死代码删除、复用和抽象边界。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"检查 API、SSE、store、UI 与数据库数据流无回归。"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"检查持久化和迁移合同保持一致。"}
+{"file":".trellis/spec/backend/error-handling.md","reason":"检查鉴权与错误矩阵保持一致。"}
+{"file":".trellis/spec/frontend/visual-system.md","reason":"检查主题和关键交互合同保持一致。"}
+{"file":".trellis/tasks/08-14-business-code-refactor/research/refactor-baseline.md","reason":"对照超限文件、质量门禁和清理范围。"}

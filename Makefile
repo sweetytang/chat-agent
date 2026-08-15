@@ -1,0 +1,59 @@
+BACKEND_DIR := backend
+FRONTEND_DIR := frontend
+
+.PHONY: help install db-up db-down db-migrate generate-api-types check-api-types check backend frontend dev test test-backend test-frontend build build-backend build-frontend
+
+help:
+	@awk 'BEGIN {FS = ":.*## "; printf "可用任务:\n"} /^[a-zA-Z_-]+:.*## / {printf "  %-16s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+install: ## 安装前后端依赖
+	$(MAKE) -j2 install-frontend install-backend
+
+install-frontend: ## 安装前端依赖
+	cd $(FRONTEND_DIR) && pnpm install
+
+install-backend: ## 安装后端依赖
+	cd $(BACKEND_DIR) && uv sync --locked --all-packages
+
+db-up: ## 启动 PostgreSQL
+	docker compose up -d --wait
+
+db-down: ## 停止 PostgreSQL
+	docker compose stop
+
+db-migrate: db-up ## 执行数据库迁移
+	cd $(BACKEND_DIR) && uv run --package lui-agent-api-server alembic -c alembic.ini upgrade head
+
+dev: db-up ## 启动数据库，并行启动后端和前端
+	$(MAKE) -j2 dev-backend dev-frontend
+
+dev-backend: db-migrate ## 启动 FastAPI 后端
+	cd $(BACKEND_DIR) && uv run uvicorn app.main:app --app-dir apps/api-server --port 8000 --reload
+
+dev-frontend: ## 启动 Vite 前端
+	cd $(FRONTEND_DIR) && pnpm dev
+
+test: test-backend test-frontend ## 运行全部测试
+
+check: check-api-types test ## 运行类型契约和全部测试
+
+test-backend: ## 运行后端测试
+	cd $(BACKEND_DIR) && uv run pytest -q apps/api-server/tests packages/lui-agent-runtime/tests
+
+test-frontend: ## 运行前端测试
+	cd $(FRONTEND_DIR) && pnpm test
+
+build: ## 构建前后端
+	$(MAKE) -j2 build-backend build-frontend
+
+build-backend: ## 检查后端代码可编译
+	cd $(BACKEND_DIR) && uv run python -m compileall -q apps/api-server/app packages/lui-agent-runtime/src
+
+build-frontend: ## 构建前端生产包
+	cd $(FRONTEND_DIR) && pnpm build
+
+generate-api-types: ## 从 FastAPI 离线 schema 生成前端 DTO
+	cd $(FRONTEND_DIR) && pnpm generate-api-types
+
+check-api-types: ## 检查生成的前端 DTO 是否漂移
+	cd $(FRONTEND_DIR) && pnpm check-api-types

@@ -1,14 +1,16 @@
 {
-    "python.defaultInterpreterPath": "${workspaceFolder}/apps/lui-agent/backend/.venv/bin/python",
+    "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
     "python.terminal.activateEnvironment": true,
-    "fastapi.entryPoint": "apps.lui-agent.backend.app.main:app",
+    "fastapi.entryPoint": "app.main:app",
     "python.analysis.extraPaths": [
-        "${workspaceFolder}/apps/lui-agent/backend"
+        "${workspaceFolder}/backend/apps/api-server",
+        "${workspaceFolder}/backend/packages/lui-agent-runtime/src"
     ],
     "python.testing.pytestEnabled": true,
     "python.testing.pytestArgs": [
-        "apps/lui-agent/backend/tests"
+        "backend/apps/api-server/tests",
+        "backend/packages/lui-agent-runtime/tests"
     ],
-    "python.testing.cwd": "${workspaceFolder}/apps/lui-agent/backend",
-    "ruff.cwd": "${workspaceFolder}/apps/lui-agent/backend"
+    "python.testing.cwd": "${workspaceFolder}/backend",
+    "ruff.cwd": "${workspaceFolder}/backend"
 }

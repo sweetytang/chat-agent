@@ -1,0 +1,5 @@
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"父任务跨前端、后端、生成契约与数据库，需要保持端到端数据流一致。"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"最终集成必须保持 PostgreSQL、Alembic、enum 与 MCP 安全合同。"}
+{"file":".trellis/spec/frontend/visual-system.md","reason":"主题未提交改动和关键 UI 交互是父任务验收基线。"}
+{"file":".trellis/tasks/08-14-uv-python-workspace-migration/research/isolated-workspaces.md","reason":"提供双工作区、包边界、旧资产与 CI 的调研证据。"}
+{"file":".trellis/tasks/08-14-business-code-refactor/research/refactor-baseline.md","reason":"提供重构规模、热点、质量工具与不变量。"}

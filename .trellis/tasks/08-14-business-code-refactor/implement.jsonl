@@ -1,0 +1,6 @@
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"重构必须先搜索、减少重复并避免无收益抽象。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"拆分 runs 与 MCP UI 时必须保持跨层合同和事件顺序。"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"后端结构调整不得破坏数据库、迁移和 MCP 安全合同。"}
+{"file":".trellis/spec/backend/error-handling.md","reason":"鉴权与 API 错误行为是不可破坏的业务合同。"}
+{"file":".trellis/spec/frontend/visual-system.md","reason":"主题、组件和流式 UI 行为必须保持一致。"}
+{"file":".trellis/tasks/08-14-business-code-refactor/research/refactor-baseline.md","reason":"实现所需的规模、热点、工具和清理策略证据。"}

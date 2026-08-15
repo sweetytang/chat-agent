@@ -1,0 +1,16 @@
+{
+  "name": "lui-agent-frontend-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.32.1",
+  "scripts": {
+    "dev": "pnpm --filter lui-agent-web dev",
+    "build": "pnpm --filter lui-agent-web build",
+    "lint": "pnpm --filter lui-agent-web lint",
+    "format": "pnpm --filter lui-agent-web format",
+    "format:check": "pnpm --filter lui-agent-web format:check",
+    "test": "pnpm --filter lui-agent-web test",
+    "generate-api-types": "pnpm --filter @lui-agent/api-types generate",
+    "check-api-types": "pnpm --filter @lui-agent/api-types check"
+  }
+}

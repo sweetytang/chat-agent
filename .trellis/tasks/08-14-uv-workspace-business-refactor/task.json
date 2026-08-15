@@ -1,0 +1,29 @@
+{
+  "id": "uv-workspace-business-refactor",
+  "name": "uv-workspace-business-refactor",
+  "title": "uv 多包迁移与业务代码重构",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "leo",
+  "assignee": "leo",
+  "createdAt": "2026-08-14",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "08-14-uv-python-workspace-migration",
+    "08-14-business-code-refactor"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

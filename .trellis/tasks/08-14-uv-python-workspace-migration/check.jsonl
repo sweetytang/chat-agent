@@ -1,0 +1,5 @@
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"检查 OpenAPI 到前端类型、根编排和双锁文件数据流。"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"检查 PostgreSQL/Alembic 合同和 Prisma 删除完整性。"}
+{"file":".trellis/spec/backend/error-handling.md","reason":"检查鉴权与 API 错误合同不因路径迁移而改变。"}
+{"file":".trellis/spec/frontend/visual-system.md","reason":"检查 4 个主题文件和交互合同完整保留。"}
+{"file":".trellis/tasks/08-14-uv-python-workspace-migration/research/isolated-workspaces.md","reason":"对照目录、依赖、旧资产和 CI 调研证据。"}
