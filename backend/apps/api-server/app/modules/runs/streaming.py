@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Awaitable, Callable
 import re
-from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,15 +15,18 @@ from app.modules.checkpoints.service import (
 )
 from app.modules.interrupts.repository import InterruptRepository
 from app.modules.mcp.agent import McpToolSnapshot, build_langchain_tools
+from app.modules.runs.context import (
+    RunDependencies,
+    configure_run_dependencies,
+    get_run_dependencies,
+)
 from app.modules.runs.repository import RunRepository
 from app.modules.runs.schemas import PendingReview, RunRequest
 from app.modules.threads.title import set_title_after_first_round
 
 
-def _runtime() -> Any:
-    from app.api import runs
-
-    return runs
+def _runtime() -> RunDependencies:
+    return get_run_dependencies()
 
 
 async def run_events(
@@ -35,9 +37,12 @@ async def run_events(
     mcp_snapshots: tuple[McpToolSnapshot, ...] = (),
     mcp_load_error: str | None = None,
     mcp_loader: Callable[[], Awaitable[tuple[McpToolSnapshot, ...]]] | None = None,
+    dependencies: RunDependencies | None = None,
 ) -> AsyncIterator[str]:
     """先提供稳定的业务事件协议，再把模型节点接入同一事件出口。"""
 
+    if dependencies is not None:
+        configure_run_dependencies(dependencies)
     cancel_event = _runtime()._cancel_events[run_id]
     lock = _runtime()._thread_lock(request.thread_id)
     sequence = 0
@@ -54,7 +59,7 @@ async def run_events(
         if mcp_loader is not None:
             try:
                 mcp_snapshots = await mcp_loader()
-            except ValueError, OSError, RuntimeError:
+            except (ValueError, OSError, RuntimeError):
                 if session is not None:
                     await session.rollback()
                 mcp_load_error = "MCP 工具加载失败，请检查 Server 状态并刷新"
@@ -148,9 +153,9 @@ async def run_events(
                 .to_sse()
             )
             try:
-                result = _runtime().calculate(expression)
-                reply = f"计算结果：{result:g}"
-                tool_data = {"tool": "calculator", "content": {"result": result}}
+                calculated_value = _runtime().calculate(expression)
+                reply = f"计算结果：{calculated_value:g}"
+                tool_data = {"tool": "calculator", "content": {"result": calculated_value}}
             except (SyntaxError, ValueError, ZeroDivisionError) as error:
                 reply = f"计算失败：{error}"
                 tool_data = {"tool": "calculator", "content": {"error": str(error)}}
@@ -300,8 +305,9 @@ async def run_events(
                     )
                     # MCP SDK 的 AnyIO 上下文必须在建立它的 SSE 任务中关闭，
                     # 审核会切换到另一个请求任务，因此这里先释放连接，恢复时再懒加载。
-                    if _runtime()._mcp_host is not None:
-                        await _runtime()._mcp_host.disconnect(snapshot.identity.server_id)
+                    mcp_host = _runtime()._mcp_host
+                    if mcp_host is not None:
+                        await mcp_host.disconnect(snapshot.identity.server_id)
                     sequence += 1
                     yield (
                         _runtime()

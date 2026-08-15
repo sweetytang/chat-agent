@@ -2,16 +2,16 @@ from collections.abc import AsyncIterator
 from typing import Any
 from uuid import uuid4
 
-from lui_agent_runtime.events import BusinessEvent
+from lui_agent_runtime.events import RuntimeEvent
 
 
 async def stream_graph_events(
     graph: Any, thread_id: str, content: str
-) -> AsyncIterator[BusinessEvent]:
+) -> AsyncIterator[RuntimeEvent]:
     """把 LangGraph update 流转换为稳定的业务事件，不泄漏 graph 内部结构。"""
     run_id = str(uuid4())
     sequence = 0
-    yield BusinessEvent(1, "run.started", run_id, thread_id, sequence, {})
+    yield RuntimeEvent(1, "run.started", run_id, thread_id, sequence, {})
     async for update in graph.astream(
         {"messages": [{"role": "user", "content": content}]}, stream_mode="updates"
     ):
@@ -19,8 +19,8 @@ async def stream_graph_events(
             for message in node_update.get("messages", []):
                 sequence += 1
                 text = getattr(message, "content", None) or message.get("content", "")
-                yield BusinessEvent(
+                yield RuntimeEvent(
                     1, "message.delta", run_id, thread_id, sequence, {"content": text}
                 )
     sequence += 1
-    yield BusinessEvent(1, "run.completed", run_id, thread_id, sequence, {})
+    yield RuntimeEvent(1, "run.completed", run_id, thread_id, sequence, {})

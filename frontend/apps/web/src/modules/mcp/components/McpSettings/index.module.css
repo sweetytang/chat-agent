@@ -1,7 +1,7 @@
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: 100;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -10,7 +10,10 @@
 }
 
 .dialog {
-  position: relative;
+  position: fixed;
+  z-index: 101;
+  top: 50%;
+  left: 50%;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(1080px, 96vw);
@@ -21,6 +24,7 @@
   border: 1px solid var(--border-strong);
   border-radius: 18px;
   box-shadow: var(--shadow-lg);
+  transform: translate(-50%, -50%);
 }
 
 .topbar {

@@ -39,7 +39,7 @@ const EMPTY_FORM: ServerForm = {
   env: '',
 };
 
-export function useMcpSettings() {
+export function useMcpSettings(enabled = true) {
   const [servers, setServers] = useState<McpServer[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -97,9 +97,10 @@ export function useMcpSettings() {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
-  }, [load]);
+  }, [enabled, load]);
 
   const selected = servers.find((server) => server.id === selectedId) ?? null;
   const filteredServers = useMemo(

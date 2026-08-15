@@ -15,9 +15,9 @@ from app.core.config import get_settings
 from app.core.security import get_optional_subject
 from app.db.models import McpServerDefinition, MessageRole, Run, Thread
 from app.db.session import get_optional_db_session
-from app.integrations.llm.config import get_provider_config  # noqa: F401
-from app.integrations.llm.factory import create_chat_model  # noqa: F401
-from app.integrations.llm.fake import FakeChatModel  # noqa: F401
+from app.integrations.llm.config import get_provider_config
+from app.integrations.llm.factory import create_chat_model
+from app.integrations.llm.fake import FakeChatModel
 from app.modules.checkpoints.service import (
     RunBranchContext,
     checkpoint_messages,
@@ -28,15 +28,17 @@ from app.modules.interrupts.repository import InterruptRepository
 from app.modules.mcp.agent import McpToolSnapshot, load_mcp_snapshots
 from app.modules.mcp.crypto import CredentialCrypto
 from app.modules.mcp.host import McpHost, McpHostError
+from app.modules.runs.context import RunDependencies
 from app.modules.runs.repository import RunRepository
-from app.modules.runs.resume import resumed_run_events
+from app.modules.runs.resume import resumed_run_events as _resumed_run_events
 from app.modules.runs.schemas import PendingReview, ResumeRequest, RunRequest
-from app.modules.runs.streaming import run_events
+from app.modules.runs.streaming import run_events as _run_events
 from app.modules.threads.repository import ThreadRepository
+from lui_agent_runtime.driver import LangGraphAgentDriver
 from lui_agent_runtime.events import BusinessEvent
-from lui_agent_runtime.graph.runtime import stream_graph_events  # noqa: F401
-from lui_agent_runtime.tools.langchain import default_langchain_tools  # noqa: F401
-from lui_agent_runtime.tools.registry import calculate  # noqa: F401
+from lui_agent_runtime.graph.runtime import stream_graph_events
+from lui_agent_runtime.tools.langchain import default_langchain_tools
+from lui_agent_runtime.tools.registry import calculate
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
@@ -75,6 +77,38 @@ def _thread_lock(thread_id: str) -> asyncio.Lock:
 
 def _event(run_id: str, thread_id: str, sequence: int, name: str, **data: object) -> BusinessEvent:
     return BusinessEvent(1, name, run_id, thread_id, sequence, data)
+
+
+def _run_dependencies() -> RunDependencies:
+    """由 API 边界装配当前进程实现，运行模块不反向依赖路由。"""
+
+    return RunDependencies(
+        cancel_events=_cancel_events,
+        thread_lock=_thread_lock,
+        event=_event,
+        pending_reviews=_pending_reviews,
+        mcp_host=lambda: _mcp_host,
+        calculate=calculate,
+        get_provider_config=get_provider_config,
+        create_chat_model=create_chat_model,
+        fake_chat_model=FakeChatModel,
+        default_langchain_tools=default_langchain_tools,
+        agent_driver=lambda: LangGraphAgentDriver(stream_graph_events),
+    )
+
+
+def run_events(*args: Any, **kwargs: Any) -> Any:
+    """兼容旧导入，同时在进入运行模块前完成依赖装配。"""
+
+    kwargs.setdefault("dependencies", _run_dependencies())
+    return _run_events(*args, **kwargs)
+
+
+def resumed_run_events(*args: Any, **kwargs: Any) -> Any:
+    """兼容旧导入，同时在进入恢复模块前完成依赖装配。"""
+
+    kwargs.setdefault("dependencies", _run_dependencies())
+    return _resumed_run_events(*args, **kwargs)
 
 
 def _required_user_id(subject: str | None) -> UUID:
@@ -225,7 +259,7 @@ async def stream_run(
                 )
         if branch_context is not None:
             persistence_session = session
-    except ValueError, OSError, RuntimeError:
+    except (ValueError, OSError, RuntimeError):
         if session is not None:
             await session.rollback()
     mcp_loader = None

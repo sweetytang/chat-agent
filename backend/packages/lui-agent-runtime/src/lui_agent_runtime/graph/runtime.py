@@ -11,7 +11,7 @@ try:
 except ImportError:
     ToolNode = None
 
-from lui_agent_runtime.events import BusinessEvent
+from lui_agent_runtime.events import RuntimeEvent
 
 
 class ChatModel(Protocol):
@@ -58,8 +58,8 @@ def _text(value: Any) -> str:
     return ""
 
 
-def _event(run_id: str, thread_id: str, sequence: int, name: str, **data: Any) -> BusinessEvent:
-    return BusinessEvent(1, name, run_id, thread_id, sequence, data)
+def _event(run_id: str, thread_id: str, sequence: int, name: str, **data: Any) -> RuntimeEvent:
+    return RuntimeEvent(1, name, run_id, thread_id, sequence, data)
 
 
 async def stream_graph_events(
@@ -71,7 +71,7 @@ async def stream_graph_events(
     tools: Sequence[Any] = (),
     continue_after_tools: bool = False,
     approval_tool_names: frozenset[str] = frozenset(),
-) -> AsyncIterator[BusinessEvent]:
+) -> AsyncIterator[RuntimeEvent]:
     """把进程内 LangGraph 事件转换为稳定的业务事件。"""
 
     if tools and ToolNode is None:

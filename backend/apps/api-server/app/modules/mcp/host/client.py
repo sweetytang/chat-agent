@@ -65,7 +65,7 @@ def _find_agent_id(value: Any) -> str | None:
     elif isinstance(value, str):
         try:
             decoded = json.loads(value)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             decoded = None
         if decoded is not None:
             found = _find_agent_id(decoded)
@@ -77,7 +77,7 @@ def _find_agent_id(value: Any) -> str | None:
     elif hasattr(value, "model_dump"):
         try:
             return _find_agent_id(value.model_dump(by_alias=True, exclude_none=True))
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             return None
     return None
 

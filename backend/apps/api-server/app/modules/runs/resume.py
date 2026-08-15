@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 import json
-from typing import Any
 from uuid import UUID
 
 from langchain_core.messages import HumanMessage
@@ -17,15 +16,18 @@ from app.modules.checkpoints.service import (
 from app.modules.interrupts.repository import InterruptRepository
 from app.modules.mcp.agent.results import normalize_tool_result
 from app.modules.mcp.host import McpHostError
+from app.modules.runs.context import (
+    RunDependencies,
+    configure_run_dependencies,
+    get_run_dependencies,
+)
 from app.modules.runs.repository import RunRepository
 from app.modules.runs.schemas import PendingReview, RunRequest
 from app.modules.threads.title import set_title_after_first_round
 
 
-def _runtime() -> Any:
-    from app.api import runs
-
-    return runs
+def _runtime() -> RunDependencies:
+    return get_run_dependencies()
 
 
 async def resumed_run_events(
@@ -37,7 +39,10 @@ async def resumed_run_events(
     branch_context: RunBranchContext | None,
     pending: PendingReview | None = None,
     edited_payload: dict[str, object] | None = None,
+    dependencies: RunDependencies | None = None,
 ) -> AsyncIterator[str]:
+    if dependencies is not None:
+        configure_run_dependencies(dependencies)
     sequence = 0
     # 演示线程可以在有 PostgreSQL 会话时运行，但它没有对应的数据库 run。
     # 只有确认记录存在，恢复流程才进入持久化分支。
@@ -47,7 +52,7 @@ async def resumed_run_events(
             persisted_session = (
                 session if await session.get(Run, UUID(run_id)) is not None else None
             )
-        except ValueError, OSError, RuntimeError:
+        except (ValueError, OSError, RuntimeError):
             await session.rollback()
     repository = RunRepository(persisted_session) if persisted_session is not None else None
     if repository is not None:
