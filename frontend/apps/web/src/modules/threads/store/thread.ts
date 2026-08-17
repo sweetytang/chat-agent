@@ -26,7 +26,7 @@ async function loadThreadSnapshot(threadId: string) {
   return { history, checkpoints, pendingInterrupt };
 }
 
-let latestThreadsRequestId = 0;
+let latestThreadsRequestId = 0; // 用于防止异步请求乱序的“请求序号”，当发起新的请求时，旧的请求结果将被忽略
 
 interface ThreadState {
   threadId: string;
@@ -59,8 +59,9 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
   title: '未命名会话',
   threads: [],
   checkpoints: [],
-  isRefreshing: false,
+  isRefreshing: false, // 如果是切换到实际线程，还需要异步加载历史记录，界面会暂时禁用部分操作或显示加载状态；如果切换到demo-thread，则不需要刷新
   isLoadingThreads: true,
+
   startNewThread: () => {
     abortActiveStream();
     useRunStore.getState().reset();
@@ -72,6 +73,7 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
       isRefreshing: false,
     });
   },
+
   setCurrentThreadTitle: (title) =>
     set((state) => ({
       title,
@@ -79,13 +81,15 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
         thread.id === state.threadId ? { ...thread, title } : thread,
       ),
     })),
+
+  // 切换当前会话
   setThread: (
     threadId,
     title = '未命名会话',
     currentCheckpointId = null,
     preserveRunState = false,
   ) => {
-    if (threadId === get().threadId) return;
+    if (threadId === get().threadId) return; // 避免重复切换到当前线程
     if (!preserveRunState) useRunStore.getState().reset();
     set({
       threadId,
@@ -95,6 +99,7 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
       isRefreshing: threadId !== 'demo-thread',
     });
   },
+
   loadThreads: async () => {
     const requestId = ++latestThreadsRequestId;
     set({ isLoadingThreads: true });
@@ -117,6 +122,7 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
       if (requestId === latestThreadsRequestId) set({ isLoadingThreads: false });
     }
   },
+
   createThread: async (title, preserveRunState = false) => {
     try {
       const thread = await createThreadRequest(title);
@@ -132,6 +138,7 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
       return null;
     }
   },
+
   renameThread: async (threadId, title) => {
     const updated = await updateThreadRequest(threadId, { title });
     const threads = await listThreads();
@@ -140,10 +147,12 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
       title: state.threadId === threadId ? (updated.title ?? '未命名会话') : state.title,
     }));
   },
+
   setThreadPinned: async (threadId, isPinned) => {
     await updateThreadRequest(threadId, { is_pinned: isPinned });
     set({ threads: await listThreads() });
   },
+
   deleteThread: async (threadId) => {
     await deleteThreadRequest(threadId);
     const threads = await listThreads();
@@ -174,6 +183,7 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
       isRefreshing: false,
     });
   },
+
   refreshCurrentThread: async (preserveRunState = false) => {
     const threadId = get().threadId;
     if (threadId === 'demo-thread') return;
@@ -195,6 +205,7 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
       if (get().threadId === threadId) set({ isRefreshing: false });
     }
   },
+
   switchCheckpoint: async (checkpointId) => {
     const threadId = get().threadId;
     if (threadId === 'demo-thread') return;

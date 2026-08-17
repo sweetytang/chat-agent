@@ -19,18 +19,13 @@ export const ChatComposer = forwardRef(function ChatComposer(
   forwardedRef: Ref<HTMLTextAreaElement>,
 ) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
+
   function assignRef(element: HTMLTextAreaElement | null) {
     localRef.current = element;
     if (typeof forwardedRef === 'function') forwardedRef(element);
     else if (forwardedRef) forwardedRef.current = element;
   }
-  useEffect(() => {
-    const textarea = localRef.current;
-    if (!textarea) return;
-    textarea.style.height = 'auto';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`;
-    textarea.style.overflowY = textarea.scrollHeight > 180 ? 'auto' : 'hidden';
-  }, [value]);
+
   function keyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (
       shouldSubmitComposer({
@@ -43,6 +38,15 @@ export const ChatComposer = forwardRef(function ChatComposer(
       if (!disabled && !running && value.trim()) onSubmit();
     }
   }
+
+  useEffect(() => {
+    const textarea = localRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`;
+    textarea.style.overflowY = textarea.scrollHeight > 180 ? 'auto' : 'hidden';
+  }, [value]);
+
   return (
     <div className={`${styles.composer} ${disabled ? styles.disabled : ''}`}>
       <textarea

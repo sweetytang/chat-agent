@@ -42,11 +42,12 @@ interface StartRunOptions {
 
 export function Chat() {
   const [input, setInput] = useState('');
-  const [canRetry, setCanRetry] = useState(false);
-  const [creatingThread, setCreatingThread] = useState(false);
-  const creatingThreadRef = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lastRequestParams, setLastRequestParams] = useState<StartRunOptions | null>(null);
+
+  const submitLockRef = useRef(false);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
-  const lastRequest = useRef<StartRunOptions | null>(null);
+
   const threadId = useThreadStore((state) => state.threadId);
   const isRefreshing = useThreadStore((state) => state.isRefreshing);
   const token = useAuthStore((state) => state.token);
@@ -57,21 +58,22 @@ export function Chat() {
   const presentationItems = useRunStore((state) => state.presentationItems);
   const pendingApproval = useRunStore((state) => state.pendingApproval);
   const active = ACTIVE_RUN_STATUSES.has(status);
-  const controlsDisabled = active || isRefreshing || creatingThread;
+  const controlsDisabled = active || isRefreshing || isSubmitting;
 
+  // 当线程切换（包括新会话第一次开始对话）或用户登录状态变化时，刷新当前线程的历史记录和分支信息
   useEffect(() => {
-    abortActiveStream();
     if (token && threadId !== 'demo-thread') {
       const preserveRunState = ACTIVE_RUN_STATUSES.has(useRunStore.getState().status);
       void useThreadStore.getState().refreshCurrentThread(preserveRunState);
     }
-    return abortActiveStream;
+    return () => {
+      abortActiveStream();
+    };
   }, [threadId, token]);
 
   async function startRun(options: StartRunOptions) {
     if (!useAuthStore.getState().token) return;
-    lastRequest.current = options;
-    setCanRetry(true);
+    setLastRequestParams(options);
     const request: RunStreamRequest = {
       thread_id: options.threadId ?? useThreadStore.getState().threadId,
       content: options.content,
@@ -100,8 +102,11 @@ export function Chat() {
           status: RunStatus.Failed,
         });
     } finally {
-      if (streamController.signal.aborted) eventDispatcher.cancel();
-      else eventDispatcher.flush();
+      if (streamController.signal.aborted) {
+        eventDispatcher.cancel();
+      } else {
+        eventDispatcher.flush();
+      }
       clearActiveStream(streamController);
       if (useThreadStore.getState().threadId === request.thread_id) {
         await useThreadStore.getState().refreshCurrentThread(true);
@@ -112,20 +117,21 @@ export function Chat() {
 
   async function submit() {
     const content = input.trim();
-    if (!content || controlsDisabled || !token || creatingThreadRef.current) return;
+    if (!content || controlsDisabled || !token || submitLockRef.current) return;
     setInput('');
-    creatingThreadRef.current = true;
-    setCreatingThread(true);
+    submitLockRef.current = true;
+    setIsSubmitting(true);
     try {
       const currentThread = useThreadStore.getState();
       const isNewThread = currentThread.threadId === 'demo-thread';
       if (isNewThread) {
-        useRunStore.getState().beginRun(content);
+        const currentRun = useRunStore.getState();
+        currentRun.beginRun(content);
         currentThread.setCurrentThreadTitle(content);
         const thread = await currentThread.createThread(content, true);
         if (!thread) {
           setInput(content);
-          useRunStore.getState().reset();
+          currentRun.reset();
           return;
         }
       }
@@ -138,8 +144,8 @@ export function Chat() {
         threadId: target.threadId,
       });
     } finally {
-      creatingThreadRef.current = false;
-      setCreatingThread(false);
+      submitLockRef.current = false;
+      setIsSubmitting(false);
     }
   }
 
@@ -185,7 +191,7 @@ export function Chat() {
 
   function fillPrompt(prompt: string) {
     setInput(prompt);
-    window.setTimeout(() => composerRef.current?.focus(), 0);
+    setTimeout(() => composerRef.current?.focus(), 0);
   }
 
   return (
@@ -273,9 +279,9 @@ export function Chat() {
                   <InlineErrorCard
                     key={item.id}
                     message={typeof item.data.error === 'string' ? item.data.error : '运行失败'}
-                    canRetry={canRetry && !active}
+                    canRetry={!!lastRequestParams && !active}
                     onRetry={() => {
-                      if (lastRequest.current) void startRun(lastRequest.current);
+                      if (lastRequestParams) void startRun(lastRequestParams);
                     }}
                   />
                 );
@@ -295,9 +301,9 @@ export function Chat() {
             {error && !presentationItems.some((item) => item.kind === 'error') && (
               <InlineErrorCard
                 message={error}
-                canRetry={canRetry && !active}
+                canRetry={!!lastRequestParams && !active}
                 onRetry={() => {
-                  if (lastRequest.current) void startRun(lastRequest.current);
+                  if (lastRequestParams) void startRun(lastRequestParams);
                 }}
               />
             )}

@@ -68,6 +68,8 @@ export const useRunStore = create<RunState>((set) => ({
   toolResults: [],
   presentationItems: [],
   pendingApproval: null,
+
+  // 一轮 Agent 运行开始前的前端状态初始化方法，负责重置旧运行数据、设置排队状态，并可选地乐观显示用户消息。
   beginRun: (optimisticUserContent, baseHistory) =>
     set((state) => {
       const history = baseHistory ?? state.history;
@@ -76,17 +78,17 @@ export const useRunStore = create<RunState>((set) => ({
         status: RunStatus.Queued,
         history: optimisticUserContent
           ? [
-              ...history,
-              {
-                id: `user-${Date.now()}`,
-                role: 'user',
-                content: optimisticUserContent,
-                checkpoint_id: null,
-                parent_checkpoint_id: null,
-                branch_options: [],
-                branch_index: null,
-              },
-            ]
+            ...history,
+            {
+              id: `user-${Date.now()}`,
+              role: 'user',
+              content: optimisticUserContent,
+              checkpoint_id: null,
+              parent_checkpoint_id: null,
+              branch_options: [],
+              branch_index: null,
+            },
+          ]
           : history,
         error: null,
         reasoning: '',
@@ -98,30 +100,34 @@ export const useRunStore = create<RunState>((set) => ({
         lastSequence: -1,
       };
     }),
+
   prepareResume: () => set({ status: RunStatus.Resuming, error: null, lastSequence: -1 }),
+
   setHistory: (history, preserveRunState = false) =>
     set((state) =>
       preserveRunState
         ? { ...state, history: history.length > 0 ? history : state.history }
         : {
-            runId: null,
-            status: 'idle',
-            history,
-            error: null,
-            lastSequence: -1,
-            reasoning: '',
-            structuredOutput: null,
-            generativeUi: null,
-            toolResults: [],
-            presentationItems: [],
-            pendingApproval: null,
-          },
+          runId: null,
+          status: 'idle',
+          history,
+          error: null,
+          lastSequence: -1,
+          reasoning: '',
+          structuredOutput: null,
+          generativeUi: null,
+          toolResults: [],
+          presentationItems: [],
+          pendingApproval: null,
+        },
     ),
+
   setPendingApproval: (interrupt, preserveRunState = false) =>
     set((state) => ({
       ...state,
       ...syncPendingApproval(state, interrupt, preserveRunState),
     })),
+
   applyEvent: (event) =>
     set((state) => {
       if (event.sequence <= state.lastSequence) return state;
@@ -134,27 +140,27 @@ export const useRunStore = create<RunState>((set) => ({
       const toolResults =
         event.event === 'tool.result'
           ? [
-              ...state.toolResults,
-              { tool: eventString(event.data.tool, 'tool'), content: event.data.content },
-            ]
+            ...state.toolResults,
+            { tool: eventString(event.data.tool, 'tool'), content: event.data.content },
+          ]
           : state.toolResults;
       const presentationKind = presentationKindByEvent[event.event];
       const presentationItems = presentationKind
         ? appendPresentationItem(
-            state.presentationItems,
-            event.run_id,
-            event.sequence,
-            presentationKind,
-            event.data,
-          )
+          state.presentationItems,
+          event.run_id,
+          event.sequence,
+          presentationKind,
+          event.data,
+        )
         : state.presentationItems;
       const pendingApproval =
         event.event === 'tool.approval_required'
           ? {
-              requestId: eventString(event.data.request_id, ''),
-              tool: eventString(event.data.tool, 'tool'),
-              runId: event.run_id,
-            }
+            requestId: eventString(event.data.request_id, ''),
+            tool: eventString(event.data.tool, 'tool'),
+            runId: event.run_id,
+          }
           : event.event === 'run.completed' || event.event === 'run.cancelled'
             ? null
             : state.pendingApproval;
@@ -185,9 +191,9 @@ export const useRunStore = create<RunState>((set) => ({
       const error =
         event.event === 'run.failed' || event.event === 'mcp.error'
           ? eventString(
-              event.data.error,
-              event.event === 'mcp.error' ? 'MCP 工具加载失败' : '运行失败',
-            )
+            event.data.error,
+            event.event === 'mcp.error' ? 'MCP 工具加载失败' : '运行失败',
+          )
           : state.error;
       return {
         ...state,
@@ -204,6 +210,7 @@ export const useRunStore = create<RunState>((set) => ({
         lastSequence: event.sequence,
       };
     }),
+
   reset: () =>
     set({
       runId: null,
