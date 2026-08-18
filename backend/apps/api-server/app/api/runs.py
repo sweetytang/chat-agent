@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 from collections.abc import AsyncIterator
+from dataclasses import replace
 import json
 from typing import Any
 from uuid import UUID, uuid4
@@ -13,27 +14,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.security import get_optional_subject
-from app.db.models import McpServerDefinition, MessageRole, Run, Thread
+from app.db.models import McpServerDefinition, Run, Thread
 from app.db.session import get_optional_db_session
 from app.integrations.llm.config import get_provider_config
 from app.integrations.llm.factory import create_chat_model
 from app.integrations.llm.fake import FakeChatModel
 from app.modules.checkpoints.service import (
     RunBranchContext,
-    checkpoint_messages,
+    checkpoint_timeline,
     create_run_branch,
-    message_snapshot,
 )
 from app.modules.interrupts.repository import InterruptRepository
 from app.modules.mcp.agent import McpToolSnapshot, load_mcp_snapshots
 from app.modules.mcp.crypto import CredentialCrypto
 from app.modules.mcp.host import McpHost, McpHostError
 from app.modules.runs.context import RunDependencies
+from app.modules.runs.finalization import finalize_incomplete_stream, persist_run_failure
 from app.modules.runs.repository import RunRepository
 from app.modules.runs.resume import resumed_run_events as _resumed_run_events
 from app.modules.runs.schemas import PendingReview, ResumeRequest, RunRequest
 from app.modules.runs.streaming import run_events as _run_events
 from app.modules.threads.repository import ThreadRepository
+from app.modules.timeline.projector import conversation_messages
+from app.modules.timeline.types import TimelineSnapshot, empty_timeline
 from lui_agent_runtime.driver import LangGraphAgentDriver
 from lui_agent_runtime.events import BusinessEvent
 from lui_agent_runtime.graph.runtime import stream_graph_events
@@ -155,7 +158,7 @@ async def _load_branch_base(
     checkpoint_id: UUID | None,
     *,
     use_current_if_none: bool = True,
-) -> tuple[UUID | None, tuple[dict, ...]]:
+) -> tuple[UUID | None, TimelineSnapshot]:
     repository = ThreadRepository(session)
     base_checkpoint_id = (
         thread.current_checkpoint_id
@@ -163,17 +166,16 @@ async def _load_branch_base(
         else checkpoint_id
     )
     if base_checkpoint_id is None:
-        return None, ()
+        return None, empty_timeline()
 
     checkpoint = await repository.get_checkpoint(thread.id, base_checkpoint_id)
     if checkpoint is None:
         raise HTTPException(status_code=404, detail="checkpoint 不存在")
-    snapshots = checkpoint_messages(checkpoint)
-    if snapshots is None:
-        snapshots = tuple(
-            message_snapshot(item) for item in await repository.list_messages(thread.id)
-        )
-    return base_checkpoint_id, snapshots
+    try:
+        timeline = checkpoint_timeline(checkpoint.state)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    return base_checkpoint_id, timeline
 
 
 async def _prepare_persisted_run(
@@ -182,14 +184,15 @@ async def _prepare_persisted_run(
     request: RunRequest,
     thread: Thread,
 ) -> RunBranchContext | None:
-    base_checkpoint_id, base_messages = await _load_branch_base(
+    base_checkpoint_id, base_timeline = await _load_branch_base(
         session,
         thread,
         request.checkpoint_id,
         use_current_if_none="checkpoint_id" not in request.model_fields_set,
     )
     if request.mode == "regenerate" and (
-        not base_messages or base_messages[-1].get("role") != MessageRole.USER.value
+        not conversation_messages(base_timeline)
+        or conversation_messages(base_timeline)[-1].get("role") != "user"
     ):
         raise HTTPException(status_code=400, detail="重新生成必须指定用户消息 checkpoint")
     await RunRepository(session).create(thread.id, run_id=run_id)
@@ -200,7 +203,7 @@ async def _prepare_persisted_run(
         mode=request.mode,
         content=request.content,
         base_checkpoint_id=base_checkpoint_id,
-        base_messages=base_messages,
+        base_timeline=base_timeline,
     )
     await session.commit()
     return branch_context
@@ -211,25 +214,77 @@ async def safe_resumed_run_events(*args: Any, **kwargs: Any) -> AsyncIterator[st
     run_id = str(args[0]) if args else str(kwargs.get("run_id", "unknown"))
     request = args[1] if len(args) > 1 else kwargs.get("request")
     thread_id = getattr(request, "thread_id", "")
+    session: AsyncSession | None = args[4] if len(args) > 4 else kwargs.get("session")
+    branch_context: RunBranchContext | None = (
+        args[5] if len(args) > 5 else kwargs.get("branch_context")
+    )
+
     try:
         async for event in resumed_run_events(*args, **kwargs):
             yield event
     except McpHostError as error:
-        yield _event(
-            run_id,
-            thread_id,
-            1,
-            "run.failed",
-            error=str(error),
+        yield (
+            await persist_run_failure(
+                run_id, thread_id, str(error), session, branch_context, _event
+            )
         ).to_sse()
     except Exception as error:
-        yield _event(
-            run_id,
-            thread_id,
-            1,
-            "run.failed",
-            error=f"MCP 恢复失败（{type(error).__name__}）",
+        yield (
+            await persist_run_failure(
+                run_id,
+                thread_id,
+                f"MCP 恢复失败（{type(error).__name__}）",
+                session,
+                branch_context,
+                _event,
+            )
         ).to_sse()
+
+
+async def _finalize_incomplete_stream(
+    run_id: str,
+    request: RunRequest,
+    session: AsyncSession | None,
+    branch_context: RunBranchContext | None,
+    *,
+    interrupted_is_terminal: bool,
+) -> None:
+    """连接提前关闭时，将已投影的部分内容固化为可重试终态。"""
+
+    await finalize_incomplete_stream(
+        run_id,
+        request,
+        session,
+        branch_context,
+        event_factory=_event,
+        cancel_requested=_cancel_events.get(run_id, asyncio.Event()).is_set(),
+        interrupted_is_terminal=interrupted_is_terminal,
+    )
+
+
+async def _managed_run_stream(
+    events: AsyncIterator[str],
+    *,
+    run_id: str,
+    request: RunRequest,
+    session: AsyncSession | None,
+    branch_context: RunBranchContext | None,
+    interrupted_is_terminal: bool = True,
+) -> AsyncIterator[str]:
+    try:
+        async for event in events:
+            yield event
+    finally:
+        try:
+            await _finalize_incomplete_stream(
+                run_id,
+                request,
+                session,
+                branch_context,
+                interrupted_is_terminal=interrupted_is_terminal,
+            )
+        finally:
+            _cancel_events.pop(run_id, None)
 
 
 @router.post("/stream")
@@ -259,7 +314,7 @@ async def stream_run(
                 )
         if branch_context is not None:
             persistence_session = session
-    except (ValueError, OSError, RuntimeError):
+    except ValueError, OSError, RuntimeError:
         if session is not None:
             await session.rollback()
     mcp_loader = None
@@ -276,12 +331,18 @@ async def stream_run(
             )
 
     return StreamingResponse(
-        run_events(
-            run_id,
-            request,
-            persistence_session,
-            branch_context,
-            mcp_loader=mcp_loader,
+        _managed_run_stream(
+            run_events(
+                run_id,
+                request,
+                persistence_session,
+                branch_context,
+                mcp_loader=mcp_loader,
+            ),
+            run_id=run_id,
+            request=request,
+            session=persistence_session,
+            branch_context=branch_context,
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
@@ -327,21 +388,17 @@ async def resume_run(
         interrupt = await InterruptRepository(session).get_by_request_id(request.request_id)
         if interrupt is not None and persisted_run is not None and str(interrupt.run_id) == run_id:
             query = str(interrupt.payload.get("query", ""))
-            persisted_thread = await session.get(Thread, persisted_run.thread_id)
-            branch_context = None
-            if persisted_thread is not None:
-                checkpoint_id, snapshots = await _load_branch_base(
-                    session,
-                    persisted_thread,
-                    interrupt.checkpoint_id,
-                )
-                if checkpoint_id is not None:
-                    branch_context = RunBranchContext(checkpoint_id, snapshots)
+            branch_context = (
+                RunBranchContext(interrupt.checkpoint_id, empty_timeline())
+                if interrupt.checkpoint_id is not None
+                else None
+            )
             pending = PendingReview(
                 run_id,
                 RunRequest(thread_id=str(persisted_run.thread_id), content=f"search: {query}"),
                 branch_context,
                 persisted=True,
+                tool_call_id=str(interrupt.payload.get("tool_call_id") or request.request_id),
             )
             if interrupt.kind == "mcp_tool":
                 server_id = interrupt.payload.get("server_id")
@@ -384,9 +441,33 @@ async def resume_run(
                     persisted=True,
                     mcp_snapshot=snapshot,
                     arguments=arguments if isinstance(arguments, dict) else {},
+                    tool_call_id=str(interrupt.payload.get("tool_call_id") or request.request_id),
                 )
     if pending is None or pending.run_id != run_id:
         raise HTTPException(status_code=409, detail="审核请求不存在或已过期")
+    if pending.persisted:
+        if session is None or persisted_run is None:
+            raise HTTPException(status_code=503, detail="持久化服务不可用")
+        if pending.branch_context is None:
+            raise HTTPException(status_code=409, detail="审核 checkpoint 已失效")
+        checkpoint = await ThreadRepository(session).get_checkpoint(
+            persisted_run.thread_id,
+            pending.branch_context.checkpoint_id,
+        )
+        if checkpoint is None:
+            raise HTTPException(status_code=409, detail="审核 checkpoint 已失效")
+        try:
+            timeline = checkpoint_timeline(checkpoint.state)
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        pending = replace(
+            pending,
+            branch_context=RunBranchContext(
+                checkpoint.id,
+                timeline,
+                checkpoint=checkpoint,
+            ),
+        )
     if pending.mcp_snapshot is not None:
         if session is None:
             raise HTTPException(status_code=503, detail="持久化服务不可用")
@@ -403,15 +484,22 @@ async def resume_run(
             raise HTTPException(status_code=409, detail="MCP 安全配置已变化，审核请求已失效")
     _pending_reviews.pop(request.request_id, None)
     return StreamingResponse(
-        safe_resumed_run_events(
-            run_id,
-            pending.request,
-            request.request_id,
-            request.decision,
-            session,
-            pending.branch_context,
-            pending,
-            request.payload,
+        _managed_run_stream(
+            safe_resumed_run_events(
+                run_id,
+                pending.request,
+                request.request_id,
+                request.decision,
+                session,
+                pending.branch_context,
+                pending,
+                request.payload,
+            ),
+            run_id=run_id,
+            request=pending.request,
+            session=session,
+            branch_context=pending.branch_context,
+            interrupted_is_terminal=False,
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},

@@ -120,9 +120,9 @@ const shouldSubmit =
 - 每个 `thread_id` 只跟踪一个活动流；普通运行和审核恢复共享同一个按会话控制器注册表。不同会话的活动流互不替换，页面卸载或认证失效时统一清理全部流。
 - Stop 先中止当前查看会话的本地流，再在 run ID 存在时请求后端取消，并立即退出该会话的活动 UI 状态；不得影响其他会话。
 - Retry 按 `thread_id` 复用完整的上一次请求上下文，而不只是文本。
-- 运行状态、消息历史、错误、事件 sequence、待审核项和重试上下文均按 `thread_id` 隔离；事件只按协议中的 `event.thread_id` 写入目标投影。
+- 运行状态、统一时间线、事件 sequence、待审核项和重试上下文均按 `thread_id` 隔离；事件只按协议中的 `event.thread_id` 写入目标投影。
 - 切换侧边栏会话不得中止后台流。输入草稿保持页面级共享，发送目标在点击发送时固定，后续异步流程不得重新读取当前选中会话。
-- 活动 SSE 期间加载到的后端历史快照可能落后于本地流式投影，不得覆盖当前消息历史；进入 completed/failed/cancelled 等终态后，才允许最终快照校准历史。测试必须覆盖“非空旧快照不丢失 assistant 流式尾部”。
+- 活动 SSE 期间加载到的后端 timeline 快照可能落后于本地流式投影，不得覆盖当前时间线；进入 completed/failed/cancelled 等终态后，才允许最终快照校准。
 
 ## Message and Presentation Contract
 
@@ -131,10 +131,10 @@ const shouldSubmit =
 - Markdown tables scroll horizontally.
 - Fenced code exposes copy feedback and remains theme-readable.
 - Tool, approval, structured output, generative UI, and error results use typed cards with restrained semantic accents.
-- Multiple presentation results are represented as ordered items. Never store all results of one kind in a single overwrite-only field.
-- Tool, approval, structured output, generative UI, and failed-run cards all enter the same ordered projection.
-- Presentation order derives from event `sequence`; render cards at that projected position instead of moving an active approval or error to the end.
-- A restored pending approval without a recoverable source event may render as a compatibility fallback after the ordered projection.
+- Message, reasoning, tool, approval, structured output, generative UI, and error entries share one typed `TimelineSnapshot`; do not maintain parallel history or presentation projections.
+- Timeline order is the authority across runs and branches. Within one run, an item's first event `sequence` fixes its position; later deltas update the same stable item ID in place.
+- One tool call owns one lifecycle card. Approval controls and results update that card instead of rendering separate approval/result cards.
+- Branch controls render on the terminal timeline item that carries branch metadata, including tool or error endings with no assistant text.
 - Streaming assistant messages use block-stable Markdown rendering. Completed blocks retain their component identity while only the changing tail block is reparsed.
 - Buffer `message.delta` events within one animation frame and dispatch at most one merged delta per frame. Flush the buffered delta before any non-delta event so event sequence and content remain lossless.
 - `message.completed` marks the assistant projection as complete without replacing the already rendered Markdown tree.

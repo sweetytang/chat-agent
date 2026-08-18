@@ -1,4 +1,4 @@
-import type { ThreadHistory } from '@/modules/threads/types/history';
+import type { ThreadTimeline } from '@/modules/timeline/types';
 import type { ThreadSummary } from '@/modules/threads/types/thread';
 import { request } from '@/shared/http/client';
 
@@ -7,8 +7,8 @@ export const listThreads = () => request<ThreadSummary[]>('/threads');
 export const createThread = (title?: string) =>
   request<ThreadSummary>('/threads', { method: 'POST', body: JSON.stringify({ title }) });
 
-export const getThreadHistory = (threadId: string) =>
-  request<ThreadHistory>(`/threads/${threadId}/history`);
+export const getThreadTimeline = (threadId: string) =>
+  request<ThreadTimeline>(`/threads/${threadId}/timeline`);
 
 export const updateThread = (threadId: string, update: { title?: string; is_pinned?: boolean }) =>
   request<ThreadSummary>(`/threads/${threadId}`, {

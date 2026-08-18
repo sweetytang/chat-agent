@@ -9,10 +9,10 @@ def test_core_models_are_registered() -> None:
         "refresh_tokens",
         "threads",
         "runs",
-        "messages",
         "checkpoints",
         "interrupts",
     } <= set(Base.metadata.tables)
+    assert "messages" not in Base.metadata.tables
 
 
 def test_refresh_token_columns_are_persisted_safely() -> None:

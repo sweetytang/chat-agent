@@ -96,18 +96,31 @@ class ToolPolicy(Protocol):
 
 ## 3. 跨层合同
 
-### 兼容期事件合同
+### 流式时间线事件合同
 
-当前前端仍消费 `BusinessEvent(version, event, run_id, thread_id, sequence, data)`。准备性重构必须保持该外部载荷不变，只允许内部增加适配：
+前端消费 `BusinessEvent(version=1, event, run_id, thread_id, sequence, data)`，但会话内容以 `TimelineSnapshot(version=1, items)` 为唯一事实源：
 
 ```text
-AgentDriver -> RuntimeEvent -> 兼容事件投影 -> SSE 编码 -> 前端统一解码器
+AgentDriver -> RuntimeEvent -> TimelineRecorder/Projector -> checkpoint + SSE
+                                                               |
+                                                               v
+                                                frontend normalizer/reducer
 ```
 
-- Runtime 不得调用 `to_sse()`，也不得依赖 FastAPI、数据库 Session 或路由模块。
-- API 适配器拥有 SSE 帧格式和当前 `run_id/thread_id` 兼容投影。
-- 前端只在 `modules/runs` 的事件边界解析 `unknown`，组件和 Store 禁止解析 LangGraph 原始事件。
-- 正式启用 Task Runtime API 时再发布新版 DTO；禁止在准备性重构中全局重命名 `thread/run`。
+- Runtime 不得依赖 FastAPI、数据库 Session 或 React 展示模型。
+- `message` 文本段、`reasoning`、`tool`、`structured_output` 和 `generative_ui` 必须携带稳定语义 ID；增量只原地更新同 ID 条目。
+- `sequence` 只负责单次 run 去重和顺序；跨 run、跨分支的权威顺序由 timeline 数组表达。
+- `run.started`、`checkpoint.created` 等生命周期事件只更新控制状态，不生成可见条目。
+- 前端只在 timeline normalizer 边界读取事件 payload；Store 调用纯 reducer，组件只渲染类型化条目。
+- 旧 `Message` ORM、`messages/history` API、checkpoint `messages` 和前端 `history/presentationItems` 不兼容、不回退。
+
+### Chat 时间线持久化合同
+
+- `Checkpoint.state` 只保存 timeline v1，不得平行保存 messages/history 快照。
+- `TimelineRecorder` 是 BusinessEvent 进入 checkpoint 的唯一入口；恢复和断连收尾必须从 checkpoint 当前 state 初始化，不得用请求创建时的旧快照覆盖。
+- 审批跨请求恢复时，必须在当前 Session 重载 checkpoint；内存 `PendingReview` 中的 ORM 实例可能 detached，不得直接用于持久化。
+- 工具调用、审批中断和 checkpoint timeline 必须在发送首个审批 SSE 前原子提交。
+- `run.failed` / `mcp.error` 先将当前运行所有未完成条目转为失败，再追加稳定 ID 的错误条目。
 
 ### 依赖方向
 

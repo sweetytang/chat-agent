@@ -78,6 +78,7 @@ async def stream_graph_events(
         response = await model.ainvoke(list(messages))
         sequence = 0
         for call in getattr(response, "tool_calls", None) or []:
+            tool_call_id = str(call.get("id") or f"{run_id}:tool:{sequence + 1}")
             sequence += 1
             yield _event(
                 run_id,
@@ -85,7 +86,7 @@ async def stream_graph_events(
                 sequence,
                 "tool.call",
                 tool=call["name"],
-                tool_call_id=call.get("id"),
+                tool_call_id=tool_call_id,
                 arguments=call.get("args", {}),
             )
             selected = next(
@@ -95,7 +96,13 @@ async def stream_graph_events(
                 output = selected.invoke(call.get("args", {}))
                 sequence += 1
                 yield _event(
-                    run_id, thread_id, sequence, "tool.result", tool=call["name"], content=output
+                    run_id,
+                    thread_id,
+                    sequence,
+                    "tool.result",
+                    tool=call["name"],
+                    tool_call_id=tool_call_id,
+                    content=output,
                 )
         return
 
@@ -106,7 +113,12 @@ async def stream_graph_events(
         approval_tool_names=approval_tool_names,
     )
     sequence = 0
+    logical_message_id = f"{run_id}:assistant"
+    message_segment = 0
+    message_item_id: str | None = None
     message_started = False
+    reasoning_segment = 0
+    reasoning_item_id: str | None = None
     reasoning_started = False
     async for item in graph.astream_events({"messages": list(messages)}, version="v2"):
         kind = item.get("event", "")
@@ -117,20 +129,93 @@ async def stream_graph_events(
             additional = getattr(chunk, "additional_kwargs", {}) or {}
             reasoning = additional.get("reasoning_content") or additional.get("reasoning")
             if reasoning:
+                if message_started and message_item_id is not None:
+                    sequence += 1
+                    yield _event(
+                        run_id,
+                        thread_id,
+                        sequence,
+                        "message.completed",
+                        item_id=message_item_id,
+                        message_id=logical_message_id,
+                    )
+                    message_started = False
+                    message_item_id = None
+                if reasoning_item_id is None:
+                    reasoning_item_id = f"{run_id}:reasoning:{reasoning_segment}"
+                    reasoning_segment += 1
                 reasoning_started = True
                 sequence += 1
-                yield _event(run_id, thread_id, sequence, "reasoning.delta", content=reasoning)
+                yield _event(
+                    run_id,
+                    thread_id,
+                    sequence,
+                    "reasoning.delta",
+                    item_id=reasoning_item_id,
+                    content=reasoning,
+                )
             if content:
+                if reasoning_item_id is not None:
+                    sequence += 1
+                    yield _event(
+                        run_id,
+                        thread_id,
+                        sequence,
+                        "reasoning.completed",
+                        item_id=reasoning_item_id,
+                    )
+                    reasoning_item_id = None
+                    reasoning_started = False
                 if not message_started:
                     message_started = True
+                    message_item_id = f"{logical_message_id}:segment:{message_segment}"
+                    message_segment += 1
                     sequence += 1
-                    yield _event(run_id, thread_id, sequence, "message.started", role="assistant")
+                    yield _event(
+                        run_id,
+                        thread_id,
+                        sequence,
+                        "message.started",
+                        role="assistant",
+                        item_id=message_item_id,
+                        message_id=logical_message_id,
+                    )
                 sequence += 1
-                yield _event(run_id, thread_id, sequence, "message.delta", content=content)
+                yield _event(
+                    run_id,
+                    thread_id,
+                    sequence,
+                    "message.delta",
+                    item_id=message_item_id,
+                    content=content,
+                )
             for call in getattr(chunk, "tool_call_chunks", None) or []:
                 if tools:
                     continue
                 if call.get("name"):
+                    if reasoning_started and reasoning_item_id is not None:
+                        sequence += 1
+                        yield _event(
+                            run_id,
+                            thread_id,
+                            sequence,
+                            "reasoning.completed",
+                            item_id=reasoning_item_id,
+                        )
+                        reasoning_item_id = None
+                        reasoning_started = False
+                    if message_started and message_item_id is not None:
+                        sequence += 1
+                        yield _event(
+                            run_id,
+                            thread_id,
+                            sequence,
+                            "message.completed",
+                            item_id=message_item_id,
+                            message_id=logical_message_id,
+                        )
+                        message_started = False
+                        message_item_id = None
                     sequence += 1
                     tool_name = call["name"]
                     if tool_name == "present_structured_answer":
@@ -139,16 +224,45 @@ async def stream_graph_events(
                         event_name = "generative_ui.delta"
                     else:
                         event_name = "tool.call"
+                    stable_id = str(call.get("id") or f"{run_id}:tool:{sequence}")
+                    event_data: dict[str, Any] = {
+                        "tool": tool_name,
+                        "tool_call_id": stable_id,
+                        "arguments": call.get("args", {}),
+                    }
+                    if event_name != "tool.call":
+                        event_data["item_id"] = stable_id
                     yield _event(
                         run_id,
                         thread_id,
                         sequence,
                         event_name,
-                        tool=tool_name,
-                        tool_call_id=call.get("id"),
-                        arguments=call.get("args", {}),
+                        **event_data,
                     )
         elif kind == "on_tool_start":
+            if reasoning_started and reasoning_item_id is not None:
+                sequence += 1
+                yield _event(
+                    run_id,
+                    thread_id,
+                    sequence,
+                    "reasoning.completed",
+                    item_id=reasoning_item_id,
+                )
+                reasoning_item_id = None
+                reasoning_started = False
+            if message_started and message_item_id is not None:
+                sequence += 1
+                yield _event(
+                    run_id,
+                    thread_id,
+                    sequence,
+                    "message.completed",
+                    item_id=message_item_id,
+                    message_id=logical_message_id,
+                )
+                message_started = False
+                message_item_id = None
             sequence += 1
             yield _event(
                 run_id,
@@ -156,6 +270,7 @@ async def stream_graph_events(
                 sequence,
                 "tool.call",
                 tool=item.get("name", "tool"),
+                tool_call_id=str(item.get("run_id") or f"{run_id}:tool:{sequence}"),
                 arguments=data.get("input", {}),
             )
         elif kind == "on_tool_end":
@@ -168,6 +283,7 @@ async def stream_graph_events(
                 sequence,
                 "tool.result",
                 tool=item.get("name", "tool"),
+                tool_call_id=str(item.get("run_id") or f"{run_id}:tool:{sequence - 1}"),
                 content=output,
             )
         elif kind == "on_chat_model_end" and approval_tool_names:
@@ -175,6 +291,29 @@ async def stream_graph_events(
             for call in getattr(output, "tool_calls", None) or []:
                 if call.get("name") not in approval_tool_names:
                     continue
+                if reasoning_started and reasoning_item_id is not None:
+                    sequence += 1
+                    yield _event(
+                        run_id,
+                        thread_id,
+                        sequence,
+                        "reasoning.completed",
+                        item_id=reasoning_item_id,
+                    )
+                    reasoning_item_id = None
+                    reasoning_started = False
+                if message_started and message_item_id is not None:
+                    sequence += 1
+                    yield _event(
+                        run_id,
+                        thread_id,
+                        sequence,
+                        "message.completed",
+                        item_id=message_item_id,
+                        message_id=logical_message_id,
+                    )
+                    message_started = False
+                    message_item_id = None
                 sequence += 1
                 yield _event(
                     run_id,
@@ -182,16 +321,29 @@ async def stream_graph_events(
                     sequence,
                     "tool.approval_requested",
                     tool=call["name"],
-                    tool_call_id=call.get("id"),
+                    tool_call_id=str(call.get("id") or f"{run_id}:tool:{sequence}"),
                     arguments=call.get("args", {}),
                 )
 
-    if reasoning_started:
+    if reasoning_started and reasoning_item_id is not None:
         sequence += 1
-        yield _event(run_id, thread_id, sequence, "reasoning.completed")
-    if message_started:
+        yield _event(
+            run_id,
+            thread_id,
+            sequence,
+            "reasoning.completed",
+            item_id=reasoning_item_id,
+        )
+    if message_started and message_item_id is not None:
         sequence += 1
-        yield _event(run_id, thread_id, sequence, "message.completed")
+        yield _event(
+            run_id,
+            thread_id,
+            sequence,
+            "message.completed",
+            item_id=message_item_id,
+            message_id=logical_message_id,
+        )
 
 
 def create_streaming_graph(

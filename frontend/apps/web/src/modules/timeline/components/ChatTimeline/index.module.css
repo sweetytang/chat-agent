@@ -1,0 +1,82 @@
+.item {
+  min-width: 0;
+}
+
+.loading {
+  display: grid;
+  width: min(620px, 78%);
+  gap: 12px;
+  padding-top: 20px;
+}
+
+.loadingBar {
+  height: 14px;
+  background: var(--surface-muted);
+  border-radius: var(--radius-sm);
+  animation: loading-pulse 1.2s ease-in-out infinite alternate;
+}
+
+.loadingBar:nth-child(2) {
+  width: 88%;
+}
+
+.loadingBar:nth-child(3) {
+  width: 64%;
+}
+
+.waiting {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 16px 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.waitingDot {
+  width: 5px;
+  height: 5px;
+  background: var(--accent);
+  border-radius: 50%;
+  animation: pulse 1.2s infinite ease-in-out;
+}
+
+.waitingDot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.waitingDot:nth-child(3) {
+  margin-right: 5px;
+  animation-delay: 0.3s;
+}
+
+@keyframes pulse {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes loading-pulse {
+  from {
+    opacity: 0.45;
+  }
+
+  to {
+    opacity: 0.9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .waitingDot,
+  .loadingBar {
+    animation: none;
+  }
+}

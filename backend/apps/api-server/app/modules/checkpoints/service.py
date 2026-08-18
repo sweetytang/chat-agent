@@ -3,102 +3,77 @@ from __future__ import annotations
 from collections.abc import Sequence
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Checkpoint, Message, MessageRole, Thread
-from app.modules.runs.repository import RunRepository
+from app.db.models import Checkpoint, Thread
 from app.modules.threads.repository import ThreadRepository
-
-MessageSnapshot = dict[str, Any]
-
-
-@dataclass(frozen=True)
-class MessageCheckpointResult:
-    checkpoint: Checkpoint
-    message: Message
-    messages: tuple[MessageSnapshot, ...]
+from app.modules.timeline.projector import conversation_messages, latest_user_content
+from app.modules.timeline.types import (
+    TimelineSnapshot,
+    checkpoint_timeline,
+    empty_timeline,
+    validate_timeline,
+)
 
 
 @dataclass(frozen=True)
 class RunBranchContext:
     checkpoint_id: UUID
-    messages: tuple[MessageSnapshot, ...]
-    created_checkpoint: Checkpoint | None = None
+    timeline: TimelineSnapshot
+    checkpoint: Checkpoint | None = None
+    input_checkpoint: Checkpoint | None = None
 
 
-def message_snapshot(message: Message) -> MessageSnapshot:
-    role = message.role.value if isinstance(message.role, MessageRole) else str(message.role)
-    return {
-        "id": str(message.id),
-        "role": role,
-        "content": deepcopy(message.content),
-        "checkpoint_id": str(message.checkpoint_id) if message.checkpoint_id else None,
-    }
-
-
-def checkpoint_messages(checkpoint: Checkpoint | None) -> tuple[MessageSnapshot, ...] | None:
-    if checkpoint is None or not isinstance(checkpoint.state, dict):
-        return None
-    messages = checkpoint.state.get("messages")
-    if not isinstance(messages, list):
-        return None
-    return tuple(deepcopy(item) for item in messages if isinstance(item, dict))
-
-
-def model_messages(messages: Sequence[MessageSnapshot]) -> list[dict[str, Any]]:
-    result: list[dict[str, Any]] = []
-    for message in messages:
-        content = message.get("content", {})
-        if isinstance(content, dict):
-            content = content.get("content", "")
-        result.append({"role": str(message.get("role", "user")), "content": content})
-    return result
-
-
-def latest_user_content(messages: Sequence[MessageSnapshot], fallback: str) -> str:
-    for message in reversed(messages):
-        if message.get("role") != MessageRole.USER.value:
-            continue
-        content = message.get("content", {})
-        if isinstance(content, dict):
-            content = content.get("content", "")
-        return content if isinstance(content, str) else fallback
-    return fallback
-
-
-async def append_message_checkpoint(
+async def append_user_checkpoint(
     session: AsyncSession,
     thread: Thread,
     *,
     parent_id: UUID | None,
-    base_messages: Sequence[MessageSnapshot],
-    role: MessageRole,
-    content: dict[str, Any],
+    base_timeline: TimelineSnapshot,
+    content: str,
     run_id: UUID,
     branch_name: str | None = None,
-) -> MessageCheckpointResult:
-    """在同一事务中创建 checkpoint、消息及完整分支快照。"""
-
+) -> tuple[Checkpoint, TimelineSnapshot]:
+    timeline = validate_timeline(base_timeline)
+    item_id = str(uuid4())
+    timeline["items"].append(
+        {
+            "id": item_id,
+            "kind": "message",
+            "run_id": str(run_id),
+            "sequence": -1,
+            "logical_message_id": item_id,
+            "role": "user",
+            "content": content,
+            "status": "completed",
+            "terminal_segment": True,
+        }
+    )
     checkpoint = await ThreadRepository(session).append_checkpoint(
         thread,
-        {"messages": [deepcopy(item) for item in base_messages]},
+        {"timeline": timeline},
         parent_id,
         branch_name,
     )
-    message = await RunRepository(session).append_message(
-        thread.id,
-        role,
-        content,
-        run_id=run_id,
-        checkpoint_id=checkpoint.id,
+    return checkpoint, timeline
+
+
+async def append_agent_checkpoint(
+    session: AsyncSession,
+    thread: Thread,
+    *,
+    parent_id: UUID,
+    base_timeline: TimelineSnapshot,
+    branch_name: str | None = None,
+) -> Checkpoint:
+    return await ThreadRepository(session).append_checkpoint(
+        thread,
+        {"timeline": validate_timeline(base_timeline)},
+        parent_id,
+        branch_name,
     )
-    messages = (*deepcopy(tuple(base_messages)), message_snapshot(message))
-    checkpoint.state = {"messages": list(messages)}
-    await session.flush()
-    return MessageCheckpointResult(checkpoint, message, messages)
 
 
 async def create_run_branch(
@@ -109,83 +84,44 @@ async def create_run_branch(
     mode: str,
     content: str,
     base_checkpoint_id: UUID | None,
-    base_messages: Sequence[MessageSnapshot],
+    base_timeline: TimelineSnapshot,
 ) -> RunBranchContext:
-    if mode == "regenerate":
-        if base_checkpoint_id is None:
-            raise ValueError("重新生成必须指定用户消息 checkpoint")
-        return RunBranchContext(base_checkpoint_id, tuple(deepcopy(tuple(base_messages))))
+    timeline = validate_timeline(base_timeline)
+    input_checkpoint = None
+    input_checkpoint_id = base_checkpoint_id
 
-    result = await append_message_checkpoint(
+    if mode != "regenerate":
+        input_checkpoint, timeline = await append_user_checkpoint(
+            session,
+            thread,
+            parent_id=base_checkpoint_id,
+            base_timeline=timeline,
+            content=content,
+            run_id=run_id,
+            branch_name="编辑分支" if mode == "edit" else None,
+        )
+        input_checkpoint_id = input_checkpoint.id
+    elif input_checkpoint_id is None:
+        raise ValueError("重新生成必须指定用户消息 checkpoint")
+
+    assert input_checkpoint_id is not None
+    agent_checkpoint = await append_agent_checkpoint(
         session,
         thread,
-        parent_id=base_checkpoint_id,
-        base_messages=base_messages,
-        role=MessageRole.USER,
-        content={"content": content},
-        run_id=run_id,
-        branch_name="编辑分支" if mode == "edit" else None,
+        parent_id=input_checkpoint_id,
+        base_timeline=timeline,
+        branch_name="重新生成" if mode == "regenerate" else None,
     )
-    return RunBranchContext(result.checkpoint.id, result.messages, result.checkpoint)
+    return RunBranchContext(
+        agent_checkpoint.id,
+        timeline,
+        checkpoint=agent_checkpoint,
+        input_checkpoint=input_checkpoint,
+    )
 
 
-def project_history_messages(
-    selected_checkpoint: Checkpoint | None,
-    checkpoints: Sequence[Checkpoint],
-    fallback_messages: Sequence[Message],
-) -> list[dict[str, Any]]:
-    snapshots = checkpoint_messages(selected_checkpoint)
-    if snapshots is None:
-        snapshots = tuple(message_snapshot(message) for message in fallback_messages)
-
-    checkpoint_by_id = {str(checkpoint.id): checkpoint for checkpoint in checkpoints}
-    children_by_parent: dict[str | None, list[Checkpoint]] = {}
-    for checkpoint in checkpoints:
-        parent_id = str(checkpoint.parent_id) if checkpoint.parent_id else None
-        children_by_parent.setdefault(parent_id, []).append(checkpoint)
-
-    result: list[dict[str, Any]] = []
-    for snapshot in snapshots:
-        checkpoint_id = snapshot.get("checkpoint_id")
-        checkpoint_key = str(checkpoint_id) if checkpoint_id else None
-        introduced_at = checkpoint_by_id.get(checkpoint_key) if checkpoint_key else None
-        parent_id = (
-            str(introduced_at.parent_id) if introduced_at and introduced_at.parent_id else None
-        )
-        siblings = children_by_parent.get(parent_id, []) if introduced_at else []
-        options = []
-        branch_index = None
-        if len(siblings) > 1:
-            options = [
-                {"checkpoint_id": _latest_descendant_id(sibling, children_by_parent)}
-                for sibling in siblings
-            ]
-            branch_index = next(
-                (
-                    index
-                    for index, sibling in enumerate(siblings)
-                    if introduced_at is not None and sibling.id == introduced_at.id
-                ),
-                None,
-            )
-
-        content = snapshot.get("content", {})
-        if isinstance(content, dict):
-            content = content.get("content", "")
-        if not isinstance(content, str):
-            content = str(content)
-        result.append(
-            {
-                "id": snapshot.get("id"),
-                "role": snapshot.get("role"),
-                "content": deepcopy(content),
-                "checkpoint_id": checkpoint_id,
-                "parent_checkpoint_id": parent_id,
-                "branch_options": options,
-                "branch_index": branch_index,
-            }
-        )
-    return result
+def model_messages(snapshot: TimelineSnapshot) -> list[dict[str, str]]:
+    return conversation_messages(snapshot)
 
 
 def _latest_descendant_id(
@@ -196,3 +132,79 @@ def _latest_descendant_id(
     while children := children_by_parent.get(str(current.id), []):
         current = children[-1]
     return str(current.id)
+
+
+def project_timeline(
+    selected_checkpoint: Checkpoint | None,
+    checkpoints: Sequence[Checkpoint],
+) -> TimelineSnapshot:
+    if selected_checkpoint is None:
+        return empty_timeline()
+
+    snapshot = checkpoint_timeline(selected_checkpoint.state)
+    by_id = {str(checkpoint.id): checkpoint for checkpoint in checkpoints}
+    children_by_parent: dict[str | None, list[Checkpoint]] = {}
+    for checkpoint in checkpoints:
+        parent_id = str(checkpoint.parent_id) if checkpoint.parent_id else None
+        children_by_parent.setdefault(parent_id, []).append(checkpoint)
+
+    lineage: list[Checkpoint] = []
+    current: Checkpoint | None = selected_checkpoint
+    while current is not None:
+        lineage.append(current)
+        current = by_id.get(str(current.parent_id)) if current.parent_id else None
+    lineage.reverse()
+
+    introduced_at: dict[str, Checkpoint] = {}
+    previous_ids: set[str] = set()
+    for checkpoint in lineage:
+        timeline = checkpoint_timeline(checkpoint.state)
+        current_ids = {
+            str(item.get("id")) for item in timeline["items"] if isinstance(item.get("id"), str)
+        }
+        for item_id in current_ids - previous_ids:
+            introduced_at[item_id] = checkpoint
+        previous_ids = current_ids
+
+    result = deepcopy(snapshot)
+    for item in result["items"]:
+        introduced_checkpoint = introduced_at.get(str(item.get("id")))
+        if introduced_checkpoint is None:
+            continue
+        parent_id = (
+            str(introduced_checkpoint.parent_id) if introduced_checkpoint.parent_id else None
+        )
+        siblings = children_by_parent.get(parent_id, [])
+        item["checkpoint_id"] = str(introduced_checkpoint.id)
+        item["parent_checkpoint_id"] = parent_id
+        item["branch_options"] = (
+            [
+                {"checkpoint_id": _latest_descendant_id(sibling, children_by_parent)}
+                for sibling in siblings
+            ]
+            if len(siblings) > 1
+            else []
+        )
+        item["branch_index"] = (
+            next(
+                (
+                    index
+                    for index, sibling in enumerate(siblings)
+                    if sibling.id == introduced_checkpoint.id
+                ),
+                0,
+            )
+            if len(siblings) > 1
+            else None
+        )
+    return result
+
+
+__all__ = [
+    "RunBranchContext",
+    "checkpoint_timeline",
+    "create_run_branch",
+    "latest_user_content",
+    "model_messages",
+    "project_timeline",
+]

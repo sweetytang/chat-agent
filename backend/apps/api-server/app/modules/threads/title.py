@@ -27,7 +27,7 @@ def can_generate_thread_title(title: str | None) -> bool:
 
 
 def local_thread_title(user_content: str, assistant_content: str) -> str | None:
-    """从已持久化问答提取稳定短主题，仅用于 fake、异常和历史回填。"""
+    """从已持久化问答提取稳定短主题，仅用于 fake 和异常降级。"""
 
     user = re.sub(r"\s+", " ", user_content).strip()
     user = re.split(r"[。！？!?；;\n]", user, maxsplit=1)[0].strip(_TRAILING_PUNCTUATION + " ")

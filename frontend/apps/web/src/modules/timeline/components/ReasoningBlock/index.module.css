@@ -1,0 +1,46 @@
+.card {
+  max-width: 760px;
+  margin: 12px 0;
+  color: var(--text-secondary);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.trigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  color: var(--text-primary);
+  background: transparent;
+  border: 0;
+}
+
+.trigger span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.trigger svg:last-child {
+  transition: transform var(--motion-fast);
+}
+
+.trigger[data-state='open'] svg:last-child {
+  transform: rotate(180deg);
+}
+
+.content {
+  padding: 0 14px 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger svg:last-child {
+    transition: none;
+  }
+}

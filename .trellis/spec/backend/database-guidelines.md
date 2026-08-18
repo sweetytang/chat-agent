@@ -167,10 +167,6 @@ async def set_title_after_first_round(
     assistant_content: str,
 ) -> bool: ...
 
-async def first_qa_pairs(
-    self,
-    thread_ids: list[UUID],
-) -> dict[UUID, tuple[Message, Message]]: ...
 ```
 
 - `threads.title` remains nullable and stores at most 255 characters.
@@ -181,7 +177,8 @@ async def first_qa_pairs(
 - Generate the title only after a normal `send` produces exactly the first complete `user -> assistant` round.
 - Use the configured chat provider to summarize both messages. Fake providers and provider failures use a deterministic local short-topic fallback.
 - Existing non-empty custom titles are immutable. `null`, blank, and legacy `新对话` values are eligible.
-- `GET /api/threads` lazily backfills eligible legacy rows from a single batched message query and never performs one model call per row.
+- 标题输入从 checkpoint timeline 派生的第一个完整 `user -> assistant` 逻辑消息对读取；多个 assistant 文本段按 `logical_message_id` 合并。
+- `GET /api/threads` 不回填旧 messages 数据，也不依赖已删除的 messages 表。
 - API clients render long titles with CSS ellipsis; they do not rewrite persisted title text.
 
 ### 4. Validation & Error Matrix
@@ -192,8 +189,8 @@ async def first_qa_pairs(
 | Mode is `edit` or `regenerate` | Do not generate a title |
 | Existing title is non-empty and not `新对话` | Preserve it |
 | Provider returns unusable output or raises | Use local fallback; do not fail the completed run |
-| Historical thread has no complete first pair | Leave title unchanged |
-| Message content is not text | Skip historical backfill |
+| Timeline 未形成完整首轮 | Leave title unchanged |
+| 非消息条目夹在 assistant 文本段之间 | 只合并同 `logical_message_id` 的文本内容 |
 
 ### 5. Good/Base/Bad Cases
 
@@ -204,8 +201,8 @@ async def first_qa_pairs(
 ### 6. Tests Required
 
 - Unit: output normalization, eligibility, first-round detection, provider fallback, and title immutability.
-- Repository: one batched query returns only the first consecutive user/assistant pair per thread.
-- Route: listing threads backfills legacy values and preserves existing titles.
+- Projector: timeline 只派生第一个完整 user/assistant 逻辑消息对。
+- Route: listing threads does not query or backfill deleted message history.
 - Run integration: the first successful send persists the title; later sends, edits, and regenerations do not overwrite it.
 
 ### 7. Wrong vs Correct
@@ -221,11 +218,71 @@ thread.title = first_user_message[:255]
 ```python
 await set_title_after_first_round(
     thread,
-    checkpoint.messages,
+    model_messages(recorder.snapshot),
     mode=request.mode,
     user_content=prompt_content,
     assistant_content=assistant_content,
 )
+```
+
+## 场景：Timeline checkpoint 是唯一会话持久化
+
+### 1. Scope / Trigger
+
+- 修改 checkpoint、会话内容 API、运行收尾、分支或 messages 数据模型。
+
+### 2. Signatures
+
+```text
+checkpoints.state = { "timeline": { "version": 1, "items": [...] } }
+GET /api/threads/{thread_id}/timeline -> ThreadTimelineResponse
+0006_drop_messages.upgrade() -> drop messages
+0006_drop_messages.downgrade() -> RuntimeError
+```
+
+### 3. Contracts
+
+- checkpoint state 顶层只能包含 `timeline`；旧 `{messages: ...}` 状态明确拒绝。
+- 每次 agent 尝试拥有独立 checkpoint，只更新当前尝试，不修改祖先。
+- `TimelineRecorder` 从 checkpoint 最新 state 初始化，忽略可能过期的内存 branch snapshot。
+- 跨 HTTP/SSE 请求的内存状态应优先保存 ID 和不可变快照；其中的 SQLAlchemy ORM 实例必须视为 detached，不得直接持久化。恢复请求必须用已鉴权 Run 的 `thread_id + checkpoint_id` 在当前 Session 重载 checkpoint。
+- 完成、审批中断、失败、取消和连接断开都必须 flush；连接断开保留部分内容并追加可重试错误。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|---|---|
+| state 顶层包含 timeline 以外字段 | `ValueError` / API 409 |
+| timeline version 不是 1 | `ValueError` / API 409 |
+| 恢复上下文的 snapshot 旧于 checkpoint | 以 checkpoint state 为准 |
+| 持久化审批恢复时无当前 Session | API 503 |
+| 审批 checkpoint 已删除或不属于已鉴权线程 | API 409，不使用内存 detached 对象继续 |
+| 连接非显式取消地断开 | run 置 cancelled，保留部分 timeline 并记录中断错误 |
+| 执行 0006 downgrade | 拒绝，不伪造已删除数据 |
+
+### 5. Good / Base / Bad Cases
+
+- Good：运行中断开后重新打开会话，已生成推理、文本和工具状态仍按原顺序存在。
+- Base：新会话从空 timeline 创建 user checkpoint 和 agent checkpoint。
+- Bad：收尾时用创建 run 时的空 snapshot 覆盖 checkpoint，或在新请求中修改 `PendingReview` 保存的 detached checkpoint。
+
+### 6. Tests Required
+
+- timeline v1 验证、上下文派生和分支投影单测。
+- recorder 新鲜快照、delta flush、失败/取消/断连终态回归。
+- 审批恢复跨 Session 回归：关闭首个 Session 制造 detached checkpoint，在新 Session 完成 resume，再用第三个 Session 断言 tool/result/assistant 终态已落库。
+- timeline API 所有权、非法 checkpoint 409 和分支元数据测试。
+- Alembic upgrade 断言 messages 表删除，downgrade 断言不可逆。
+
+### 7. Wrong vs Correct
+
+```python
+# Wrong: detached ORM object belongs to the previous request Session
+resumed_context = pending.branch_context
+
+# Correct: reload through the authenticated run in the current Session
+checkpoint = await repository.get_checkpoint(persisted_run.thread_id, checkpoint_id)
+resumed_context = replace(pending.branch_context, checkpoint=checkpoint)
 ```
 
 ## 场景：线程重命名、置顶与删除
@@ -262,7 +319,7 @@ class ThreadResponse(BaseModel):
 - PATCH 至少提供一个字段；省略字段不得覆盖原值。
 - title 保存前去除首尾空白，最大 255 字符；手工 Rename 后不再被首轮自动摘要覆盖。
 - 列表排序固定为 `is_pinned DESC, updated_at DESC`，前端直接消费后端顺序。
-- DELETE 删除线程及其由外键 `ON DELETE CASCADE` 关联的 runs、messages、checkpoints 与 interrupts。
+- DELETE 删除线程及其由外键 `ON DELETE CASCADE` 关联的 runs、checkpoints 与 interrupts。
 - PATCH 和 DELETE 都先用 `(thread_id, user_id)` 查询所有权；不可见资源统一返回 404。
 
 ### 4. Validation & Error Matrix

@@ -37,3 +37,24 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 2: 统一流式时间线与 MCP 审核恢复
+
+**Date**: 2026-08-18
+**Task**: 统一流式时间线与 MCP 审核恢复
+**Branch**: `master`
+
+### Summary
+
+将消息、推理、工具、审批与展示事件统一为按生成顺序持久化的 timeline；删除旧 messages/history 双轨；修复 MCP 审核恢复跨 Session detached checkpoint 导致状态回退的问题，并补齐跨 Session 回归测试。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cc16cc1` | (see git log) |
+
+### Status
+
+[OK] **Completed**

@@ -16,37 +16,54 @@ export function createFrameEventDispatcher(
   cancelFrame: CancelFrame = (frameId) => window.cancelAnimationFrame(frameId),
 ): FrameEventDispatcher {
   let frameId: number | null = null;
-  let pendingDelta: AgentEvent | null = null;
+  let pendingDeltas: AgentEvent[] = [];
+
+  function isDelta(event: AgentEvent): boolean {
+    return (
+      event.event === 'message.delta' ||
+      event.event === 'reasoning.delta' ||
+      event.event === 'structured_output.delta' ||
+      event.event === 'generative_ui.delta'
+    );
+  }
+
+  function itemId(event: AgentEvent): unknown {
+    return event.data.item_id;
+  }
 
   function flush() {
     if (frameId !== null) {
       cancelFrame(frameId);
       frameId = null;
     }
-    if (!pendingDelta) return;
-    const event = pendingDelta;
-    pendingDelta = null;
-    dispatch(event);
+    const events = pendingDeltas;
+    pendingDeltas = [];
+    events.forEach(dispatch);
   }
 
   function cancel() {
     if (frameId !== null) cancelFrame(frameId);
     frameId = null;
-    pendingDelta = null;
+    pendingDeltas = [];
   }
 
   function push(event: AgentEvent) {
     // 对于其他事件，立即刷新并分发
-    if (event.event !== 'message.delta') {
+    if (!isDelta(event)) {
       flush();
       dispatch(event);
       return;
     }
 
     // 对于message.delta事件，合并同一帧内收到的多个事件，通过requestAnimationFrame进行节流，flush分发，减少渲染次数
-    const previousContent = pendingDelta?.data.content;
+    const previous = pendingDeltas.at(-1);
+    const canMerge =
+      previous?.event === event.event &&
+      itemId(previous) === itemId(event) &&
+      (event.event === 'message.delta' || event.event === 'reasoning.delta');
+    const previousContent = canMerge ? previous.data.content : '';
     const content = event.data.content;
-    pendingDelta = {
+    const pending = {
       ...event,
       data: {
         ...event.data,
@@ -55,6 +72,8 @@ export function createFrameEventDispatcher(
           (typeof content === 'string' ? content : ''),
       },
     };
+    if (canMerge) pendingDeltas[pendingDeltas.length - 1] = pending;
+    else pendingDeltas.push(pending);
 
     /** 等同于
      * if (frameId === null || frameId === undefined) {

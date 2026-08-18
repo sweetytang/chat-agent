@@ -1,0 +1,5 @@
+{"file":".trellis/spec/frontend/visual-system.md","reason":"约束消息与展示卡片的有序投影、流式 Markdown、按会话状态、Radix 折叠交互、语义 token 和可访问行为。"}
+{"file":".trellis/spec/backend/task-runtime-architecture.md","reason":"约束 RuntimeEvent、兼容 BusinessEvent、SSE 适配边界、持久化运行事实和审批恢复语义。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"核对 Runtime → SSE → Store → checkpoint → history API → UI 的字段、顺序、标识和分支往返。"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"确保事件归一化与时间线状态转换集中在 reducer/projector，不在组件和运行分支重复解析。"}
+{"file":".trellis/tasks/08-18-streaming-all-events/research/current-event-flow.md","reason":"提供当前 Chat 分区渲染、Store 投影、SSE 标识、checkpoint 快照与历史接口的代码证据和设计边界。"}

@@ -71,3 +71,13 @@ def test_mcp_preference_migration_deduplicates_and_adds_unique_constraints() -> 
     assert '"uq_mcp_user_server"' in source
     assert '"uq_mcp_user_tool"' in source
     assert 'type_="unique"' in source
+
+
+def test_messages_are_removed_by_irreversible_timeline_migration() -> None:
+    migration = Path(__file__).parents[1] / "migrations" / "versions" / "0006_drop_messages.py"
+    source = migration.read_text()
+
+    assert 'revision = "0006_drop_messages"' in source
+    assert 'down_revision = "0005_mcp_preferences_unique"' in source
+    assert 'op.drop_table("messages")' in source
+    assert "迁移不可逆" in source

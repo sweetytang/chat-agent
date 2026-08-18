@@ -57,14 +57,22 @@ test('相同 sequence 的不同会话事件分别进入各自投影', () => {
   const store = useRunStore.getState();
   store.applyEvent(event('thread-a', 1, 'run.started'));
   store.applyEvent(event('thread-b', 1, 'run.started'));
-  store.applyEvent(event('thread-a', 2, 'message.started', { message_id: 'message-a' }));
-  store.applyEvent(event('thread-b', 2, 'message.started', { message_id: 'message-b' }));
-  store.applyEvent(event('thread-a', 3, 'message.delta', { content: 'A 的回答' }));
-  store.applyEvent(event('thread-b', 3, 'message.delta', { content: 'B 的回答' }));
+  store.applyEvent(
+    event('thread-a', 2, 'message.started', { item_id: 'segment-a', message_id: 'message-a' }),
+  );
+  store.applyEvent(
+    event('thread-b', 2, 'message.started', { item_id: 'segment-b', message_id: 'message-b' }),
+  );
+  store.applyEvent(
+    event('thread-a', 3, 'message.delta', { item_id: 'segment-a', content: 'A 的回答' }),
+  );
+  store.applyEvent(
+    event('thread-b', 3, 'message.delta', { item_id: 'segment-b', content: 'B 的回答' }),
+  );
 
   const state = useRunStore.getState();
-  assert.equal(selectThreadRun(state, 'thread-a').history.at(-1).content, 'A 的回答');
-  assert.equal(selectThreadRun(state, 'thread-b').history.at(-1).content, 'B 的回答');
+  assert.equal(selectThreadRun(state, 'thread-a').timeline.items.at(-1).content, 'A 的回答');
+  assert.equal(selectThreadRun(state, 'thread-b').timeline.items.at(-1).content, 'B 的回答');
   assert.equal(selectThreadRun(state, 'thread-a').lastSequence, 3);
   assert.equal(selectThreadRun(state, 'thread-b').lastSequence, 3);
 });
@@ -85,7 +93,15 @@ test('停止和待审核状态都只修改目标会话', () => {
   store.applyEvent(event('thread-a', 1, 'run.started'));
   store.applyEvent(event('thread-b', 1, 'run.started'));
   store.applyEvent(
-    event('thread-a', 2, 'tool.approval_required', {
+    event('thread-a', 2, 'tool.call', {
+      tool_call_id: 'call-a',
+      tool: 'shell',
+      arguments: {},
+    }),
+  );
+  store.applyEvent(
+    event('thread-a', 3, 'tool.approval_required', {
+      tool_call_id: 'call-a',
       request_id: 'approval-a',
       tool: 'shell',
     }),
@@ -102,13 +118,21 @@ test('停止和待审核状态都只修改目标会话', () => {
 test('审核恢复立即关闭目标会话的可操作审核项，不影响其他会话', () => {
   const store = useRunStore.getState();
   store.applyEvent(
-    event('thread-a', 1, 'tool.approval_required', {
+    event('thread-a', 1, 'tool.call', { tool_call_id: 'call-a', tool: 'shell', arguments: {} }),
+  );
+  store.applyEvent(
+    event('thread-a', 2, 'tool.approval_required', {
+      tool_call_id: 'call-a',
       request_id: 'approval-a',
       tool: 'shell',
     }),
   );
   store.applyEvent(
-    event('thread-b', 1, 'tool.approval_required', {
+    event('thread-b', 1, 'tool.call', { tool_call_id: 'call-b', tool: 'browser', arguments: {} }),
+  );
+  store.applyEvent(
+    event('thread-b', 2, 'tool.approval_required', {
+      tool_call_id: 'call-b',
       request_id: 'approval-b',
       tool: 'browser',
     }),
@@ -128,56 +152,70 @@ test('demo-thread 乐观投影可迁移到真实会话', () => {
   store.migrateThread('demo-thread', 'thread-created');
 
   const state = useRunStore.getState();
-  assert.equal(selectThreadRun(state, 'demo-thread').history.length, 0);
-  assert.equal(selectThreadRun(state, 'thread-created').history[0].content, '第一条消息');
+  assert.equal(selectThreadRun(state, 'demo-thread').timeline.items.length, 0);
+  assert.equal(selectThreadRun(state, 'thread-created').timeline.items[0].content, '第一条消息');
 });
 
 test('运行中的旧快照不会覆盖实时消息投影，终态快照仍可校准历史', () => {
   const store = useRunStore.getState();
   store.beginRun('thread-a', '新问题');
   store.applyEvent(event('thread-a', 1, 'run.started'));
-  store.applyEvent(event('thread-a', 2, 'message.started', { message_id: 'message-a' }));
-  store.applyEvent(event('thread-a', 3, 'message.delta', { content: '实时回答' }));
+  store.applyEvent(
+    event('thread-a', 2, 'message.started', { item_id: 'segment-a', message_id: 'message-a' }),
+  );
+  store.applyEvent(
+    event('thread-a', 3, 'message.delta', { item_id: 'segment-a', content: '实时回答' }),
+  );
 
-  store.setHistory(
+  store.setTimeline(
     'thread-a',
-    [
-      {
-        id: 'old-message',
-        role: 'assistant',
-        content: '落后的后端快照',
-        checkpoint_id: null,
-        parent_checkpoint_id: null,
-        branch_options: [],
-        branch_index: null,
-      },
-    ],
+    {
+      version: 1,
+      items: [
+        {
+          id: 'old-message',
+          kind: 'message',
+          run_id: null,
+          sequence: 1,
+          logical_message_id: 'old-message',
+          role: 'assistant',
+          content: '落后的后端快照',
+          status: 'completed',
+          terminal_segment: true,
+        },
+      ],
+    },
     true,
   );
   assert.equal(
-    selectThreadRun(useRunStore.getState(), 'thread-a').history.at(-1).content,
+    selectThreadRun(useRunStore.getState(), 'thread-a').timeline.items.at(-1).content,
     '实时回答',
   );
 
   store.applyEvent(event('thread-a', 4, 'run.completed'));
-  store.setHistory(
+  store.setTimeline(
     'thread-a',
-    [
-      {
-        id: 'final-message',
-        role: 'assistant',
-        content: '最终后端历史',
-        checkpoint_id: null,
-        parent_checkpoint_id: null,
-        branch_options: [],
-        branch_index: null,
-      },
-    ],
+    {
+      version: 1,
+      items: [
+        {
+          id: 'final-message',
+          kind: 'message',
+          run_id: null,
+          sequence: 1,
+          logical_message_id: 'final-message',
+          role: 'assistant',
+          content: '最终后端时间线',
+          status: 'completed',
+          terminal_segment: true,
+        },
+      ],
+    },
     true,
   );
   assert.equal(
-    selectThreadRun(useRunStore.getState(), 'thread-a').history.at(-1).content,
-    '最终后端历史',
+    selectThreadRun(useRunStore.getState(), 'thread-a').timeline.items.at(-1).content,
+    '最终后端时间线',
   );
 });
 

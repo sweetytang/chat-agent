@@ -1,18 +1,17 @@
 import { memo, useState } from 'react';
 
 import { MessageContent } from '@/modules/chat/components/MessageContent';
-import { BranchSwitcher } from '@/modules/checkpoints/components/BranchSwitcher';
-import { getMessageBranchIndex } from '@/modules/checkpoints/domain/history';
-import type { HistoryMessage } from '@/modules/threads/types/history';
+import { TimelineBranchControls } from '@/modules/timeline/components/TimelineBranchControls';
+import type { MessageItem } from '@/modules/timeline/types';
 
 import styles from './index.module.css';
 
 interface MessageBubbleProps {
-  message: HistoryMessage;
+  message: MessageItem;
   disabled?: boolean;
   onBranchSwitch: (checkpointId: string) => void;
-  onEdit: (message: HistoryMessage, content: string) => void;
-  onRegenerate: (message: HistoryMessage) => void;
+  onEdit: (message: MessageItem, content: string) => void;
+  onRegenerate: (message: MessageItem) => void;
 }
 
 function MessageBubbleComponent({
@@ -26,8 +25,6 @@ function MessageBubbleComponent({
   const [isEditing, setIsEditing] = useState(false);
   const isUser = message.role === 'user';
   const isAssistant = message.role === 'assistant';
-  const branchIndex = getMessageBranchIndex(message);
-
   function cancelEditing() {
     setDraft(message.content);
     setIsEditing(false);
@@ -64,12 +61,11 @@ function MessageBubbleComponent({
         ) : (
           <>
             {message.content ? <MessageContent content={message.content} /> : '…'}
-            {(isUser || isAssistant) && (
+            {message.terminal_segment && (isUser || isAssistant) && (
               <div className={styles.actions}>
-                <BranchSwitcher
-                  branchOptions={message.branch_options}
-                  currentIndex={branchIndex}
+                <TimelineBranchControls
                   disabled={disabled}
+                  item={message}
                   onSwitch={onBranchSwitch}
                 />
                 {isUser && (

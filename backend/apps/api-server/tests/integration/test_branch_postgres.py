@@ -50,16 +50,19 @@ def test_edit_regenerate_and_switch_round_trip_with_postgres(client: TestClient)
     generated_title = client.get(f"/api/threads/{thread_id}").json()["title"]
     assert generated_title == "原问题 附加说明相关讨论"
     assert generated_title != "原问题 附加说明"
-    original = client.get(f"/api/threads/{thread_id}/history").json()
-    assert [message["role"] for message in original["messages"]] == ["user", "assistant"]
-    original_user, original_assistant = original["messages"]
+    original = client.get(f"/api/threads/{thread_id}/timeline").json()
+    messages = [item for item in original["timeline"]["items"] if item["kind"] == "message"]
+    assert [message["role"] for message in messages] == ["user", "assistant"]
+    original_user, original_assistant = messages
     assert original_user["parent_checkpoint_id"] is None
     assert original_assistant["parent_checkpoint_id"] == original_user["checkpoint_id"]
 
     stream(client, thread_id, "编辑后的问题", original_user["parent_checkpoint_id"], "edit")
     assert client.get(f"/api/threads/{thread_id}").json()["title"] == generated_title
-    edited = client.get(f"/api/threads/{thread_id}/history").json()
-    edited_user, edited_assistant = edited["messages"]
+    edited = client.get(f"/api/threads/{thread_id}/timeline").json()
+    edited_user, edited_assistant = [
+        item for item in edited["timeline"]["items"] if item["kind"] == "message"
+    ]
     assert edited_user["content"] == "编辑后的问题"
     assert edited_user["branch_index"] == 1
     assert len(edited_user["branch_options"]) == 2
@@ -69,7 +72,8 @@ def test_edit_regenerate_and_switch_round_trip_with_postgres(client: TestClient)
     switched = client.post(f"/api/threads/{thread_id}/checkpoints/{original_head}/switch")
     assert switched.status_code == 200
     assert (
-        client.get(f"/api/threads/{thread_id}/history").json()["messages"][0]["content"] == "原问题"
+        client.get(f"/api/threads/{thread_id}/timeline").json()["timeline"]["items"][0]["content"]
+        == "原问题"
     )
 
     assert (
@@ -82,8 +86,10 @@ def test_edit_regenerate_and_switch_round_trip_with_postgres(client: TestClient)
         edited_assistant["parent_checkpoint_id"],
         "regenerate",
     )
-    regenerated = client.get(f"/api/threads/{thread_id}/history").json()
-    regenerated_user, regenerated_assistant = regenerated["messages"]
+    regenerated = client.get(f"/api/threads/{thread_id}/timeline").json()
+    regenerated_user, regenerated_assistant = [
+        item for item in regenerated["timeline"]["items"] if item["kind"] == "message"
+    ]
     assert regenerated_user["id"] == edited_user["id"]
     assert regenerated_assistant["branch_index"] == 1
     assert len(regenerated_assistant["branch_options"]) == 2

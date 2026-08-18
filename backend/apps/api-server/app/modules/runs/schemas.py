@@ -31,3 +31,4 @@ class PendingReview:
     persisted: bool = False
     mcp_snapshot: McpToolSnapshot | None = None
     arguments: dict[str, Any] | None = None
+    tool_call_id: str | None = None

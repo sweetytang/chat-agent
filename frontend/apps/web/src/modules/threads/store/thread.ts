@@ -13,7 +13,7 @@ import { createLatestRequestTracker } from '@/modules/threads/domain/latestReque
 import {
   createThread as createThreadRequest,
   deleteThread as deleteThreadRequest,
-  getThreadHistory,
+  getThreadTimeline,
   listThreads,
   updateThread as updateThreadRequest,
 } from '@/modules/threads/services/threadApi';
@@ -22,12 +22,12 @@ import type { ThreadSummary } from '@/modules/threads/types/thread';
 const DEMO_THREAD_ID = 'demo-thread';
 
 async function loadThreadSnapshot(threadId: string) {
-  const [history, checkpoints, pendingInterrupt] = await Promise.all([
-    getThreadHistory(threadId),
+  const [timeline, checkpoints, pendingInterrupt] = await Promise.all([
+    getThreadTimeline(threadId),
     listCheckpoints(threadId),
     getPendingInterrupt(threadId),
   ]);
-  return { history, checkpoints, pendingInterrupt };
+  return { timeline, checkpoints, pendingInterrupt };
 }
 
 let latestThreadsRequestId = 0; // 线程列表加载，过滤旧请求，只取最新结果；全局记录
@@ -202,14 +202,14 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
       refreshingThreads: { ...state.refreshingThreads, [threadId]: true },
     }));
     try {
-      const { history, checkpoints, pendingInterrupt } = await loadThreadSnapshot(threadId);
+      const { timeline, checkpoints, pendingInterrupt } = await loadThreadSnapshot(threadId);
       if (!snapshotRequests.isLatest(threadId, requestId)) return;
 
       const runStore = useRunStore.getState();
-      runStore.setHistory(threadId, history.messages, preserveRunState);
+      runStore.setTimeline(threadId, timeline.timeline, preserveRunState);
       runStore.setPendingApproval(threadId, pendingInterrupt, preserveRunState);
       if (get().threadId === threadId)
-        set({ checkpoints, currentCheckpointId: history.current_checkpoint_id });
+        set({ checkpoints, currentCheckpointId: timeline.current_checkpoint_id });
     } catch (error) {
       if (snapshotRequests.isLatest(threadId, requestId))
         useRunStore
@@ -238,14 +238,14 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
     }));
     try {
       await switchCheckpointRequest(threadId, checkpointId);
-      const { history, checkpoints, pendingInterrupt } = await loadThreadSnapshot(threadId);
+      const { timeline, checkpoints, pendingInterrupt } = await loadThreadSnapshot(threadId);
       if (!snapshotRequests.isLatest(threadId, requestId)) return;
 
       const runStore = useRunStore.getState();
-      runStore.setHistory(threadId, history.messages);
+      runStore.setTimeline(threadId, timeline.timeline);
       runStore.setPendingApproval(threadId, pendingInterrupt);
       if (get().threadId === threadId)
-        set({ checkpoints, currentCheckpointId: history.current_checkpoint_id });
+        set({ checkpoints, currentCheckpointId: timeline.current_checkpoint_id });
     } catch (error) {
       if (snapshotRequests.isLatest(threadId, requestId))
         useRunStore

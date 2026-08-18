@@ -1,19 +1,10 @@
-import { Brain, Wrench } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { AppShell } from '@/app/components/AppShell';
 import { useAuthStore } from '@/modules/auth/store/auth';
 import { ChatComposer } from '@/modules/chat/components/ChatComposer';
-import { InlineErrorCard } from '@/modules/chat/components/InlineErrorCard';
-import { MessageBubble } from '@/modules/chat/components/MessageBubble';
 import { WelcomePanel } from '@/modules/chat/components/WelcomePanel';
-import {
-  findPreviousUserContent,
-  historyBeforeMessage,
-} from '@/modules/checkpoints/domain/history';
-import { ApprovalCard } from '@/modules/interrupts/components/ApprovalCard';
-import { GenerativeUICard } from '@/modules/presentation/components/GenerativeUICard';
-import { StructuredOutputCard } from '@/modules/presentation/components/StructuredOutputCard';
+import { resolveInterrupt } from '@/modules/interrupts/services/interruptApi';
 import { abortActiveStream, abortAllStreams } from '@/modules/runs/domain/activeStream';
 import { consumeRunStream } from '@/modules/runs/domain/runStream';
 import { isActiveRunStatus } from '@/modules/runs/domain/status';
@@ -21,8 +12,16 @@ import { stopRun } from '@/modules/runs/domain/stopRun';
 import { cancelRun, RUN_STREAM_URL } from '@/modules/runs/services/runApi';
 import { selectThreadRun, useRunStore, type RunRequestContext } from '@/modules/runs/store/run';
 import { RunStatus } from '@/modules/runs/types/events';
+import { ChatTimeline } from '@/modules/timeline/components/ChatTimeline';
+import {
+  findPreviousUserContent,
+  timelineBeforeAssistantAttempt,
+  timelineBeforeItem,
+} from '@/modules/timeline/domain/conversation';
+import { useSmartScroll } from '@/modules/timeline/domain/useSmartScroll';
+import type { MessageItem, RunStreamRequest } from '@/modules/timeline/types';
 import { useThreadStore } from '@/modules/threads/store/thread';
-import type { HistoryMessage, RunStreamRequest } from '@/modules/threads/types/history';
+import { API_ROOT } from '@/shared/http/client';
 
 import styles from './index.module.css';
 
@@ -36,23 +35,20 @@ function ownsRunRequest(request: RunRequestContext): boolean {
 export function Chat() {
   const [input, setInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resolvingApprovalId, setResolvingApprovalId] = useState<string | null>(null);
   const submitLockRef = useRef(false);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const scrollRef = useRef<HTMLElement | null>(null);
 
   const threadId = useThreadStore((state) => state.threadId);
   const isRefreshing = useThreadStore((state) => Boolean(state.refreshingThreads[threadId]));
   const token = useAuthStore((state) => state.token);
-  const {
-    history,
-    status,
-    error,
-    reasoning,
-    presentationItems,
-    pendingApproval,
-    lastRequest
-  } = useRunStore((state) => selectThreadRun(state, threadId));
+  const { timeline, status, pendingApproval, lastRequest } = useRunStore((state) =>
+    selectThreadRun(state, threadId),
+  );
   const active = isActiveRunStatus(status);
   const controlsDisabled = active || isRefreshing || isSubmitting;
+  const { hasNewContent, scrollToBottom } = useSmartScroll(scrollRef, timeline, threadId);
 
   useEffect(() => {
     window.addEventListener('beforeunload', abortAllStreams);
@@ -75,7 +71,7 @@ export function Chat() {
     runStore.beginRun(
       options.threadId,
       options.showUserMessage ? options.content : undefined,
-      options.baseHistory,
+      options.baseTimeline,
     );
     try {
       await consumeRunStream({
@@ -144,32 +140,32 @@ export function Chat() {
     }
   }
 
-  function editMessage(message: HistoryMessage, content: string) {
+  function editMessage(message: MessageItem, content: string) {
     const targetThreadId = threadId;
-    const currentHistory = selectThreadRun(useRunStore.getState(), targetThreadId).history;
+    const currentTimeline = selectThreadRun(useRunStore.getState(), targetThreadId).timeline;
     void startRun({
       content,
-      checkpointId: message.parent_checkpoint_id,
+      checkpointId: message.parent_checkpoint_id ?? null,
       mode: 'edit',
       showUserMessage: true,
-      baseHistory: historyBeforeMessage(currentHistory, message.id),
+      baseTimeline: timelineBeforeItem(currentTimeline, message.id),
       threadId: targetThreadId,
     });
   }
 
-  function regenerateMessage(message: HistoryMessage) {
+  function regenerateMessage(message: MessageItem) {
     const targetThreadId = threadId;
-    const currentHistory = selectThreadRun(useRunStore.getState(), targetThreadId).history;
-    const content = findPreviousUserContent(currentHistory, message.id);
+    const currentTimeline = selectThreadRun(useRunStore.getState(), targetThreadId).timeline;
+    const content = findPreviousUserContent(currentTimeline.items, message.id);
     if (!content) {
       useRunStore.getState().setRunError(targetThreadId, '找不到该回复对应的用户消息');
       return;
     }
     void startRun({
       content,
-      checkpointId: message.parent_checkpoint_id,
+      checkpointId: message.parent_checkpoint_id ?? null,
       mode: 'regenerate',
-      baseHistory: historyBeforeMessage(currentHistory, message.id),
+      baseTimeline: timelineBeforeAssistantAttempt(currentTimeline, message.id),
       threadId: targetThreadId,
     });
   }
@@ -190,6 +186,54 @@ export function Chat() {
     }
   }
 
+  async function resolveApproval(
+    requestId: string,
+    runId: string,
+    decision: 'approve' | 'edit' | 'reject',
+  ) {
+    if (!useAuthStore.getState().token) return;
+    const targetThreadId = threadId;
+    setResolvingApprovalId(requestId);
+    useRunStore.getState().prepareResume(targetThreadId);
+    try {
+      await resolveInterrupt(requestId, decision);
+      const currentRun = selectThreadRun(useRunStore.getState(), targetThreadId);
+      if (
+        !useAuthStore.getState().token ||
+        currentRun.runId !== runId ||
+        currentRun.status !== RunStatus.Resuming
+      )
+        return;
+      await consumeRunStream({
+        threadId: targetThreadId,
+        url: `${API_ROOT}/runs/${runId}/resume`,
+        body: { request_id: requestId, decision },
+        onEvent: (event) => useRunStore.getState().applyEvent(event),
+      });
+    } catch (error) {
+      const currentRun = selectThreadRun(useRunStore.getState(), targetThreadId);
+      if (
+        useAuthStore.getState().token &&
+        currentRun.runId === runId &&
+        isActiveRunStatus(currentRun.status)
+      )
+        useRunStore
+          .getState()
+          .setRunError(
+            targetThreadId,
+            error instanceof Error ? error.message : '审核恢复失败',
+            RunStatus.Failed,
+          );
+    } finally {
+      const currentRun = selectThreadRun(useRunStore.getState(), targetThreadId);
+      if (useAuthStore.getState().token && currentRun.runId === runId) {
+        await useThreadStore.getState().refreshThread(targetThreadId, true);
+        await useThreadStore.getState().loadThreads();
+      }
+      setResolvingApprovalId((current) => (current === requestId ? null : current));
+    }
+  }
+
   function fillPrompt(prompt: string) {
     setInput(prompt);
     setTimeout(() => composerRef.current?.focus(), 0);
@@ -198,120 +242,36 @@ export function Chat() {
   return (
     <AppShell>
       <main className={styles.page}>
-        <section className={styles.scroll} aria-live="polite">
+        <section className={styles.scroll} aria-live="polite" ref={scrollRef}>
           <div className={styles.messages}>
-            {isRefreshing && history.length === 0 ? (
-              <div
-                className={styles.chatLoading}
-                aria-label="正在加载会话"
-                aria-live="polite"
-                role="status"
-              >
-                <span className={styles.loadingLine} />
-                <span className={styles.loadingLine} />
-                <span className={styles.loadingLine} />
-              </div>
-            ) : history.length === 0 && !active ? (
-              <WelcomePanel authenticated={Boolean(token)} onPrompt={fillPrompt} />
-            ) : (
-              history.map((message) => (
-                <MessageBubble
-                  disabled={controlsDisabled}
-                  key={message.id}
-                  message={message}
-                  onBranchSwitch={(checkpointId) =>
-                    void useThreadStore.getState().switchCheckpoint(checkpointId)
-                  }
-                  onEdit={editMessage}
-                  onRegenerate={regenerateMessage}
-                />
-              ))
-            )}
-            {active && history.at(-1)?.role !== 'assistant' && (
-              <div className={styles.waiting}>
-                <span />
-                <span />
-                <span />
-                正在思考
-              </div>
-            )}
-            {reasoning && (
-              <aside className={styles.reasoning}>
-                <Brain size={17} />
-                <div>
-                  <strong>思考摘要</strong>
-                  <p>{reasoning}</p>
-                </div>
-              </aside>
-            )}
-            {presentationItems.map((item) => {
-              if (item.kind === 'structured-output')
-                return <StructuredOutputCard key={item.id} value={item.data} />;
-              if (item.kind === 'generative-ui')
-                return <GenerativeUICard key={item.id} value={item.data} />;
-              if (item.kind === 'tool-result')
-                return (
-                  <section className={styles.toolCard} key={item.id}>
-                    <Wrench size={17} />
-                    <div>
-                      <strong>
-                        {typeof item.data.tool === 'string' ? item.data.tool : '工具结果'}
-                      </strong>
-                      <pre>{JSON.stringify(item.data.content, null, 2)}</pre>
-                    </div>
-                  </section>
-                );
-              if (item.kind === 'approval') {
-                const requestId =
-                  typeof item.data.request_id === 'string' ? item.data.request_id : '';
-                const tool = typeof item.data.tool === 'string' ? item.data.tool : '工具';
-                return (
-                  <ApprovalCard
-                    active={pendingApproval?.requestId === requestId}
-                    key={item.id}
-                    requestId={requestId}
-                    runId={item.runId}
-                    threadId={threadId}
-                    tool={tool}
-                  />
-                );
+            <ChatTimeline
+              active={active}
+              canRetry={!!lastRequest && !active}
+              controlsDisabled={controlsDisabled}
+              empty={<WelcomePanel authenticated={Boolean(token)} onPrompt={fillPrompt} />}
+              loading={isRefreshing}
+              onBranchSwitch={(checkpointId) =>
+                void useThreadStore.getState().switchCheckpoint(checkpointId)
               }
-              if (item.kind === 'error')
-                return (
-                  <InlineErrorCard
-                    key={item.id}
-                    message={typeof item.data.error === 'string' ? item.data.error : '运行失败'}
-                    canRetry={!!lastRequest && !active}
-                    onRetry={() => {
-                      if (lastRequest) void startRun(lastRequest);
-                    }}
-                  />
-                );
-              return null;
-            })}
-            {pendingApproval?.requestId &&
-              !presentationItems.some(
-                (item) =>
-                  item.kind === 'approval' && item.data.request_id === pendingApproval.requestId,
-              ) && (
-                <ApprovalCard
-                  requestId={pendingApproval.requestId}
-                  runId={pendingApproval.runId}
-                  threadId={threadId}
-                  tool={pendingApproval.tool}
-                />
-              )}
-            {error && !presentationItems.some((item) => item.kind === 'error') && (
-              <InlineErrorCard
-                message={error}
-                canRetry={!!lastRequest && !active}
-                onRetry={() => {
-                  if (lastRequest) void startRun(lastRequest);
-                }}
-              />
-            )}
+              onEdit={editMessage}
+              onRegenerate={regenerateMessage}
+              onResolveApproval={(requestId, runId, decision) =>
+                void resolveApproval(requestId, runId, decision)
+              }
+              onRetry={() => {
+                if (lastRequest) void startRun(lastRequest);
+              }}
+              pendingRequestId={pendingApproval?.requestId ?? null}
+              resolvingApprovalId={resolvingApprovalId}
+              timeline={timeline}
+            />
           </div>
         </section>
+        {hasNewContent && (
+          <button className={styles.newContent} onClick={scrollToBottom} type="button">
+            有新内容 · 回到底部
+          </button>
+        )}
         <div className={styles.composerDock}>
           <ChatComposer
             ref={composerRef}

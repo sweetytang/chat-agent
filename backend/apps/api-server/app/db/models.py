@@ -29,13 +29,6 @@ class RunStatus(enum.StrEnum):
     CANCELLED = "CANCELLED"
 
 
-class MessageRole(enum.StrEnum):
-    USER = "user"
-    ASSISTANT = "assistant"
-    TOOL = "tool"
-    SYSTEM = "system"
-
-
 class InterruptStatus(enum.StrEnum):
     PENDING = "PENDING"
     APPROVED = "APPROVED"
@@ -134,18 +127,6 @@ class Run(TimestampMixin, Base):
     queue_position: Mapped[int | None] = mapped_column()
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error_message: Mapped[str | None] = mapped_column(Text)
-
-
-class Message(TimestampMixin, Base):
-    __tablename__ = "messages"
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    thread_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("threads.id", ondelete="CASCADE"), index=True
-    )
-    run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("runs.id", ondelete="SET NULL"))
-    checkpoint_id: Mapped[uuid.UUID | None] = mapped_column(index=True)
-    role: Mapped[MessageRole] = mapped_column(Enum(MessageRole, name="message_role"))
-    content: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
 class Checkpoint(TimestampMixin, Base):

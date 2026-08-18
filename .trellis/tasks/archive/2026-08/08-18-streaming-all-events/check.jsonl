@@ -1,0 +1,5 @@
+{"file":".trellis/spec/frontend/visual-system.md","reason":"审核统一时间线、卡片位置、推理折叠、智能滚动、多线程隔离、语义样式和可访问性。"}
+{"file":".trellis/spec/backend/task-runtime-architecture.md","reason":"审核事件持久化没有把数据库/SSE 泄漏进 Runtime，并保持 version 1 兼容合同。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"检查 item ID、sequence、checkpoint 分支和历史快照在所有层完整往返且只有一个权威顺序。"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"检查事件类型、payload 归一化、projector/reducer 与组件边界不存在重复事实来源。"}
+{"file":".trellis/tasks/08-18-streaming-all-events/research/current-event-flow.md","reason":"对照任务开始前的数据流证据，检查根因被真正替换且多线程/分支/刷新边界没有回归。"}

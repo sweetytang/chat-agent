@@ -5,7 +5,6 @@ import { URL } from 'node:url';
 
 import { isThemePreference, resolveTheme, storedThemePreference } from '../src/app/domain/theme.ts';
 import { shouldSubmitComposer } from '../src/modules/chat/domain/composer.ts';
-import { appendPresentationItem } from '../src/modules/presentation/domain/items.ts';
 import { stopRun } from '../src/modules/runs/domain/stopRun.ts';
 
 test('主题偏好校验并正确解析系统主题', () => {
@@ -36,50 +35,17 @@ test('Composer 仅在非组合输入的单独 Enter 时发送', () => {
   assert.equal(shouldSubmitComposer({ key: 'Enter', shiftKey: false, isComposing: true }), false);
 });
 
-test('展示项按 sequence 排序并忽略重复事件', () => {
-  const later = appendPresentationItem([], 'run-1', 4, 'generative-ui', { text: '界面' });
-  const ordered = appendPresentationItem(later, 'run-1', 2, 'structured-output', { value: '结果' });
-  const duplicate = appendPresentationItem(ordered, 'run-1', 2, 'tool-result', { tool: 'calc' });
-
-  assert.deepEqual(
-    ordered.map((item) => item.sequence),
-    [2, 4],
-  );
-  assert.equal(duplicate, ordered);
-  assert.deepEqual(
-    ordered.map((item) => item.kind),
-    ['structured-output', 'generative-ui'],
-  );
-});
-
-test('审核与失败事件可作为重复展示的有序卡片保留', () => {
-  const approval = appendPresentationItem([], 'run-1', 3, 'approval', {
-    request_id: 'request-1',
-  });
-  const failed = appendPresentationItem(approval, 'run-1', 8, 'error', {
-    error: '运行失败',
-  });
-
-  assert.deepEqual(
-    failed.map((item) => [item.sequence, item.kind]),
-    [
-      [3, 'approval'],
-      [8, 'error'],
-    ],
-  );
-});
-
 test('HITL 恢复按原会话刷新历史和线程列表', () => {
   const source = fs.readFileSync(
-    new URL('../src/modules/interrupts/components/ApprovalCard/index.tsx', import.meta.url),
+    new URL('../src/modules/chat/components/Chat/index.tsx', import.meta.url),
     'utf8',
   );
 
-  assert.match(source, /refreshThread\(threadId, true\)/);
+  assert.match(source, /refreshThread\(targetThreadId, true\)/);
   assert.match(source, /loadThreads\(\)/);
   assert.match(source, /consumeRunStream/);
   assert.match(source, /threadId,/);
-  assert.ok(source.indexOf('prepareResume(threadId)') < source.indexOf('resolveInterrupt('));
+  assert.ok(source.indexOf('prepareResume(targetThreadId)') < source.indexOf('resolveInterrupt('));
   assert.match(source, /currentRun\.runId !== runId/);
   assert.match(source, /status !== RunStatus\.Resuming/);
   assert.match(source, /currentRun\.runId === runId/);
@@ -206,15 +172,12 @@ test('活动会话仅禁用删除，仍允许重命名和置顶', () => {
   assert.doesNotMatch(source, /DropdownMenu\.Trigger[\s\S]{0,300}disabled=/);
 });
 
-test('运行中的历史刷新不会用落后快照覆盖实时消息投影', () => {
+test('运行中的时间线刷新不会用落后快照覆盖实时投影', () => {
   const source = fs.readFileSync(
     new URL('../src/modules/runs/store/run.ts', import.meta.url),
     'utf8',
   );
-  assert.match(
-    source,
-    /preserveRunState[\s\S]*isStreamingRunStatus\(state\.status\) \|\| history\.length === 0/,
-  );
+  assert.match(source, /preserveRunState && isStreamingRunStatus\(state\.status\)[\s\S]*\? state/);
 });
 
 test('流式消息使用稳定分块 Markdown 渲染', () => {
@@ -222,8 +185,8 @@ test('流式消息使用稳定分块 Markdown 渲染', () => {
     new URL('../src/modules/chat/components/MessageBubble/index.tsx', import.meta.url),
     'utf8',
   );
-  const runStore = fs.readFileSync(
-    new URL('../src/modules/runs/store/run.ts', import.meta.url),
+  const timelineReducer = fs.readFileSync(
+    new URL('../src/modules/timeline/domain/reduceTimeline.ts', import.meta.url),
     'utf8',
   );
   const markdown = fs.readFileSync(
@@ -232,8 +195,8 @@ test('流式消息使用稳定分块 Markdown 渲染', () => {
   );
 
   assert.match(bubble, /<MessageContent content=\{message\.content\} \/>/);
-  assert.match(runStore, /is_streaming: true/);
-  assert.match(runStore, /message\.completed[\s\S]*is_streaming: false/);
+  assert.match(timelineReducer, /status: 'streaming'/);
+  assert.match(timelineReducer, /message\.completed[\s\S]*status: 'completed'/);
   assert.match(markdown, /import \{ Lexer \} from 'marked'/);
   assert.match(markdown, /const remarkPlugins = \[remarkGfm\]/);
   assert.match(markdown, /const markdownComponents: Components/);
@@ -243,6 +206,21 @@ test('流式消息使用稳定分块 Markdown 渲染', () => {
   assert.match(markdown, /key: `\$\{index\}-\$\{token\.type\}`/);
   assert.match(markdown, /<MarkdownBlock content=\{block\.content\} key=\{block\.key\}/);
   assert.match(markdown, /memo\(MessageContentComponent\)/);
+});
+
+test('无助手文本的终态卡片也渲染通用分支控件', () => {
+  const timeline = fs.readFileSync(
+    new URL('../src/modules/timeline/components/ChatTimeline/index.tsx', import.meta.url),
+    'utf8',
+  );
+  const controls = fs.readFileSync(
+    new URL('../src/modules/timeline/components/TimelineBranchControls/index.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(timeline, /item\.kind !== 'message'[\s\S]*<TimelineBranchControls/);
+  assert.match(controls, /branchOptions\.length <= 1/);
+  assert.match(controls, /<BranchSwitcher/);
 });
 
 test('认证邮箱持久化，缺少 profile 时使用固定中性身份', () => {
@@ -319,18 +297,16 @@ test('顶部覆盖层仅保留主题菜单且不占用聊天区域高度', () =>
   assert.doesNotMatch(styles, /height:\s*62px/);
 });
 
-test('切换会话加载历史时不展示欢迎页', () => {
-  const chat = fs.readFileSync(
-    new URL('../src/modules/chat/components/Chat/index.tsx', import.meta.url),
+test('切换会话加载时间线时不展示欢迎页', () => {
+  const timeline = fs.readFileSync(
+    new URL('../src/modules/timeline/components/ChatTimeline/index.tsx', import.meta.url),
     'utf8',
   );
 
-  assert.match(
-    chat,
-    /isRefreshing && history\.length === 0 \? \([\s\S]*chatLoading[\s\S]*\) : history\.length === 0/,
-  );
-  assert.match(chat, /aria-label="正在加载会话"/);
-  assert.match(chat, /aria-live="polite"[\s\S]*role="status"/);
+  assert.match(timeline, /loading && timeline\.items\.length === 0/);
+  assert.match(timeline, /timeline\.items\.length === 0 && !active/);
+  assert.match(timeline, /aria-label="正在加载会话"/);
+  assert.match(timeline, /aria-live="polite"[\s\S]*role="status"/);
 });
 
 test('首次加载会话列表时展示加载态而不是空态', () => {

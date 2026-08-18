@@ -7,11 +7,11 @@ from uuid import UUID
 from langchain_core.messages import HumanMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import InterruptStatus, MessageRole, Run, RunStatus, Thread
+from app.db.models import InterruptStatus, Run, RunStatus, Thread
 from app.modules.checkpoints.service import (
     RunBranchContext,
-    append_message_checkpoint,
     latest_user_content,
+    model_messages,
 )
 from app.modules.interrupts.repository import InterruptRepository
 from app.modules.mcp.agent.results import normalize_tool_result
@@ -24,6 +24,7 @@ from app.modules.runs.context import (
 from app.modules.runs.repository import RunRepository
 from app.modules.runs.schemas import PendingReview, RunRequest
 from app.modules.threads.title import set_title_after_first_round
+from app.modules.timeline.recorder import TimelineRecorder
 
 
 def _runtime() -> RunDependencies:
@@ -43,6 +44,13 @@ async def resumed_run_events(
 ) -> AsyncIterator[str]:
     if dependencies is not None:
         configure_run_dependencies(dependencies)
+    recorder = TimelineRecorder(
+        event_factory=_runtime()._event,
+        snapshot=branch_context.timeline if branch_context is not None else None,
+        checkpoint=branch_context.checkpoint if branch_context is not None else None,
+        session=session,
+    )
+    tool_call_id = pending.tool_call_id if pending and pending.tool_call_id else request_id
     sequence = 0
     # 演示线程可以在有 PostgreSQL 会话时运行，但它没有对应的数据库 run。
     # 只有确认记录存在，恢复流程才进入持久化分支。
@@ -52,7 +60,7 @@ async def resumed_run_events(
             persisted_session = (
                 session if await session.get(Run, UUID(run_id)) is not None else None
             )
-        except (ValueError, OSError, RuntimeError):
+        except ValueError, OSError, RuntimeError:
             await session.rollback()
     repository = RunRepository(persisted_session) if persisted_session is not None else None
     if repository is not None:
@@ -62,7 +70,7 @@ async def resumed_run_events(
         )
         await repository.update_status(UUID(run_id), RunStatus.RESUMING)
         await persisted_session.commit()
-    yield _runtime()._event(run_id, request.thread_id, sequence, "run.resuming").to_sse()
+    yield recorder.event(run_id, request.thread_id, sequence, "run.resuming").to_sse()
     sequence += 1
     if pending is not None and pending.mcp_snapshot is not None:
         snapshot = pending.mcp_snapshot
@@ -81,53 +89,61 @@ async def resumed_run_events(
                 # 浏览器只能看到连接中断并显示 network error，丢失真正的失败原因。
                 error = str(cause)
                 yield (
-                    _runtime()
-                    ._event(
+                    recorder.event(
                         run_id,
                         request.thread_id,
                         sequence,
                         "tool.result",
                         tool=snapshot.identity.internal_name,
+                        tool_call_id=tool_call_id,
                         content={"error": error},
-                    )
-                    .to_sse()
+                    ).to_sse()
                 )
                 sequence += 1
                 yield (
-                    _runtime()
-                    ._event(run_id, request.thread_id, sequence, "run.failed", error=error)
-                    .to_sse()
+                    recorder.event(
+                        run_id,
+                        request.thread_id,
+                        sequence,
+                        "run.failed",
+                        item_id=f"{run_id}:error:{sequence}",
+                        error=error,
+                    ).to_sse()
                 )
                 if repository is not None:
                     assert persisted_session is not None
                     await repository.update_status(UUID(run_id), RunStatus.FAILED)
-                    await persisted_session.commit()
+                    await recorder.flush()
                 return
             except Exception:
                 # 非 Host 异常仍使用通用文案，避免意外泄露内部信息。
                 error = "MCP 工具调用失败，请检查 Server 状态、地址和凭据"
                 yield (
-                    _runtime()
-                    ._event(
+                    recorder.event(
                         run_id,
                         request.thread_id,
                         sequence,
                         "tool.result",
                         tool=snapshot.identity.internal_name,
+                        tool_call_id=tool_call_id,
                         content={"error": error},
-                    )
-                    .to_sse()
+                    ).to_sse()
                 )
                 sequence += 1
                 yield (
-                    _runtime()
-                    ._event(run_id, request.thread_id, sequence, "run.failed", error=error)
-                    .to_sse()
+                    recorder.event(
+                        run_id,
+                        request.thread_id,
+                        sequence,
+                        "run.failed",
+                        item_id=f"{run_id}:error:{sequence}",
+                        error=error,
+                    ).to_sse()
                 )
                 if repository is not None:
                     assert persisted_session is not None
                     await repository.update_status(UUID(run_id), RunStatus.FAILED)
-                    await persisted_session.commit()
+                    await recorder.flush()
                 return
         tool_name = snapshot.identity.internal_name
     else:
@@ -136,9 +152,15 @@ async def resumed_run_events(
             result = {"error": "用户拒绝执行搜索"}
         tool_name = "web_search"
     yield (
-        _runtime()
-        ._event(run_id, request.thread_id, sequence, "tool.result", tool=tool_name, content=result)
-        .to_sse()
+        recorder.event(
+            run_id,
+            request.thread_id,
+            sequence,
+            "tool.result",
+            tool=tool_name,
+            tool_call_id=tool_call_id,
+            content=result,
+        ).to_sse()
     )
     sequence += 1
     # 审核恢复必须把工具结果重新交给模型，而不是直接伪造“工具执行完成”。
@@ -172,68 +194,75 @@ async def resumed_run_events(
     except Exception:
         # 工具已成功执行时，即使二次模型调用失败，也返回可解释的降级答复。
         answer = "工具已执行，但生成最终答复失败，请重试。"
-    yield (
-        _runtime()
-        ._event(run_id, request.thread_id, sequence, "message.started", role="assistant")
-        .to_sse()
-    )
+    message_id = f"{run_id}:assistant"
+    item_id = f"{message_id}:resume:{request_id}"
+    yield recorder.event(
+        run_id,
+        request.thread_id,
+        sequence,
+        "message.started",
+        role="assistant",
+        item_id=item_id,
+        message_id=message_id,
+    ).to_sse()
     sequence += 1
     yield (
-        _runtime()
-        ._event(run_id, request.thread_id, sequence, "message.delta", content=answer)
-        .to_sse()
+        recorder.event(
+            run_id,
+            request.thread_id,
+            sequence,
+            "message.delta",
+            item_id=item_id,
+            content=answer,
+        ).to_sse()
     )
     sequence += 1
-    yield _runtime()._event(run_id, request.thread_id, sequence, "message.completed").to_sse()
+    yield recorder.event(
+        run_id,
+        request.thread_id,
+        sequence,
+        "message.completed",
+        item_id=item_id,
+        message_id=message_id,
+    ).to_sse()
     if repository is not None and branch_context is not None:
         assert persisted_session is not None
         thread = await persisted_session.get(Thread, UUID(request.thread_id))
         if thread is not None:
-            result = await append_message_checkpoint(
-                persisted_session,
-                thread,
-                parent_id=branch_context.checkpoint_id,
-                base_messages=branch_context.messages,
-                role=MessageRole.ASSISTANT,
-                content={"content": answer},
-                run_id=UUID(run_id),
-                branch_name="重新生成" if request.mode == "regenerate" else None,
-            )
             # HITL 恢复也可能是首轮完成，沿用普通完成路径的最新值检查。
             await persisted_session.refresh(thread, attribute_names=["title"])
             await set_title_after_first_round(
                 thread,
-                result.messages,
+                model_messages(recorder.snapshot),
                 mode=request.mode,
-                user_content=latest_user_content(branch_context.messages, request.content),
+                user_content=latest_user_content(recorder.snapshot, request.content),
                 assistant_content=answer,
             )
             sequence += 1
             yield (
-                _runtime()
-                ._event(
+                recorder.event(
                     run_id,
                     request.thread_id,
                     sequence,
                     "checkpoint.created",
-                    checkpoint_id=str(result.checkpoint.id),
-                    parent_id=str(result.checkpoint.parent_id),
-                )
-                .to_sse()
+                    checkpoint_id=str(branch_context.checkpoint_id),
+                    parent_id=str(branch_context.checkpoint.parent_id)
+                    if branch_context.checkpoint and branch_context.checkpoint.parent_id
+                    else None,
+                ).to_sse()
             )
             sequence += 1
             yield (
-                _runtime()
-                ._event(
+                recorder.event(
                     run_id,
                     request.thread_id,
                     sequence,
                     "thread.updated",
-                    current_checkpoint_id=str(result.checkpoint.id),
-                )
-                .to_sse()
+                    current_checkpoint_id=str(branch_context.checkpoint_id),
+                ).to_sse()
             )
         await repository.update_status(UUID(run_id), RunStatus.COMPLETED)
-        await persisted_session.commit()
+        await recorder.flush()
     sequence += 1
-    yield _runtime()._event(run_id, request.thread_id, sequence, "run.completed").to_sse()
+    yield recorder.event(run_id, request.thread_id, sequence, "run.completed").to_sse()
+    await recorder.flush()

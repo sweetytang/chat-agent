@@ -1,0 +1,7 @@
+.controls {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  margin-top: 6px;
+  color: var(--text-muted);
+}

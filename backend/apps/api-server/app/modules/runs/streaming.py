@@ -6,10 +6,9 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import MessageRole, RunStatus, Thread
+from app.db.models import RunStatus, Thread
 from app.modules.checkpoints.service import (
     RunBranchContext,
-    append_message_checkpoint,
     latest_user_content,
     model_messages,
 )
@@ -23,6 +22,7 @@ from app.modules.runs.context import (
 from app.modules.runs.repository import RunRepository
 from app.modules.runs.schemas import PendingReview, RunRequest
 from app.modules.threads.title import set_title_after_first_round
+from app.modules.timeline.recorder import TimelineRecorder
 
 
 def _runtime() -> RunDependencies:
@@ -45,91 +45,101 @@ async def run_events(
         configure_run_dependencies(dependencies)
     cancel_event = _runtime()._cancel_events[run_id]
     lock = _runtime()._thread_lock(request.thread_id)
+    recorder = TimelineRecorder(
+        event_factory=_runtime()._event,
+        snapshot=branch_context.timeline if branch_context is not None else None,
+        checkpoint=branch_context.checkpoint if branch_context is not None else None,
+        session=session,
+    )
     sequence = 0
-    yield _runtime()._event(run_id, request.thread_id, sequence, "run.queued").to_sse()
+    yield recorder.event(run_id, request.thread_id, sequence, "run.queued").to_sse()
     async with lock:
         if cancel_event.is_set():
             yield (
-                _runtime()._event(run_id, request.thread_id, sequence + 1, "run.cancelled").to_sse()
+                recorder.event(run_id, request.thread_id, sequence + 1, "run.cancelled").to_sse()
             )
             return
 
         sequence += 1
-        yield _runtime()._event(run_id, request.thread_id, sequence, "run.started").to_sse()
+        yield recorder.event(run_id, request.thread_id, sequence, "run.started").to_sse()
         if mcp_loader is not None:
             try:
                 mcp_snapshots = await mcp_loader()
-            except (ValueError, OSError, RuntimeError):
+            except ValueError, OSError, RuntimeError:
                 if session is not None:
                     await session.rollback()
                 mcp_load_error = "MCP 工具加载失败，请检查 Server 状态并刷新"
         if mcp_load_error:
             sequence += 1
             yield (
-                _runtime()
-                ._event(
+                recorder.event(
                     run_id,
                     request.thread_id,
                     sequence,
                     "mcp.error",
+                    item_id=f"{run_id}:mcp-error:{sequence}",
                     error=mcp_load_error,
-                )
-                .to_sse()
+                ).to_sse()
             )
         repository = RunRepository(session) if session is not None else None
         if repository is not None:
             assert session is not None
             await repository.update_status(UUID(run_id), RunStatus.RUNNING)
             await session.commit()
-        if branch_context is not None and branch_context.created_checkpoint is not None:
-            input_checkpoint = branch_context.created_checkpoint
+        if branch_context is not None and branch_context.checkpoint is not None:
+            agent_checkpoint = branch_context.checkpoint
             sequence += 1
             yield (
-                _runtime()
-                ._event(
+                recorder.event(
                     run_id,
                     request.thread_id,
                     sequence,
                     "checkpoint.created",
-                    checkpoint_id=str(input_checkpoint.id),
-                    parent_id=str(input_checkpoint.parent_id)
-                    if input_checkpoint.parent_id
+                    checkpoint_id=str(agent_checkpoint.id),
+                    parent_id=str(agent_checkpoint.parent_id)
+                    if agent_checkpoint.parent_id
                     else None,
-                )
-                .to_sse()
+                ).to_sse()
             )
             sequence += 1
             yield (
-                _runtime()
-                ._event(
+                recorder.event(
                     run_id,
                     request.thread_id,
                     sequence,
                     "thread.updated",
-                    current_checkpoint_id=str(input_checkpoint.id),
-                )
-                .to_sse()
+                    current_checkpoint_id=str(agent_checkpoint.id),
+                ).to_sse()
             )
 
-        snapshots = (
-            branch_context.messages
-            if branch_context is not None
-            else ({"role": MessageRole.USER.value, "content": {"content": request.content}},)
-        )
-        input_messages = model_messages(snapshots)
-        prompt_content = latest_user_content(snapshots, request.content)
+        timeline = branch_context.timeline if branch_context is not None else recorder.snapshot
+        if branch_context is None:
+            timeline["items"].append(
+                {
+                    "id": f"{run_id}:user",
+                    "kind": "message",
+                    "run_id": run_id,
+                    "sequence": -1,
+                    "logical_message_id": f"{run_id}:user",
+                    "role": "user",
+                    "content": request.content,
+                    "status": "completed",
+                    "terminal_segment": True,
+                }
+            )
+        input_messages = model_messages(timeline)
+        prompt_content = latest_user_content(timeline, request.content)
         if prompt_content.startswith(("think:", "思考：")):
             sequence += 1
             yield (
-                _runtime()
-                ._event(
+                recorder.event(
                     run_id,
                     request.thread_id,
                     sequence,
                     "reasoning.delta",
+                    item_id=f"{run_id}:reasoning:0",
                     content="正在分析请求并选择合适的执行路径。",
-                )
-                .to_sse()
+                ).to_sse()
             )
 
         # 这是模型没有产生文本时的安全兜底，不能把用户输入伪装成 assistant 回复。
@@ -139,18 +149,18 @@ async def run_events(
         )
         if calculator_match:
             expression = calculator_match.group(1)
+            tool_call_id = f"{run_id}:tool:calculator:0"
             sequence += 1
             yield (
-                _runtime()
-                ._event(
+                recorder.event(
                     run_id,
                     request.thread_id,
                     sequence,
                     "tool.call",
+                    tool_call_id=tool_call_id,
                     tool="calculator",
                     arguments={"expression": expression},
-                )
-                .to_sse()
+                ).to_sse()
             )
             try:
                 calculated_value = _runtime().calculate(expression)
@@ -161,41 +171,49 @@ async def run_events(
                 tool_data = {"tool": "calculator", "content": {"error": str(error)}}
             sequence += 1
             yield (
-                _runtime()
-                ._event(run_id, request.thread_id, sequence, "tool.result", **tool_data)
-                .to_sse()
+                recorder.event(
+                    run_id,
+                    request.thread_id,
+                    sequence,
+                    "tool.result",
+                    tool_call_id=tool_call_id,
+                    **tool_data,
+                ).to_sse()
             )
 
         if prompt_content.startswith("json:"):
             sequence += 1
             yield (
-                _runtime()
-                ._event(
+                recorder.event(
                     run_id,
                     request.thread_id,
                     sequence,
                     "structured_output.delta",
+                    item_id=f"{run_id}:structured:{sequence}",
                     value={"type": "text", "value": prompt_content.removeprefix("json:").strip()},
-                )
-                .to_sse()
+                ).to_sse()
             )
         if prompt_content.startswith("ui:"):
             sequence += 1
             yield (
-                _runtime()
-                ._event(
+                recorder.event(
                     run_id,
                     request.thread_id,
                     sequence,
                     "generative_ui.delta",
+                    item_id=f"{run_id}:generative-ui:{sequence}",
+                    value={
+                        "component": "NoticeCard",
+                        "props": {"text": prompt_content.removeprefix("ui:").strip()},
+                    },
                     component="NoticeCard",
                     props={"text": prompt_content.removeprefix("ui:").strip()},
-                )
-                .to_sse()
+                ).to_sse()
             )
 
         if prompt_content.startswith(("search:", "搜索：")):
             request_id = str(uuid4())
+            tool_call_id = request_id
             if repository is not None:
                 assert session is not None
                 await InterruptRepository(session).create(
@@ -205,44 +223,43 @@ async def run_events(
                     {
                         "tool": "web_search",
                         "query": prompt_content.split(":", 1)[-1].strip(),
+                        "tool_call_id": tool_call_id,
                     },
                     branch_context.checkpoint_id if branch_context else None,
                 )
                 await repository.update_status(UUID(run_id), RunStatus.INTERRUPTED)
-                await session.commit()
-            _runtime()._pending_reviews[request_id] = PendingReview(
+            pending_review = PendingReview(
                 run_id,
                 request,
                 branch_context,
                 persisted=repository is not None,
+                tool_call_id=tool_call_id,
             )
             sequence += 1
-            yield (
-                _runtime()
-                ._event(
-                    run_id,
-                    request.thread_id,
-                    sequence,
-                    "tool.call",
-                    tool="web_search",
-                    request_id=request_id,
-                    arguments={"query": prompt_content.split(":", 1)[-1].strip()},
-                )
-                .to_sse()
+            tool_call_event = recorder.event(
+                run_id,
+                request.thread_id,
+                sequence,
+                "tool.call",
+                tool="web_search",
+                tool_call_id=tool_call_id,
+                request_id=request_id,
+                arguments={"query": prompt_content.split(":", 1)[-1].strip()},
             )
             sequence += 1
-            yield (
-                _runtime()
-                ._event(
-                    run_id,
-                    request.thread_id,
-                    sequence,
-                    "tool.approval_required",
-                    tool="web_search",
-                    request_id=request_id,
-                )
-                .to_sse()
+            approval_event = recorder.event(
+                run_id,
+                request.thread_id,
+                sequence,
+                "tool.approval_required",
+                tool="web_search",
+                tool_call_id=tool_call_id,
+                request_id=request_id,
             )
+            await recorder.flush()
+            _runtime()._pending_reviews[request_id] = pending_review
+            yield tool_call_event.to_sse()
+            yield approval_event.to_sse()
             return
 
         assistant_content = reply
@@ -277,11 +294,13 @@ async def run_events(
                     if not isinstance(arguments, dict):
                         arguments = {}
                     request_id = str(uuid4())
+                    tool_call_id = str(graph_event.data.get("tool_call_id") or request_id)
                     payload = {
                         "tool": tool_name,
                         "remote_name": snapshot.identity.remote_name,
                         "server_id": snapshot.identity.server_id,
                         "arguments": arguments,
+                        "tool_call_id": tool_call_id,
                         "security_version": snapshot.security_version,
                     }
                     if repository is not None:
@@ -294,132 +313,137 @@ async def run_events(
                             branch_context.checkpoint_id if branch_context else None,
                         )
                         await repository.update_status(UUID(run_id), RunStatus.INTERRUPTED)
-                        await session.commit()
-                    _runtime()._pending_reviews[request_id] = PendingReview(
+                    pending_review = PendingReview(
                         run_id,
                         request,
                         branch_context,
                         persisted=repository is not None,
                         mcp_snapshot=snapshot,
                         arguments=arguments,
+                        tool_call_id=tool_call_id,
                     )
+                    sequence += 1
+                    tool_call_event = recorder.event(
+                        run_id,
+                        request.thread_id,
+                        sequence,
+                        "tool.call",
+                        tool=tool_name,
+                        tool_call_id=tool_call_id,
+                        request_id=request_id,
+                        arguments=arguments,
+                    )
+                    sequence += 1
+                    approval_event = recorder.event(
+                        run_id,
+                        request.thread_id,
+                        sequence,
+                        "tool.approval_required",
+                        tool=tool_name,
+                        tool_call_id=tool_call_id,
+                        request_id=request_id,
+                    )
+                    await recorder.flush()
+                    _runtime()._pending_reviews[request_id] = pending_review
                     # MCP SDK 的 AnyIO 上下文必须在建立它的 SSE 任务中关闭，
                     # 审核会切换到另一个请求任务，因此这里先释放连接，恢复时再懒加载。
                     mcp_host = _runtime()._mcp_host
                     if mcp_host is not None:
                         await mcp_host.disconnect(snapshot.identity.server_id)
-                    sequence += 1
-                    yield (
-                        _runtime()
-                        ._event(
-                            run_id,
-                            request.thread_id,
-                            sequence,
-                            "tool.call",
-                            tool=tool_name,
-                            request_id=request_id,
-                            arguments=arguments,
-                        )
-                        .to_sse()
-                    )
-                    sequence += 1
-                    yield (
-                        _runtime()
-                        ._event(
-                            run_id,
-                            request.thread_id,
-                            sequence,
-                            "tool.approval_required",
-                            tool=tool_name,
-                            request_id=request_id,
-                        )
-                        .to_sse()
-                    )
+                    yield tool_call_event.to_sse()
+                    yield approval_event.to_sse()
                     return
                 if graph_event.event == "message.delta":
                     chunks.append(str(graph_event.data.get("content", "")))
                 sequence += 1
-                yield (
-                    _runtime()
-                    ._event(
-                        run_id, request.thread_id, sequence, graph_event.event, **graph_event.data
-                    )
-                    .to_sse()
+                projected_event = recorder.event(
+                    run_id, request.thread_id, sequence, graph_event.event, **graph_event.data
                 )
+                await recorder.flush_if_due()
+                yield projected_event.to_sse()
             assistant_content = "".join(chunks) or reply
         else:
+            message_id = f"{run_id}:assistant"
+            item_id = f"{message_id}:segment:0"
             sequence += 1
             yield (
-                _runtime()
-                ._event(run_id, request.thread_id, sequence, "message.started", role="assistant")
-                .to_sse()
+                recorder.event(
+                    run_id,
+                    request.thread_id,
+                    sequence,
+                    "message.started",
+                    role="assistant",
+                    item_id=item_id,
+                    message_id=message_id,
+                ).to_sse()
             )
             if cancel_event.is_set():
                 sequence += 1
                 yield (
-                    _runtime()._event(run_id, request.thread_id, sequence, "run.cancelled").to_sse()
+                    recorder.event(run_id, request.thread_id, sequence, "run.cancelled").to_sse()
                 )
                 return
             sequence += 1
             yield (
-                _runtime()
-                ._event(run_id, request.thread_id, sequence, "message.delta", content=reply)
-                .to_sse()
+                recorder.event(
+                    run_id,
+                    request.thread_id,
+                    sequence,
+                    "message.delta",
+                    item_id=item_id,
+                    content=reply,
+                ).to_sse()
             )
             sequence += 1
             yield (
-                _runtime()._event(run_id, request.thread_id, sequence, "message.completed").to_sse()
+                recorder.event(
+                    run_id,
+                    request.thread_id,
+                    sequence,
+                    "message.completed",
+                    item_id=item_id,
+                    message_id=message_id,
+                ).to_sse()
             )
         if repository is not None and branch_context is not None:
             assert session is not None
             thread = await session.get(Thread, UUID(request.thread_id))
             if thread is not None:
-                result = await append_message_checkpoint(
-                    session,
-                    thread,
-                    parent_id=branch_context.checkpoint_id,
-                    base_messages=branch_context.messages,
-                    role=MessageRole.ASSISTANT,
-                    content={"content": assistant_content},
-                    run_id=UUID(run_id),
-                    branch_name="重新生成" if request.mode == "regenerate" else None,
-                )
                 # run 可能等待过线程锁；写标题前同步其他 run 已提交的最新值。
                 await session.refresh(thread, attribute_names=["title"])
                 await set_title_after_first_round(
                     thread,
-                    result.messages,
+                    model_messages(recorder.snapshot),
                     mode=request.mode,
                     user_content=prompt_content,
                     assistant_content=assistant_content,
                 )
                 sequence += 1
                 yield (
-                    _runtime()
-                    ._event(
+                    recorder.event(
                         run_id,
                         request.thread_id,
                         sequence,
                         "checkpoint.created",
-                        checkpoint_id=str(result.checkpoint.id),
-                        parent_id=str(result.checkpoint.parent_id),
-                    )
-                    .to_sse()
+                        checkpoint_id=str(branch_context.checkpoint_id),
+                        parent_id=str(branch_context.checkpoint.parent_id)
+                        if branch_context.checkpoint and branch_context.checkpoint.parent_id
+                        else None,
+                    ).to_sse()
                 )
                 sequence += 1
                 yield (
-                    _runtime()
-                    ._event(
+                    recorder.event(
                         run_id,
                         request.thread_id,
                         sequence,
                         "thread.updated",
-                        current_checkpoint_id=str(result.checkpoint.id),
-                    )
-                    .to_sse()
+                        current_checkpoint_id=str(branch_context.checkpoint_id),
+                    ).to_sse()
                 )
             await repository.update_status(UUID(run_id), RunStatus.COMPLETED)
             await session.commit()
         sequence += 1
-        yield _runtime()._event(run_id, request.thread_id, sequence, "run.completed").to_sse()
+        yield recorder.event(run_id, request.thread_id, sequence, "run.completed").to_sse()
+        await recorder.flush()
     _runtime()._cancel_events.pop(run_id, None)

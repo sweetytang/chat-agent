@@ -5,32 +5,26 @@ import {
   type PendingApproval,
 } from '@/modules/interrupts/domain/pendingInterrupt';
 import type { PendingInterruptResponse } from '@/modules/interrupts/types';
-import { appendPresentationItem } from '@/modules/presentation/domain/items';
-import type { PresentationItem, PresentationKind } from '@/modules/presentation/types';
 import { isStreamingRunStatus } from '@/modules/runs/domain/status';
-import { eventText, RunStatus, type AgentEvent } from '@/modules/runs/types/events';
-import type { HistoryMessage, RunMode } from '@/modules/threads/types/history';
+import { RunStatus, type AgentEvent } from '@/modules/runs/types/events';
+import { normalizeTimelineEvent } from '@/modules/timeline/domain/normalizeEvent';
+import { reduceTimeline } from '@/modules/timeline/domain/reduceTimeline';
+import { EMPTY_TIMELINE, type RunMode, type TimelineSnapshot } from '@/modules/timeline/types';
 
 export interface RunRequestContext {
   content: string;
   checkpointId: string | null;
   mode: RunMode;
   showUserMessage?: boolean;
-  baseHistory?: HistoryMessage[];
+  baseTimeline?: TimelineSnapshot;
   threadId: string;
 }
 
 export interface ThreadRunState {
   runId: string | null;
   status: RunStatus | 'idle';
-  history: HistoryMessage[];
-  error: string | null;
+  timeline: TimelineSnapshot;
   lastSequence: number;
-  reasoning: string;
-  structuredOutput: Record<string, unknown> | null;
-  generativeUi: Record<string, unknown> | null;
-  toolResults: { tool: string; content: unknown }[];
-  presentationItems: PresentationItem[];
   pendingApproval: PendingApproval | null;
   lastRequest: RunRequestContext | null;
 }
@@ -40,10 +34,10 @@ interface RunStore {
   beginRun: (
     threadId: string,
     optimisticUserContent?: string,
-    baseHistory?: HistoryMessage[],
+    baseTimeline?: TimelineSnapshot,
   ) => void;
   prepareResume: (threadId: string) => void;
-  setHistory: (threadId: string, history: HistoryMessage[], preserveRunState?: boolean) => void;
+  setTimeline: (threadId: string, timeline: TimelineSnapshot, preserveRunState?: boolean) => void;
   setPendingApproval: (
     threadId: string,
     interrupt: PendingInterruptResponse | null,
@@ -68,73 +62,55 @@ const statusByEvent: Partial<Record<AgentEvent['event'], RunStatus>> = {
   'tool.approval_required': RunStatus.Interrupted,
 };
 
-const presentationKindByEvent: Partial<Record<AgentEvent['event'], PresentationKind>> = {
-  'tool.result': 'tool-result',
-  'tool.approval_required': 'approval',
-  'structured_output.delta': 'structured-output',
-  'generative_ui.delta': 'generative-ui',
-  'run.failed': 'error',
-  'mcp.error': 'error',
-};
-
-const EMPTY_HISTORY: HistoryMessage[] = [];
-const EMPTY_TOOL_RESULTS: ThreadRunState['toolResults'] = [];
-const EMPTY_PRESENTATION_ITEMS: PresentationItem[] = [];
-
 export const EMPTY_THREAD_RUN_STATE: ThreadRunState = {
   runId: null,
   status: 'idle',
-  history: EMPTY_HISTORY,
-  error: null,
+  timeline: EMPTY_TIMELINE,
   lastSequence: -1,
-  reasoning: '',
-  structuredOutput: null,
-  generativeUi: null,
-  toolResults: EMPTY_TOOL_RESULTS,
-  presentationItems: EMPTY_PRESENTATION_ITEMS,
   pendingApproval: null,
   lastRequest: null,
 };
 
 function createThreadRunState(): ThreadRunState {
-  return {
-    ...EMPTY_THREAD_RUN_STATE,
-    history: [],
-    toolResults: [],
-    presentationItems: [],
-  };
+  return { ...EMPTY_THREAD_RUN_STATE, timeline: { version: 1, items: [] } };
 }
 
 function eventString(value: unknown, fallback: string): string {
   return typeof value === 'string' ? value : fallback;
 }
 
+function appendLocalError(
+  timeline: TimelineSnapshot,
+  message: string,
+  runId: string | null,
+): TimelineSnapshot {
+  const id = `${runId ?? 'local'}:error:${Date.now()}`;
+  return {
+    version: 1,
+    items: [
+      ...timeline.items,
+      { id, kind: 'error', run_id: runId, sequence: -1, status: 'failed', message },
+    ],
+  };
+}
+
 export function reduceRunEvent(state: ThreadRunState, event: AgentEvent): ThreadRunState {
   if (event.sequence <= state.lastSequence) return state;
 
-  const content = eventText(event);
-  const reasoning =
-    event.event === 'reasoning.delta' && content ? state.reasoning + content : state.reasoning;
-  const structuredOutput =
-    event.event === 'structured_output.delta' ? event.data : state.structuredOutput;
-  const generativeUi = event.event === 'generative_ui.delta' ? event.data : state.generativeUi;
-  const toolResults =
-    event.event === 'tool.result'
-      ? [
-          ...state.toolResults,
-          { tool: eventString(event.data.tool, 'tool'), content: event.data.content },
-        ]
-      : state.toolResults;
-  const presentationKind = presentationKindByEvent[event.event];
-  const presentationItems = presentationKind
-    ? appendPresentationItem(
-        state.presentationItems,
+  const normalized = normalizeTimelineEvent(event);
+  let timeline = state.timeline;
+  if (normalized) {
+    try {
+      timeline = reduceTimeline(timeline, normalized);
+    } catch (error) {
+      timeline = appendLocalError(
+        timeline,
+        error instanceof Error ? error.message : '时间线事件无效',
         event.run_id,
-        event.sequence,
-        presentationKind,
-        event.data,
-      )
-    : state.presentationItems;
+      );
+    }
+  }
+
   const pendingApproval =
     event.event === 'tool.approval_required'
       ? {
@@ -142,51 +118,17 @@ export function reduceRunEvent(state: ThreadRunState, event: AgentEvent): Thread
           tool: eventString(event.data.tool, 'tool'),
           runId: event.run_id,
         }
-      : event.event === 'run.completed' || event.event === 'run.cancelled'
+      : event.event === 'run.completed' ||
+          event.event === 'run.cancelled' ||
+          event.event === 'run.failed'
         ? null
         : state.pendingApproval;
-
-  let history = state.history;
-  if (event.event === 'message.started') {
-    history = [
-      ...history,
-      {
-        id: eventString(event.data.message_id, `${event.run_id}-message-${event.sequence}`),
-        role: 'assistant',
-        content: '',
-        checkpoint_id: null,
-        parent_checkpoint_id: null,
-        branch_options: [],
-        branch_index: null,
-        is_streaming: true,
-      },
-    ];
-  } else if (event.event === 'message.delta' && content) {
-    const last = history.at(-1);
-    if (last?.role === 'assistant')
-      history = [...history.slice(0, -1), { ...last, content: last.content + content }];
-  } else if (event.event === 'message.completed') {
-    const last = history.at(-1);
-    if (last?.role === 'assistant')
-      history = [...history.slice(0, -1), { ...last, is_streaming: false }];
-  }
-
-  const error =
-    event.event === 'run.failed' || event.event === 'mcp.error'
-      ? eventString(event.data.error, event.event === 'mcp.error' ? 'MCP 工具加载失败' : '运行失败')
-      : state.error;
 
   return {
     ...state,
     runId: event.run_id,
     status: statusByEvent[event.event] ?? state.status,
-    history,
-    error,
-    reasoning,
-    structuredOutput,
-    generativeUi,
-    toolResults,
-    presentationItems,
+    timeline,
     pendingApproval,
     lastSequence: event.sequence,
   };
@@ -210,27 +152,33 @@ function updateThread(
 export const useRunStore = create<RunStore>((set) => ({
   threads: {},
 
-  beginRun: (threadId, optimisticUserContent, baseHistory) =>
+  beginRun: (threadId, optimisticUserContent, baseTimeline) =>
     set((store) => ({
       threads: updateThread(store.threads, threadId, (state) => {
-        const history = baseHistory ?? state.history;
+        const timeline = baseTimeline ?? state.timeline;
+        const optimisticTimeline = optimisticUserContent
+          ? {
+              version: 1 as const,
+              items: [
+                ...timeline.items,
+                {
+                  id: `user-${Date.now()}`,
+                  kind: 'message' as const,
+                  run_id: null,
+                  sequence: -1,
+                  logical_message_id: `user-${Date.now()}`,
+                  role: 'user' as const,
+                  content: optimisticUserContent,
+                  status: 'completed' as const,
+                  terminal_segment: true,
+                },
+              ],
+            }
+          : timeline;
         return {
           ...createThreadRunState(),
           status: RunStatus.Queued,
-          history: optimisticUserContent
-            ? [
-                ...history,
-                {
-                  id: `user-${Date.now()}`,
-                  role: 'user',
-                  content: optimisticUserContent,
-                  checkpoint_id: null,
-                  parent_checkpoint_id: null,
-                  branch_options: [],
-                  branch_index: null,
-                },
-              ]
-            : history,
+          timeline: optimisticTimeline,
           lastRequest: state.lastRequest,
         };
       }),
@@ -241,25 +189,19 @@ export const useRunStore = create<RunStore>((set) => ({
       threads: updateThread(store.threads, threadId, (state) => ({
         ...state,
         status: RunStatus.Resuming,
-        error: null,
         lastSequence: -1,
         pendingApproval: null,
       })),
     })),
 
-  setHistory: (threadId, history, preserveRunState = false) =>
+  setTimeline: (threadId, timeline, preserveRunState = false) =>
     set((store) => ({
       threads: updateThread(store.threads, threadId, (state) =>
-        preserveRunState
-          ? {
-              ...state,
-              // 运行中的后端快照可能落后于 SSE 投影；此时覆盖会丢失正在生成的消息。
-              history:
-                isStreamingRunStatus(state.status) || history.length === 0
-                  ? state.history
-                  : history,
-            }
-          : { ...createThreadRunState(), history },
+        preserveRunState && isStreamingRunStatus(state.status)
+          ? state
+          : preserveRunState
+            ? { ...state, timeline }
+            : { ...createThreadRunState(), timeline },
       ),
     })),
 
@@ -283,7 +225,7 @@ export const useRunStore = create<RunStore>((set) => ({
     set((store) => ({
       threads: updateThread(store.threads, threadId, (state) => ({
         ...state,
-        error,
+        timeline: appendLocalError(state.timeline, error, state.runId),
         ...(status ? { status } : {}),
       })),
     })),

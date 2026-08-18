@@ -124,6 +124,10 @@ After implementation:
       `::type_name` cast
 - [ ] 动态外部工具从配置到 graph 的路径包含审核边界，确认 ToolNode 不会在
       interrupt 持久化前执行
+- [ ] 跨 HTTP/SSE 请求的内存状态优先仅保存 ID/快照；若仍携带 SQLAlchemy ORM 实例，
+      恢复流程会将其视为 detached，并用当前 Session 按已鉴权资源 ID 重载
+- [ ] 持久化回归不只检查 SSE/API 输出；已关闭写入 Session，并用全新 Session 重载
+      数据断言真实落库状态
 
 ---
 

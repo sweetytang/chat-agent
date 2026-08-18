@@ -152,3 +152,54 @@ async def test_stream_adapter_does_not_execute_tool_requiring_approval() -> None
     assert calls == []
     assert [event.event for event in events] == ["tool.approval_requested"]
     assert events[0].data["arguments"] == {"title": "bug"}
+
+
+@pytest.mark.asyncio
+async def test_reasoning_after_text_starts_a_new_message_segment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from lui_agent_runtime.graph import runtime
+
+    class Chunk:
+        def __init__(self, content: str = "", reasoning: str = "") -> None:
+            self.content = content
+            self.additional_kwargs = {"reasoning_content": reasoning} if reasoning else {}
+            self.tool_call_chunks = []
+
+    class Graph:
+        async def astream_events(self, *_args, **_kwargs):
+            for chunk in (
+                Chunk(content="第一段"),
+                Chunk(reasoning="再分析"),
+                Chunk(content="第二段"),
+            ):
+                yield {"event": "on_chat_model_stream", "data": {"chunk": chunk}}
+
+    monkeypatch.setattr(runtime, "create_streaming_graph", lambda *_args, **_kwargs: Graph())
+    events = [
+        event
+        async for event in runtime.stream_graph_events(
+            FakeChatModel(),
+            [{"role": "user", "content": "hi"}],
+            run_id="run-1",
+            thread_id="thread-1",
+        )
+    ]
+
+    assert [event.event for event in events] == [
+        "message.started",
+        "message.delta",
+        "message.completed",
+        "reasoning.delta",
+        "reasoning.completed",
+        "message.started",
+        "message.delta",
+        "message.completed",
+    ]
+    message_item_ids = [
+        event.data["item_id"] for event in events if event.event == "message.started"
+    ]
+    assert message_item_ids == [
+        "run-1:assistant:segment:0",
+        "run-1:assistant:segment:1",
+    ]

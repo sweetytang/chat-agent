@@ -1,11 +1,10 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
 class Checkpoint:
     id: str
     parent_id: str | None
-    messages: tuple[dict, ...] = field(default_factory=tuple)
 
 
 class CheckpointTree:

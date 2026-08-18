@@ -10,7 +10,7 @@ function event(sequence, name, content = '') {
     run_id: 'run-1',
     thread_id: 'thread-1',
     sequence,
-    data: { content },
+    data: { item_id: 'segment-1', content },
   };
 }
 
@@ -71,4 +71,32 @@ test('中止流时丢弃未提交的增量', () => {
 
   assert.equal(cancelledFrame, 7);
   assert.deepEqual(dispatched, []);
+});
+
+test('同一帧内不同条目的增量保持到达顺序', () => {
+  const dispatched = [];
+  let frameCallback;
+  const dispatcher = createFrameEventDispatcher(
+    (agentEvent) => dispatched.push(agentEvent),
+    (callback) => {
+      frameCallback = callback;
+      return 1;
+    },
+    () => {},
+  );
+
+  dispatcher.push({
+    ...event(1, 'reasoning.delta', '分析'),
+    data: { item_id: 'reasoning-1', content: '分析' },
+  });
+  dispatcher.push({
+    ...event(2, 'message.delta', '回答'),
+    data: { item_id: 'segment-1', content: '回答' },
+  });
+  frameCallback();
+
+  assert.deepEqual(
+    dispatched.map((item) => item.data.item_id),
+    ['reasoning-1', 'segment-1'],
+  );
 });

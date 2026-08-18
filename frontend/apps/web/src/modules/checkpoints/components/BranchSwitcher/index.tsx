@@ -1,9 +1,9 @@
-import type { MessageBranchOption } from '@/modules/threads/types/history';
+import type { BranchOption } from '@/modules/timeline/types';
 
 import styles from './index.module.css';
 
 interface BranchSwitcherProps {
-  branchOptions: MessageBranchOption[];
+  branchOptions: BranchOption[];
   currentIndex: number;
   disabled?: boolean;
   onSwitch: (checkpointId: string) => void;
