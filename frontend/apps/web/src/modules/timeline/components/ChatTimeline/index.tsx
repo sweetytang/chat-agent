@@ -83,6 +83,7 @@ export function ChatTimeline({
           <ToolCallCard
             approvalActive={pendingRequestId === item.request_id}
             approvalResolving={resolvingApprovalId === item.request_id}
+            key={`${item.id}:${item.status}`}
             item={item}
             onApproval={onResolveApproval}
           />

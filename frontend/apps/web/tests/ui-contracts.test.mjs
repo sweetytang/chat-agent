@@ -328,3 +328,24 @@ test('首次加载会话列表时展示加载态而不是空态', () => {
   assert.match(sidebar, /aria-label="正在加载会话列表"/);
   assert.match(sidebar, /aria-live="polite"[\s\S]*role="status"/);
 });
+
+test('工具卡片执行完成后自动折叠，运行中和等待审核保持展开', () => {
+  const source = fs.readFileSync(
+    new URL('../src/modules/timeline/components/ToolCallCard/index.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(source, /Collapsible\.Root/);
+  assert.match(
+    source,
+    /const isActive = item\.status === 'running' \|\| item\.status === 'awaiting_approval'/,
+  );
+  assert.match(source, /open=\{isActive \|\| expanded\}/);
+  assert.match(source, /<Collapsible\.Trigger className=\{styles\.header\}>/);
+
+  const timeline = fs.readFileSync(
+    new URL('../src/modules/timeline/components/ChatTimeline/index.tsx', import.meta.url),
+    'utf8',
+  );
+  assert.match(timeline, /key=\{`\$\{item\.id\}:\$\{item\.status\}`\}/);
+});

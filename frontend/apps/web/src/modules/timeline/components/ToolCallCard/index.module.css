@@ -17,6 +17,13 @@
 .header {
   justify-content: space-between;
   gap: 12px;
+  width: 100%;
+  padding: 0;
+  color: var(--text-primary);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
 }
 
 .header span {
@@ -27,12 +34,24 @@
   color: var(--text-primary);
 }
 
+.content {
+  padding-top: 2px;
+}
+
 .status {
   font-size: 12px;
 }
 
 .status svg {
   flex: 0 0 auto;
+}
+
+.header svg:last-child {
+  transition: transform var(--motion-fast);
+}
+
+.header[data-state='open'] svg:last-child {
+  transform: rotate(180deg);
 }
 
 .payload {
@@ -68,4 +87,10 @@
 
 .actions button:hover:not(:disabled) {
   background: var(--surface-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .header svg:last-child {
+    transition: none;
+  }
 }
