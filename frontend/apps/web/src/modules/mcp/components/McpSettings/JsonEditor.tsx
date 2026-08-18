@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { CodeBlock } from '@/shared/components/CodeBlock';
 
 import styles from './index.module.css';
 
@@ -19,20 +19,6 @@ interface JsonEditorProps {
   placeholder: string;
 }
 
-function highlightJson(source: string) {
-  const escaped = source.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  return escaped.replace(
-    /("(?:\\.|[^"\\])*")\s*(?=:)|("(?:\\.|[^"\\])*")|(-?\d+(?:\.\d+)?)|(true|false|null)|([{}[\],:])/g,
-    (_token, key, string, number, bool, punctuation) => {
-      if (key) return `<span class="jsonKey">${key}</span>`;
-      if (string) return `<span class="jsonString">${string}</span>`;
-      if (number) return `<span class="jsonNumber">${number}</span>`;
-      if (bool) return `<span class="jsonBoolean">${bool}</span>`;
-      return `<span class="jsonPunctuation">${punctuation}</span>`;
-    },
-  );
-}
-
 export function JsonEditor({
   source,
   value,
@@ -43,9 +29,6 @@ export function JsonEditor({
   onError,
   placeholder,
 }: JsonEditorProps) {
-  const lines = source.split('\n');
-  const [activeLine, setActiveLine] = useState(1);
-
   function format() {
     try {
       onChange(JSON.stringify(JSON.parse(source), null, 2));
@@ -56,35 +39,16 @@ export function JsonEditor({
 
   return (
     <div className={styles.jsonEditor}>
-      <div className={styles.codeViewport}>
-        <div className={styles.lineNumbers} aria-hidden="true">
-          {lines.map((_, index) => (
-            <span key={index}>{index + 1}</span>
-          ))}
-        </div>
-        <pre className={styles.jsonCode} aria-hidden="true">
-          {lines.map((line, index) => (
-            <span
-              className={index + 1 === activeLine ? styles.activeJsonLine : ''}
-              key={`${index}-${line}`}
-              dangerouslySetInnerHTML={{ __html: highlightJson(line) || ' ' }}
-            />
-          ))}
-        </pre>
-        <textarea
-          aria-label="原始 MCP JSON"
-          spellCheck={false}
-          value={source}
-          onChange={(event) => onChange(event.target.value)}
-          onSelect={(event) =>
-            setActiveLine(
-              event.currentTarget.value.slice(0, event.currentTarget.selectionStart).split('\n')
-                .length,
-            )
-          }
-          placeholder={placeholder}
-        />
-      </div>
+      <CodeBlock
+        ariaLabel="原始 MCP JSON"
+        className={styles.codeBlock}
+        height="350px"
+        language="json"
+        onChange={onChange}
+        placeholder={placeholder}
+        readOnly={false}
+        value={source}
+      />
       <div className={styles.editorFooter}>
         <span>
           <i className={validation.valid ? styles.jsonValid : styles.jsonInvalid} />
@@ -95,9 +59,6 @@ export function JsonEditor({
         <div className={styles.editorActions}>
           <button type="button" onClick={format}>
             格式化
-          </button>
-          <button type="button" onClick={() => void navigator.clipboard?.writeText(source)}>
-            复制
           </button>
           <button
             className={styles.primaryButton}

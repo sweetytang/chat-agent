@@ -342,10 +342,61 @@ test('工具卡片执行完成后自动折叠，运行中和等待审核保持�
   );
   assert.match(source, /open=\{isActive \|\| expanded\}/);
   assert.match(source, /<Collapsible\.Trigger className=\{styles\.header\}>/);
+  assert.match(source, /function displayToolName/);
+  assert.match(source, /function ResultPreview/);
+  assert.match(source, /function resultError/);
+  assert.match(source, /Array\.isArray\(record\?\.content\)/);
+  assert.match(source, /import \{ CodeBlock \} from '@\/shared\/components\/CodeBlock'/);
+  assert.match(source, /label="原始输入与输出"/);
+  assert.match(source, /查看原始数据/);
+  assert.doesNotMatch(source, /MCP 工具调用|MCP 返回内容/);
+  assert.doesNotMatch(source, /<pre\b/);
 
   const timeline = fs.readFileSync(
     new URL('../src/modules/timeline/components/ChatTimeline/index.tsx', import.meta.url),
     'utf8',
   );
   assert.match(timeline, /key=\{`\$\{item\.id\}:\$\{item\.status\}`\}/);
+
+  const styles = fs.readFileSync(
+    new URL('../src/modules/timeline/components/ToolCallCard/index.module.css', import.meta.url),
+    'utf8',
+  );
+  assert.match(styles, /\.resultItem\s*\{/);
+  assert.match(styles, /\.raw\s*\{/);
+  assert.doesNotMatch(styles, /\.code\s*\{/);
+});
+
+test('全局 CodeBlock 统一展示与编辑代码内容', () => {
+  const codeBlock = fs.readFileSync(
+    new URL('../src/shared/components/CodeBlock/index.tsx', import.meta.url),
+    'utf8',
+  );
+  const messageContent = fs.readFileSync(
+    new URL('../src/modules/chat/components/MessageContent/index.tsx', import.meta.url),
+    'utf8',
+  );
+  const jsonEditor = fs.readFileSync(
+    new URL('../src/modules/mcp/components/McpSettings/JsonEditor.tsx', import.meta.url),
+    'utf8',
+  );
+  const structuredOutput = fs.readFileSync(
+    new URL(
+      '../src/modules/presentation/components/StructuredOutputCard/index.tsx',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+
+  assert.match(codeBlock, /@uiw\/react-codemirror/);
+  assert.match(codeBlock, /readOnly = true/);
+  assert.match(codeBlock, /extensions\?: Extension\[\]/);
+  assert.match(codeBlock, /maxHeight=\{height \? undefined : '360px'\}/);
+  assert.match(codeBlock, /navigator\.clipboard\.writeText/);
+  assert.match(messageContent, /@\/shared\/components\/CodeBlock/);
+  assert.match(jsonEditor, /readOnly=\{false\}/);
+  assert.match(jsonEditor, /language="json"/);
+  assert.match(structuredOutput, /@\/shared\/components\/CodeBlock/);
+  assert.doesNotMatch(jsonEditor, /<pre\b/);
+  assert.doesNotMatch(structuredOutput, /<pre\b/);
 });

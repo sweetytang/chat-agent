@@ -130,6 +130,7 @@ const shouldSubmit =
 - Assistant messages: left-aligned document flow without a large enclosing bubble.
 - Markdown tables scroll horizontally.
 - Fenced code exposes copy feedback and remains theme-readable.
+- All code blocks use `shared/components/CodeBlock`, backed by CodeMirror 6. The component supports both `readOnly` display and controlled editing through `value`/`onChange`; language modes, folding, line numbers, validation, and completions are configured through explicit extensions. Consumers must not render business-facing raw `<pre>` blocks directly.
 - Tool, approval, structured output, generative UI, and error results use typed cards with restrained semantic accents.
 - Message, reasoning, tool, approval, structured output, generative UI, and error entries share one typed `TimelineSnapshot`; do not maintain parallel history or presentation projections.
 - Timeline order is the authority across runs and branches. Within one run, an item's first event `sequence` fixes its position; later deltas update the same stable item ID in place.

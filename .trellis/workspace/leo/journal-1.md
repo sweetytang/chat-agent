@@ -58,3 +58,24 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 3: 通用工具卡片与 CodeMirror 代码块重构
+
+**Date**: 2026-08-18
+**Task**: 通用工具卡片与 CodeMirror 代码块重构
+**Branch**: `master`
+
+### Summary
+
+将 MCP 专用工具卡片泛化为通用工具调用卡片；引入 CodeMirror 6 全局 CodeBlock，支持只读/可编辑、主题、语言扩展、行号折叠和复制，并迁移 Markdown、工具结果、结构化输出和 MCP JSON 配置编辑器。前端 49 个测试通过，TypeScript、ESLint、Stylelint、Prettier、Vite 构建通过。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4ff4d92` | (see git log) |
+
+### Status
+
+[OK] **Completed**

@@ -1,0 +1,103 @@
+.block {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--code-text);
+  background: var(--code-background);
+  border: 1px solid var(--code-border);
+  border-radius: var(--radius-md);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 34px;
+  padding: 7px 11px;
+  color: var(--code-muted);
+  background: var(--code-toolbar);
+  border-bottom: 1px solid var(--code-border);
+  font-size: 11px;
+}
+
+.toolbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 4px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.toolbar button:hover {
+  color: var(--code-text);
+  background: var(--surface-hover);
+}
+
+.editor {
+  min-width: 0;
+  font:
+    13px/1.6 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+}
+
+.editor :global(.cm-editor) {
+  min-height: 0;
+  color: var(--code-text);
+  background: var(--code-background);
+}
+
+.editor :global(.cm-scroller) {
+  max-height: 420px;
+  overflow: auto;
+  font: inherit;
+}
+
+.editor :global(.cm-content) {
+  min-height: 1.6em;
+  padding: 14px 0;
+  caret-color: var(--code-text);
+}
+
+.editor :global(.cm-line) {
+  padding: 0 14px;
+}
+
+.editor :global(.cm-gutters) {
+  color: var(--code-muted);
+  background: var(--code-toolbar);
+  border-right: 1px solid var(--code-border);
+}
+
+.editor :global(.cm-activeLine),
+.editor :global(.cm-activeLineGutter) {
+  background: var(--surface-hover);
+}
+
+.editor :global(.cm-selectionBackground),
+.editor :global(.cm-content ::selection) {
+  background: var(--accent-border);
+}
+
+.editor :global(.cm-cursor),
+.editor :global(.cm-dropCursor) {
+  border-left-color: var(--code-text);
+}
+
+.editor :global(.cm-foldPlaceholder) {
+  color: var(--code-muted);
+  background: var(--code-toolbar);
+  border-color: var(--code-border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toolbar button {
+    transition: none;
+  }
+}

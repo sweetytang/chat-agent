@@ -3,7 +3,7 @@ import { memo, useMemo } from 'react';
 import Markdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import { CodeBlock } from '@/modules/chat/components/CodeBlock';
+import { CodeBlock } from '@/shared/components/CodeBlock';
 
 import styles from './index.module.css';
 
@@ -16,8 +16,7 @@ const markdownComponents: Components = {
       : typeof children === 'string'
         ? children
         : '';
-    if (className || text.includes('\n'))
-      return <CodeBlock className={className}>{text}</CodeBlock>;
+    if (className || text.includes('\n')) return <CodeBlock language={className} value={text} />;
     return (
       <code className={className} {...props}>
         {children}

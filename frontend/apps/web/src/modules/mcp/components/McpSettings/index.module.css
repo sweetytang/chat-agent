@@ -605,119 +605,10 @@
   border-radius: 10px;
 }
 
-.codeViewport {
-  position: relative;
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
+.codeBlock {
   min-height: 0;
-  max-height: 100%;
-  overflow: auto;
-  background: var(--surface);
-  color: var(--text-primary);
-  border-top: 1px solid var(--border);
-}
-
-.lineNumbers {
-  display: grid;
-  align-content: start;
-  padding: 16px 10px;
-  color: var(--text-muted);
-  background: var(--surface-muted);
-  border-right: 1px solid var(--border);
-  font:
-    12px/1.65 ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Monaco,
-    Consolas,
-    monospace;
-  text-align: right;
-  user-select: none;
-}
-
-.lineNumbers span {
-  display: block;
-}
-
-.codeViewport pre,
-.codeViewport textarea {
-  grid-column: 2;
-  grid-row: 1;
-  min-width: 0;
-  min-height: 0;
-  height: 100%;
-  margin: 0;
-  padding: 16px;
-  overflow: auto;
   border: 0;
-  font:
-    12px/1.65 ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Monaco,
-    Consolas,
-    monospace;
-  tab-size: 2;
-  white-space: pre;
-}
-
-.codeViewport pre {
-  position: relative;
-  z-index: 2;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.jsonCode {
-  display: grid;
-  align-content: start;
-  padding: 16px;
-}
-
-.jsonCode > span {
-  display: block;
-  min-height: 1.65em;
-  margin: 0 -6px;
-  padding: 0 6px;
-}
-
-.activeJsonLine {
-  background: var(--ambient-glow);
-}
-
-.codeViewport textarea {
-  position: relative;
-  z-index: 1;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  caret-color: var(--text-primary);
-  background: transparent;
-  resize: none;
-}
-
-.codeViewport textarea::selection {
-  background: var(--accent-border);
-}
-
-.codeViewport :global(.jsonKey) {
-  color: var(--accent);
-  font-weight: 500;
-}
-
-.codeViewport :global(.jsonString) {
-  color: var(--success);
-}
-
-.codeViewport :global(.jsonBoolean) {
-  color: var(--accent);
-}
-
-.codeViewport :global(.jsonNumber) {
-  color: var(--warning);
-}
-
-.codeViewport :global(.jsonPunctuation) {
-  color: var(--text-muted);
+  border-radius: 0;
 }
 
 .editorActions {
@@ -754,30 +645,6 @@ input:disabled {
   color: var(--accent-contrast);
   background: var(--accent);
   border-color: var(--accent);
-}
-
-.jsonEditor textarea {
-  min-height: 350px;
-  padding: 16px;
-  color: var(--text-primary);
-  background: var(--surface);
-  border: 0;
-  resize: vertical;
-  font:
-    12px/1.65 ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Monaco,
-    Consolas,
-    monospace;
-  tab-size: 2;
-}
-
-/* 编辑层透明，只负责输入；高亮由下方 pre 图层渲染。 */
-.jsonEditor .codeViewport textarea {
-  color: transparent;
-  background: transparent;
-  resize: none;
 }
 
 .editorFooter {
