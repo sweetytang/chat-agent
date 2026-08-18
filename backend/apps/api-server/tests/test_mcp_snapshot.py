@@ -104,10 +104,12 @@ async def test_resumed_mcp_success_generates_final_answer(monkeypatch: pytest.Mo
     from app.api import runs
 
     class Model:
-        async def ainvoke(self, messages):
+        async def astream(self, messages):
             assert len(messages) == 2
             assert "MCP 工具返回结果" in messages[1].content
-            return type("Reply", (), {"content": "仓库的基本信息已整理。"})()
+            yield type(
+                "Chunk", (), {"content": "仓库的基本信息已整理。", "additional_kwargs": {}}
+            )()
 
     monkeypatch.setattr(
         runs, "get_provider_config", lambda: type("Provider", (), {"provider": "fake"})()
@@ -132,6 +134,53 @@ async def test_resumed_mcp_success_generates_final_answer(monkeypatch: pytest.Mo
     ]
     assert any("仓库的基本信息已整理" in event for event in events)
     assert not any("生成最终答复失败" in event for event in events)
+
+
+@pytest.mark.asyncio
+async def test_resumed_mcp_answer_is_streamed_in_multiple_deltas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.api import runs
+
+    class Model:
+        async def astream(self, messages):
+            assert len(messages) == 2
+            assert "MCP 工具返回结果" in messages[1].content
+            for content in ("第一段", "第二段"):
+                yield type("Chunk", (), {"content": content, "additional_kwargs": {}})()
+
+    monkeypatch.setattr(
+        runs, "get_provider_config", lambda: type("Provider", (), {"provider": "fake"})()
+    )
+    monkeypatch.setattr(runs, "FakeChatModel", lambda **_kwargs: Model())
+
+    async def caller(_identity, _arguments):
+        return {"content": [{"type": "text", "text": "工具结果"}]}
+
+    identity = ToolIdentity("srv", "search_repo", "mcp__srv__search_repo")
+    pending = PendingReview(
+        "run-stream-resume",
+        RunRequest(thread_id="thread-stream-resume", content="查询仓库信息"),
+        None,
+        mcp_snapshot=McpToolSnapshot(identity, "搜索仓库", {}, caller),
+    )
+    events = [
+        event
+        async for event in resumed_run_events(
+            "run-stream-resume",
+            pending.request,
+            "request-stream-resume",
+            "approve",
+            None,
+            None,
+            pending=pending,
+        )
+    ]
+
+    deltas = [event for event in events if "event: message.delta" in event]
+    assert len(deltas) == 2
+    assert '"content":"第一段"' in deltas[0]
+    assert '"content":"第二段"' in deltas[1]
 
 
 @pytest.mark.asyncio

@@ -31,6 +31,16 @@ def _runtime() -> RunDependencies:
     return get_run_dependencies()
 
 
+def _chunk_text(value: object) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return "".join(
+            _chunk_text(item.get("text", "") if isinstance(item, dict) else item) for item in value
+        )
+    return ""
+
+
 async def resumed_run_events(
     run_id: str,
     request: RunRequest,
@@ -165,35 +175,6 @@ async def resumed_run_events(
     sequence += 1
     # 审核恢复必须把工具结果重新交给模型，而不是直接伪造“工具执行完成”。
     answer = "已按要求拒绝工具执行。" if decision == "reject" else "工具执行完成。"
-    try:
-        provider = _runtime().get_provider_config()
-        model = (
-            _runtime().FakeChatModel(chunks=("收到工具结果：",))
-            if provider.provider == "fake"
-            else _runtime().create_chat_model(provider)
-        )
-        response = await model.ainvoke(
-            [
-                HumanMessage(content=request.content),
-                HumanMessage(
-                    content=(
-                        "以下是 MCP 工具返回结果，请基于用户问题给出最终答复：\n"
-                        + json.dumps(result, ensure_ascii=False)
-                    )
-                ),
-            ]
-        )
-        content = getattr(response, "content", response)
-        if isinstance(content, list):
-            content = "".join(
-                str(item.get("text", "")) if isinstance(item, dict) else str(item)
-                for item in content
-            )
-        if isinstance(content, str) and content.strip():
-            answer = content
-    except Exception:
-        # 工具已成功执行时，即使二次模型调用失败，也返回可解释的降级答复。
-        answer = "工具已执行，但生成最终答复失败，请重试。"
     message_id = f"{run_id}:assistant"
     item_id = f"{message_id}:resume:{request_id}"
     yield recorder.event(
@@ -205,17 +186,57 @@ async def resumed_run_events(
         item_id=item_id,
         message_id=message_id,
     ).to_sse()
-    sequence += 1
-    yield (
-        recorder.event(
-            run_id,
-            request.thread_id,
-            sequence,
-            "message.delta",
-            item_id=item_id,
-            content=answer,
-        ).to_sse()
-    )
+    answer_parts: list[str] = []
+    try:
+        provider = _runtime().get_provider_config()
+        model = (
+            _runtime().FakeChatModel(chunks=("收到工具结果：",))
+            if provider.provider == "fake"
+            else _runtime().create_chat_model(provider)
+        )
+        model_messages_for_resume = [
+            HumanMessage(content=request.content),
+            HumanMessage(
+                content=(
+                    "以下是 MCP 工具返回结果，请基于用户问题给出最终答复：\n"
+                    + json.dumps(result, ensure_ascii=False)
+                )
+            ),
+        ]
+        async for chunk in model.astream(model_messages_for_resume):
+            content = _chunk_text(getattr(chunk, "content", ""))
+            if not content:
+                continue
+            answer_parts.append(content)
+            sequence += 1
+            yield (
+                recorder.event(
+                    run_id,
+                    request.thread_id,
+                    sequence,
+                    "message.delta",
+                    item_id=item_id,
+                    content=content,
+                ).to_sse()
+            )
+    except Exception:
+        # 工具已成功执行时，即使二次模型调用失败，也返回可解释的降级答复。
+        answer_parts = []
+        answer = "工具已执行，但生成最终答复失败，请重试。"
+    else:
+        answer = "".join(answer_parts) or "工具已执行，但生成最终答复失败，请重试。"
+    if not answer_parts:
+        sequence += 1
+        yield (
+            recorder.event(
+                run_id,
+                request.thread_id,
+                sequence,
+                "message.delta",
+                item_id=item_id,
+                content=answer,
+            ).to_sse()
+        )
     sequence += 1
     yield recorder.event(
         run_id,
