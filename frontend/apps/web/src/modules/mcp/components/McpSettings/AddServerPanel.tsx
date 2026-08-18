@@ -7,7 +7,7 @@ import type { McpServer } from '@/modules/mcp/types';
 import { AddServerForm } from './AddServerForm';
 import styles from './index.module.css';
 import { JsonEditor } from './JsonEditor';
-import type { EditorMode, ServerForm } from './useMcpSettings';
+import type { EditorMode, ServerForm } from '@/modules/mcp/hooks/useMcpSettings';
 
 const EMPTY_JSON_CONFIG = `{
   "mcpServers": {}

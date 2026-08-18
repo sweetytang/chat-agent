@@ -36,7 +36,7 @@ export function createFrameEventDispatcher(
   }
 
   function push(event: AgentEvent) {
-    // 对于其他事件，立即刷新并分发  
+    // 对于其他事件，立即刷新并分发
     if (event.event !== 'message.delta') {
       flush();
       dispatch(event);

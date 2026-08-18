@@ -1,0 +1,39 @@
+.status {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.running {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.running svg {
+  animation: status-spin 1s linear infinite;
+}
+
+.approval {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.failed {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+@keyframes status-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .running svg {
+    animation: none;
+  }
+}

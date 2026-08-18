@@ -10,27 +10,21 @@ import { ThreadSearchDialog } from '@/modules/threads/components/ThreadSearchDia
 
 import styles from './index.module.css';
 
-export function AppShell({
-  children,
-  controlsDisabled = false,
-}: {
-  children: ReactNode;
-  controlsDisabled?: boolean;
-}) {
+export function AppShell({ children }: { children: ReactNode }) {
   const collapsed = useUiStore((state) => state.sidebarCollapsed);
   const mobileOpen = useUiStore((state) => state.mobileSidebarOpen);
   const setMobileOpen = useUiStore((state) => state.setMobileSidebarOpen);
   return (
     <div className={`${styles.shell} ${collapsed ? styles.collapsed : ''}`}>
       <div className={styles.desktopSidebar}>
-        <Sidebar disabled={controlsDisabled} collapsed={collapsed} />
+        <Sidebar collapsed={collapsed} />
       </div>
       <Dialog.Root open={mobileOpen} onOpenChange={setMobileOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className={styles.overlay} />
           <Dialog.Content className={styles.drawer} aria-describedby={undefined}>
             <Dialog.Title className={styles.hiddenTitle}>会话导航</Dialog.Title>
-            <Sidebar disabled={controlsDisabled} onNavigate={() => setMobileOpen(false)} />
+            <Sidebar onNavigate={() => setMobileOpen(false)} />
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

@@ -60,6 +60,11 @@
   outline: none;
 }
 
+.menuItem[data-disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .separator {
   height: 1px;
   margin: 5px 3px;

@@ -90,7 +90,8 @@ Thread titles are one line with ellipsis. The displayed value comes from the bac
 - 线程行 hover 使用独立于普通 muted surface 的 hover token；三点按钮默认 `visibility: hidden` 且不可点击，行 hover/focus 或菜单打开时才显示并恢复 pointer events。跨 CSS Module 的父子交互使用稳定的 `data-thread-actions-trigger` 属性，不依赖另一个模块的局部 class 名。
 - 账户底部区域及其登录/账户触发器使用同一 hover token，保证整块区域存在可感知反馈。
 - Rename 与 Delete 使用 Radix Dialog。Rename 禁止空标题；Delete 必须二次确认。关闭弹窗后焦点返回对应三点按钮。
-- 删除当前线程后，前端必须中止活动流、清理运行投影并立即加载后端返回的下一条线程；无剩余线程时回到空白初始态。
+- 线程导航不能被其他会话的活动运行禁用。每个会话行从前端运行投影派生后台状态：`queued` / `running` / `resuming` 显示“运行中”，`interrupted` 显示“等待审核”，`failed` 显示“失败”；终态不保留未读标记。
+- 活动会话允许 Rename 与 Pin/Unpin，但 Delete 必须禁用；删除终态会话时只中止并清理目标会话的流和运行投影。删除当前线程后立即加载后端返回的下一条线程；无剩余线程时回到空白初始态。
 
 ## Authentication UI Contract
 
@@ -100,6 +101,7 @@ Thread titles are one line with ellipsis. The displayed value comes from the bac
 - Closing the dialog preserves form fields; successful authentication clears them.
 - Display the captured login email only when it was actually provided and stored. If a token exists without profile data, show a neutral authenticated label.
 - Persist the authenticated email beside the access/refresh tokens so a page refresh preserves the same account label and initial. If no email is available, always use the fixed neutral label `已登录账户` and initial `U`; never derive a random identity.
+- 长生命周期异步任务不能用 access token 字符串相等判断是否仍属于当前会话，因为 token 刷新会改变字符串。应同时检查当前仍已登录，以及目标 `thread_id` 的 `run_id` 或请求对象仍是原任务；退出登录时清空投影即可让旧任务失去所有权。
 - All buttons and menu items globally keep their normal visual surface on `:focus`/`:focus-visible`; the global rule removes outline and box shadow. Hover, active surface changes and menu highlight remain the interaction feedback.
 
 ## Composer Keyboard Contract
@@ -115,9 +117,12 @@ const shouldSubmit =
 - IME composition never submits.
 - Textarea grows to a maximum height, then scrolls internally.
 - During an active run, the send control becomes a stop control.
-- Track one shared active stream across normal runs and approval-resume runs.
-- Stop aborts that local stream first, then invokes backend cancellation when a run ID exists, and immediately leaves the active UI state.
-- Retry reuses the complete previous request context, not only its text.
+- 每个 `thread_id` 只跟踪一个活动流；普通运行和审核恢复共享同一个按会话控制器注册表。不同会话的活动流互不替换，页面卸载或认证失效时统一清理全部流。
+- Stop 先中止当前查看会话的本地流，再在 run ID 存在时请求后端取消，并立即退出该会话的活动 UI 状态；不得影响其他会话。
+- Retry 按 `thread_id` 复用完整的上一次请求上下文，而不只是文本。
+- 运行状态、消息历史、错误、事件 sequence、待审核项和重试上下文均按 `thread_id` 隔离；事件只按协议中的 `event.thread_id` 写入目标投影。
+- 切换侧边栏会话不得中止后台流。输入草稿保持页面级共享，发送目标在点击发送时固定，后续异步流程不得重新读取当前选中会话。
+- 活动 SSE 期间加载到的后端历史快照可能落后于本地流式投影，不得覆盖当前消息历史；进入 completed/failed/cancelled 等终态后，才允许最终快照校准历史。测试必须覆盖“非空旧快照不丢失 assistant 流式尾部”。
 
 ## Message and Presentation Contract
 

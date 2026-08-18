@@ -1,0 +1,3 @@
+{"file":".trellis/spec/frontend/visual-system.md","reason":"审核多会话运行控制、侧边栏状态、线程操作和可访问样式是否符合项目交互合同。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"检查 thread_id 从 SSE 到 store、组件、停止和审核恢复的完整数据流，防止跨会话串线。"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"检查事件 reducer、状态映射和流注册是否保持单一事实来源。"}

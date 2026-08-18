@@ -6,7 +6,7 @@ import type { McpServer, McpTool } from '@/modules/mcp/types';
 
 import styles from './index.module.css';
 import { ToolList } from './ToolList';
-import type { DetailTab, ServerForm } from './useMcpSettings';
+import type { DetailTab, ServerForm } from '@/modules/mcp/hooks/useMcpSettings';
 
 interface ServerDetailsProps {
   selected: McpServer;

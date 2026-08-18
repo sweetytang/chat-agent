@@ -7,7 +7,9 @@ import {
 import type { CheckpointSummary } from '@/modules/checkpoints/types';
 import { getPendingInterrupt } from '@/modules/interrupts/services/interruptApi';
 import { abortActiveStream } from '@/modules/runs/domain/activeStream';
-import { useRunStore } from '@/modules/runs/store/run';
+import { isActiveRunStatus } from '@/modules/runs/domain/status';
+import { selectThreadRun, useRunStore } from '@/modules/runs/store/run';
+import { createLatestRequestTracker } from '@/modules/threads/domain/latestRequest';
 import {
   createThread as createThreadRequest,
   deleteThread as deleteThreadRequest,
@@ -16,6 +18,8 @@ import {
   updateThread as updateThreadRequest,
 } from '@/modules/threads/services/threadApi';
 import type { ThreadSummary } from '@/modules/threads/types/thread';
+
+const DEMO_THREAD_ID = 'demo-thread';
 
 async function loadThreadSnapshot(threadId: string) {
   const [history, checkpoints, pendingInterrupt] = await Promise.all([
@@ -26,7 +30,9 @@ async function loadThreadSnapshot(threadId: string) {
   return { history, checkpoints, pendingInterrupt };
 }
 
-let latestThreadsRequestId = 0; // 用于防止异步请求乱序的“请求序号”，当发起新的请求时，旧的请求结果将被忽略
+let latestThreadsRequestId = 0; // 线程列表加载，过滤旧请求，只取最新结果；全局记录
+let selectionVersion = 0; // 判断用户在异步操作期间是否改变过当前线程选择，处理异步竞态的“选择版本号”
+const snapshotRequests = createLatestRequestTracker(); // 线程快照加载，过滤旧请求，只取最新结果；通过 Map<threadId, requestId> 按线程分别记录：
 
 interface ThreadState {
   threadId: string;
@@ -34,43 +40,38 @@ interface ThreadState {
   title: string;
   threads: ThreadSummary[];
   checkpoints: CheckpointSummary[];
-  isRefreshing: boolean;
+  refreshingThreads: Record<string, boolean>;
   isLoadingThreads: boolean;
   startNewThread: () => void;
   setCurrentThreadTitle: (title: string) => void;
-  setThread: (
-    threadId: string,
-    title?: string,
-    currentCheckpointId?: string | null,
-    preserveRunState?: boolean,
-  ) => void;
+  setThread: (threadId: string, title?: string, currentCheckpointId?: string | null) => void;
   loadThreads: () => Promise<void>;
   renameThread: (threadId: string, title: string) => Promise<void>;
   setThreadPinned: (threadId: string, isPinned: boolean) => Promise<void>;
   deleteThread: (threadId: string) => Promise<void>;
-  createThread: (title?: string, preserveRunState?: boolean) => Promise<ThreadSummary | null>;
+  createThread: (title?: string, migrateDemoProjection?: boolean) => Promise<ThreadSummary | null>;
+  refreshThread: (threadId: string, preserveRunState?: boolean) => Promise<void>;
   refreshCurrentThread: (preserveRunState?: boolean) => Promise<void>;
   switchCheckpoint: (checkpointId: string) => Promise<void>;
 }
 
 export const useThreadStore = create<ThreadState>((set, get) => ({
-  threadId: 'demo-thread',
+  threadId: DEMO_THREAD_ID,
   currentCheckpointId: null,
   title: '未命名会话',
   threads: [],
   checkpoints: [],
-  isRefreshing: false, // 如果是切换到实际线程，还需要异步加载历史记录，界面会暂时禁用部分操作或显示加载状态；如果切换到demo-thread，则不需要刷新
+  refreshingThreads: {},
   isLoadingThreads: true,
 
   startNewThread: () => {
-    abortActiveStream();
-    useRunStore.getState().reset();
+    selectionVersion += 1;
+    useRunStore.getState().resetThread(DEMO_THREAD_ID);
     set({
-      threadId: 'demo-thread',
+      threadId: DEMO_THREAD_ID,
       currentCheckpointId: null,
       title: '未命名会话',
       checkpoints: [],
-      isRefreshing: false,
     });
   },
 
@@ -82,22 +83,16 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
       ),
     })),
 
-  // 切换当前会话
-  setThread: (
-    threadId,
-    title = '未命名会话',
-    currentCheckpointId = null,
-    preserveRunState = false,
-  ) => {
-    if (threadId === get().threadId) return; // 避免重复切换到当前线程
-    if (!preserveRunState) useRunStore.getState().reset();
+  setThread: (threadId, title = '未命名会话', currentCheckpointId = null) => {
+    if (threadId === get().threadId) return;
+    selectionVersion += 1;
     set({
       threadId,
       title,
       currentCheckpointId,
       checkpoints: [],
-      isRefreshing: threadId !== 'demo-thread',
     });
+    if (threadId !== DEMO_THREAD_ID) void get().refreshThread(threadId, true);
   },
 
   loadThreads: async () => {
@@ -111,7 +106,7 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
         return {
           threads,
           title:
-            state.threadId === 'demo-thread' || current?.title == null
+            state.threadId === DEMO_THREAD_ID || current?.title == null
               ? state.title
               : current.title,
         };
@@ -123,15 +118,25 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
     }
   },
 
-  createThread: async (title, preserveRunState = false) => {
+  createThread: async (title, migrateDemoProjection = false) => {
+    const selectedThreadId = get().threadId;
+
+    const selectionVersionCache = selectionVersion;
     try {
       const thread = await createThreadRequest(title);
-      get().setThread(
-        thread.id,
-        thread.title ?? title ?? '未命名会话',
-        thread.current_checkpoint_id,
-        preserveRunState,
-      );
+      if (migrateDemoProjection) useRunStore.getState().migrateThread(DEMO_THREAD_ID, thread.id);
+
+      // 用户在创建请求期间切走时，不把页面强行切回新会话；运行仍会在新会话后台启动。
+      // (创建线程接口速度很快，所以自动切换也很快)
+      if (get().threadId === selectedThreadId && selectionVersion === selectionVersionCache) {
+        selectionVersion += 1;
+        set({
+          threadId: thread.id,
+          title: thread.title ?? title ?? '未命名会话',
+          currentCheckpointId: thread.current_checkpoint_id,
+          checkpoints: [],
+        });
+      }
       await get().loadThreads();
       return thread;
     } catch {
@@ -154,76 +159,103 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
   },
 
   deleteThread: async (threadId) => {
+    const runState = selectThreadRun(useRunStore.getState(), threadId);
+    if (isActiveRunStatus(runState.status)) throw new Error('运行中的会话不能删除');
+
     await deleteThreadRequest(threadId);
     const threads = await listThreads();
+    abortActiveStream(threadId);
+    useRunStore.getState().resetThread(threadId);
+    snapshotRequests.clear(threadId);
+
     if (get().threadId !== threadId) {
       set({ threads });
       return;
     }
 
-    abortActiveStream();
-    useRunStore.getState().reset();
+    selectionVersion += 1;
     const nextThread = threads[0];
     if (nextThread) {
-      set({ threads });
-      get().setThread(
-        nextThread.id,
-        nextThread.title ?? '未命名会话',
-        nextThread.current_checkpoint_id,
-      );
-      await get().refreshCurrentThread();
+      set({
+        threads,
+        threadId: nextThread.id,
+        title: nextThread.title ?? '未命名会话',
+        currentCheckpointId: nextThread.current_checkpoint_id,
+        checkpoints: [],
+      });
+      await get().refreshThread(nextThread.id, true);
       return;
     }
     set({
-      threadId: 'demo-thread',
+      threadId: DEMO_THREAD_ID,
       currentCheckpointId: null,
       title: '未命名会话',
       threads: [],
       checkpoints: [],
-      isRefreshing: false,
     });
   },
 
-  refreshCurrentThread: async (preserveRunState = false) => {
-    const threadId = get().threadId;
-    if (threadId === 'demo-thread') return;
-    set({ isRefreshing: true });
+  refreshThread: async (threadId, preserveRunState = false) => {
+    if (threadId === DEMO_THREAD_ID) return;
+    const requestId = snapshotRequests.start(threadId);
+    set((state) => ({
+      refreshingThreads: { ...state.refreshingThreads, [threadId]: true },
+    }));
     try {
       const { history, checkpoints, pendingInterrupt } = await loadThreadSnapshot(threadId);
-      if (get().threadId !== threadId) return;
-      set({ checkpoints, currentCheckpointId: history.current_checkpoint_id });
+      if (!snapshotRequests.isLatest(threadId, requestId)) return;
+
       const runStore = useRunStore.getState();
-      runStore.setHistory(history.messages, preserveRunState);
-      runStore.setPendingApproval(pendingInterrupt, preserveRunState);
+      runStore.setHistory(threadId, history.messages, preserveRunState);
+      runStore.setPendingApproval(threadId, pendingInterrupt, preserveRunState);
+      if (get().threadId === threadId)
+        set({ checkpoints, currentCheckpointId: history.current_checkpoint_id });
     } catch (error) {
-      if (get().threadId === threadId) {
-        useRunStore.setState({
-          error: error instanceof Error ? error.message : '历史记录加载失败',
-        });
-      }
+      if (snapshotRequests.isLatest(threadId, requestId))
+        useRunStore
+          .getState()
+          .setRunError(threadId, error instanceof Error ? error.message : '历史记录加载失败');
     } finally {
-      if (get().threadId === threadId) set({ isRefreshing: false });
+      if (snapshotRequests.isLatest(threadId, requestId))
+        set((state) => ({
+          refreshingThreads: { ...state.refreshingThreads, [threadId]: false },
+        }));
     }
+  },
+
+  refreshCurrentThread: async (preserveRunState = false) => {
+    await get().refreshThread(get().threadId, preserveRunState);
   },
 
   switchCheckpoint: async (checkpointId) => {
     const threadId = get().threadId;
-    if (threadId === 'demo-thread') return;
-    set({ isRefreshing: true });
+    if (threadId === DEMO_THREAD_ID) return;
+    if (isActiveRunStatus(selectThreadRun(useRunStore.getState(), threadId).status)) return;
+
+    const requestId = snapshotRequests.start(threadId);
+    set((state) => ({
+      refreshingThreads: { ...state.refreshingThreads, [threadId]: true },
+    }));
     try {
       await switchCheckpointRequest(threadId, checkpointId);
       const { history, checkpoints, pendingInterrupt } = await loadThreadSnapshot(threadId);
-      if (get().threadId !== threadId) return;
-      set({ checkpoints, currentCheckpointId: history.current_checkpoint_id });
+      if (!snapshotRequests.isLatest(threadId, requestId)) return;
+
       const runStore = useRunStore.getState();
-      runStore.setHistory(history.messages);
-      runStore.setPendingApproval(pendingInterrupt);
+      runStore.setHistory(threadId, history.messages);
+      runStore.setPendingApproval(threadId, pendingInterrupt);
+      if (get().threadId === threadId)
+        set({ checkpoints, currentCheckpointId: history.current_checkpoint_id });
     } catch (error) {
-      if (get().threadId === threadId) {
-        useRunStore.setState({ error: error instanceof Error ? error.message : '分支切换失败' });
-      }
+      if (snapshotRequests.isLatest(threadId, requestId))
+        useRunStore
+          .getState()
+          .setRunError(threadId, error instanceof Error ? error.message : '分支切换失败');
     } finally {
-      if (get().threadId === threadId) set({ isRefreshing: false });
+      if (snapshotRequests.isLatest(threadId, requestId))
+        set((state) => ({
+          refreshingThreads: { ...state.refreshingThreads, [threadId]: false },
+        }));
     }
   },
 }));

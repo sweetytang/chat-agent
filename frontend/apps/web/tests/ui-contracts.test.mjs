@@ -69,17 +69,22 @@ test('审核与失败事件可作为重复展示的有序卡片保留', () => {
   );
 });
 
-test('HITL 恢复完成后同时刷新历史和线程列表', () => {
+test('HITL 恢复按原会话刷新历史和线程列表', () => {
   const source = fs.readFileSync(
     new URL('../src/modules/interrupts/components/ApprovalCard/index.tsx', import.meta.url),
     'utf8',
   );
 
-  assert.match(source, /refreshCurrentThread\(true\)/);
+  assert.match(source, /refreshThread\(threadId, true\)/);
   assert.match(source, /loadThreads\(\)/);
-  assert.match(source, /createFrameEventDispatcher/);
-  assert.match(source, /eventDispatcher\.push\(event\)/);
-  assert.match(source, /eventDispatcher\.flush\(\)/);
+  assert.match(source, /consumeRunStream/);
+  assert.match(source, /threadId,/);
+  assert.ok(source.indexOf('prepareResume(threadId)') < source.indexOf('resolveInterrupt('));
+  assert.match(source, /currentRun\.runId !== runId/);
+  assert.match(source, /status !== RunStatus\.Resuming/);
+  assert.match(source, /currentRun\.runId === runId/);
+  assert.match(source, /isActiveRunStatus\(currentRun\.status\)/);
+  assert.doesNotMatch(source, /token === authToken|token !== authToken/);
 });
 
 test('线程操作菜单仅包含重命名、置顶和删除并保持产品顺序', () => {
@@ -97,16 +102,19 @@ test('线程操作菜单仅包含重命名、置顶和删除并保持产品顺�
   assert.match(source, /title\.trim\(\)/);
 });
 
-test('删除当前线程会中止流、重置运行投影、选择首条线程并刷新历史', () => {
+test('删除线程只清理目标流和投影，并在删除当前线程后刷新下一条', () => {
   const source = fs.readFileSync(
     new URL('../src/modules/threads/store/thread.ts', import.meta.url),
     'utf8',
   );
 
-  assert.match(source, /abortActiveStream\(\);\s*useRunStore\.getState\(\)\.reset\(\)/);
+  assert.match(
+    source,
+    /abortActiveStream\(threadId\);\s*useRunStore\.getState\(\)\.resetThread\(threadId\)/,
+  );
   assert.match(source, /const nextThread = threads\[0\]/);
-  assert.match(source, /await get\(\)\.refreshCurrentThread\(\)/);
-  assert.match(source, /threadId: 'demo-thread'/);
+  assert.match(source, /await get\(\)\.refreshThread\(nextThread\.id, true\)/);
+  assert.match(source, /threadId: DEMO_THREAD_ID/);
 });
 
 test('首条发送会先把 demo-thread 替换为真实线程', () => {
@@ -114,9 +122,9 @@ test('首条发送会先把 demo-thread 替换为真实线程', () => {
     new URL('../src/modules/chat/components/Chat/index.tsx', import.meta.url),
     'utf8',
   );
-  assert.match(source, /currentThread\.threadId === 'demo-thread'/);
+  assert.match(source, /selectedThread\.threadId === 'demo-thread'/);
   assert.match(source, /createThread\(content, true\)/);
-  assert.match(source, /threadId: target\.threadId/);
+  assert.match(source, /threadId: thread\.id/);
 });
 
 test('新建会话只进入欢迎态，首次发送后才创建真实线程并先展示输入标题', () => {
@@ -152,19 +160,61 @@ test('首次发送先离开欢迎页，创建线程时保留乐观用户消息',
     'utf8',
   );
 
-  assert.match(chat, /beginRun\(content\)[\s\S]*createThread\(content, true\)/);
-  assert.match(chat, /showUserMessage: !isNewThread/);
-  assert.match(store, /createThread: \(title\?: string, preserveRunState\?: boolean\)/);
-  assert.match(store, /currentCheckpointId,[\s\S]*preserveRunState/);
+  assert.match(chat, /beginRun\('demo-thread', content\)[\s\S]*createThread\(content, true\)/);
+  assert.match(chat, /threadId: thread\.id/);
+  assert.match(store, /createThread: \(title\?: string, migrateDemoProjection\?: boolean\)/);
+  assert.match(store, /migrateThread\(DEMO_THREAD_ID, thread\.id\)/);
   assert.match(store, /createThreadRequest\(title\)/);
 });
 
-test('运行中的历史刷新不会用空响应覆盖立即展示的用户消息', () => {
+test('跨会话导航不再受当前运行状态全局禁用', () => {
+  const shell = fs.readFileSync(
+    new URL('../src/app/components/AppShell/index.tsx', import.meta.url),
+    'utf8',
+  );
+  const sidebar = fs.readFileSync(
+    new URL('../src/modules/threads/components/Sidebar/index.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.doesNotMatch(shell, /controlsDisabled/);
+  assert.doesNotMatch(sidebar, /itemLink[\s\S]{0,120}disabled=/);
+  assert.match(sidebar, /<ThreadRunStatus threadId=\{thread\.id\} \/>/);
+});
+
+test('输入草稿由 Chat 持有，切换会话不会重建或清空草稿', () => {
+  const source = fs.readFileSync(
+    new URL('../src/modules/chat/components/Chat/index.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(source, /const \[input, setInput\] = useState\(''\)/);
+  assert.doesNotMatch(source, /useEffect\([\s\S]{0,180}setInput\(''\)[\s\S]{0,80}\[threadId\]/);
+  assert.match(source, /const selectedThread = useThreadStore\.getState\(\)/);
+  assert.match(source, /threadId: selectedThread\.threadId/);
+  assert.match(source, /setInput\(\(draft\) => draft \|\| content\)/);
+});
+
+test('活动会话仅禁用删除，仍允许重命名和置顶', () => {
+  const source = fs.readFileSync(
+    new URL('../src/modules/threads/components/ThreadActions/index.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(source, /const deleteDisabled = useRunStore/);
+  assert.match(source, /disabled=\{deleteDisabled\}[\s\S]*openDialog\('delete'\)/);
+  assert.doesNotMatch(source, /DropdownMenu\.Trigger[\s\S]{0,300}disabled=/);
+});
+
+test('运行中的历史刷新不会用落后快照覆盖实时消息投影', () => {
   const source = fs.readFileSync(
     new URL('../src/modules/runs/store/run.ts', import.meta.url),
     'utf8',
   );
-  assert.match(source, /preserveRunState[\s\S]*history\.length > 0 \? history : state\.history/);
+  assert.match(
+    source,
+    /preserveRunState[\s\S]*isStreamingRunStatus\(state\.status\) \|\| history\.length === 0/,
+  );
 });
 
 test('流式消息使用稳定分块 Markdown 渲染', () => {

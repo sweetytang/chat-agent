@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 
 import { login, logout, register } from '@/modules/auth/services/authApi';
+import { abortAllStreams } from '@/modules/runs/domain/activeStream';
+import { useRunStore } from '@/modules/runs/store/run';
 import {
   clearAuthSession,
   getAuthEmail,
@@ -17,6 +19,11 @@ interface AuthState {
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
+}
+
+function clearActiveRuns(): void {
+  abortAllStreams();
+  useRunStore.getState().resetAll();
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -61,11 +68,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 }));
 
-subscribeAuthSession((token) =>
-  useAuthStore.setState({ token, ...(!token ? { email: null } : {}) }),
-);
+subscribeAuthSession((token) => {
+  if (!token) clearActiveRuns();
+  useAuthStore.setState({ token, ...(!token ? { email: null } : {}) });
+});
 if (typeof window !== 'undefined') {
   window.addEventListener('lui-agent:auth-expired', () => {
+    clearActiveRuns();
     useAuthStore.setState({ token: null, error: '登录已过期，请重新登录' });
   });
 }

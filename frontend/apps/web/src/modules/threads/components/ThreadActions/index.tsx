@@ -3,20 +3,21 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { MoreHorizontal, Pin, Pencil, Trash2, X } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
 
+import { isActiveRunStatus } from '@/modules/runs/domain/status';
+import { selectThreadRun, useRunStore } from '@/modules/runs/store/run';
 import { useThreadStore } from '@/modules/threads/store/thread';
 import type { ThreadSummary } from '@/modules/threads/types/thread';
 
 import styles from './index.module.css';
 
 interface ThreadActionsProps {
-  disabled: boolean;
   thread: ThreadSummary;
   onDeleted?: () => void;
 }
 
 type DialogKind = 'rename' | 'delete' | null;
 
-export function ThreadActions({ disabled, thread, onDeleted }: ThreadActionsProps) {
+export function ThreadActions({ thread, onDeleted }: ThreadActionsProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [title, setTitle] = useState(thread.title ?? '未命名会话');
@@ -25,6 +26,9 @@ export function ThreadActions({ disabled, thread, onDeleted }: ThreadActionsProp
   const descriptionId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const deleteDisabled = useRunStore((state) =>
+    isActiveRunStatus(selectThreadRun(state, thread.id).status),
+  );
 
   function openDialog(kind: Exclude<DialogKind, null>) {
     if (kind === 'rename') setTitle(thread.title ?? '未命名会话');
@@ -80,7 +84,6 @@ export function ThreadActions({ disabled, thread, onDeleted }: ThreadActionsProp
           className={styles.trigger}
           data-thread-actions-trigger
           data-open={menuOpen ? '' : undefined}
-          disabled={disabled}
           aria-label={`管理会话：${thread.title ?? '未命名会话'}`}
           type="button"
         >
@@ -99,6 +102,7 @@ export function ThreadActions({ disabled, thread, onDeleted }: ThreadActionsProp
             <DropdownMenu.Separator className={styles.separator} />
             <DropdownMenu.Item
               className={`${styles.menuItem} ${styles.dangerItem}`}
+              disabled={deleteDisabled}
               onSelect={() => openDialog('delete')}
             >
               <Trash2 size={16} />

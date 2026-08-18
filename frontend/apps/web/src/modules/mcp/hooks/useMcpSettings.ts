@@ -265,19 +265,19 @@ export function useMcpSettings(enabled = true) {
           const existing = servers.find((server) => server.name === config.name);
           const saved = existing
             ? await updateMcpServer(existing.id, {
-              transport: 'STDIO',
-              command: config.command,
-              args: config.args,
-              env: config.env,
-            })
+                transport: 'STDIO',
+                command: config.command,
+                args: config.args,
+                env: config.env,
+              })
             : await createMcpServer({
-              name: config.name,
-              scope: 'SHARED',
-              transport: 'STDIO',
-              command: config.command,
-              args: config.args,
-              env: config.env,
-            });
+                name: config.name,
+                scope: 'SHARED',
+                transport: 'STDIO',
+                command: config.command,
+                args: config.args,
+                env: config.env,
+              });
           if (saved.enabled !== config.enabled) await setServerEnabled(saved.id, config.enabled);
           const currentTools = await listMcpTools(saved.id);
           await Promise.all(
@@ -290,21 +290,21 @@ export function useMcpSettings(enabled = true) {
         const existing = servers.find((server) => server.name === config.name);
         const saved = existing
           ? await updateMcpServer(existing.id, {
-            name: config.name,
-            transport: config.transport,
-            endpoint: config.endpoint,
-            // JSON 是全量配置：未声明 headers 时清空旧凭据，避免公开 MCP 继续携带旧 Authorization。
-            headers: config.headers,
-            ...(config.bearerToken ? { bearer_token: config.bearerToken } : {}),
-          })
+              name: config.name,
+              transport: config.transport,
+              endpoint: config.endpoint,
+              // JSON 是全量配置：未声明 headers 时清空旧凭据，避免公开 MCP 继续携带旧 Authorization。
+              headers: config.headers,
+              ...(config.bearerToken ? { bearer_token: config.bearerToken } : {}),
+            })
           : await createMcpServer({
-            name: config.name,
-            endpoint: config.endpoint,
-            scope: 'PRIVATE',
-            transport: config.transport,
-            headers: config.headers,
-            ...(config.bearerToken ? { bearer_token: config.bearerToken } : {}),
-          });
+              name: config.name,
+              endpoint: config.endpoint,
+              scope: 'PRIVATE',
+              transport: config.transport,
+              headers: config.headers,
+              ...(config.bearerToken ? { bearer_token: config.bearerToken } : {}),
+            });
         if (saved.enabled !== config.enabled) await setServerEnabled(saved.id, config.enabled);
         const currentTools = await listMcpTools(saved.id);
         await Promise.all(

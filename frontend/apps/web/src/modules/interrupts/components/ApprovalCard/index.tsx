@@ -1,10 +1,10 @@
 import { useState } from 'react';
 
+import { useAuthStore } from '@/modules/auth/store/auth';
 import { resolveInterrupt } from '@/modules/interrupts/services/interruptApi';
-import { activateStream, clearActiveStream } from '@/modules/runs/domain/activeStream';
-import { createFrameEventDispatcher } from '@/modules/runs/domain/frameEventDispatcher';
-import { streamAgentEvents } from '@/modules/runs/services/sse/client';
-import { useRunStore } from '@/modules/runs/store/run';
+import { consumeRunStream } from '@/modules/runs/domain/runStream';
+import { isActiveRunStatus } from '@/modules/runs/domain/status';
+import { selectThreadRun, useRunStore } from '@/modules/runs/store/run';
 import { RunStatus } from '@/modules/runs/types/events';
 import { useThreadStore } from '@/modules/threads/store/thread';
 import { API_ROOT } from '@/shared/http/client';
@@ -14,45 +14,57 @@ import styles from './index.module.css';
 export function ApprovalCard({
   requestId,
   runId,
+  threadId,
   tool,
   active = true,
 }: {
   requestId: string;
   runId: string;
+  threadId: string;
   tool: string;
   active?: boolean;
 }) {
   const [isResolving, setIsResolving] = useState(false);
   async function resolve(decision: 'approve' | 'edit' | 'reject') {
+    if (!useAuthStore.getState().token) return;
     setIsResolving(true);
-    let streamController: AbortController | null = null;
-    const eventDispatcher = createFrameEventDispatcher((event) =>
-      useRunStore.getState().applyEvent(event),
-    );
+    useRunStore.getState().prepareResume(threadId);
     try {
       await resolveInterrupt(requestId, decision);
-      useRunStore.getState().prepareResume();
-      streamController = new AbortController();
-      activateStream(streamController);
-      for await (const event of streamAgentEvents({
+      // 审核提交期间可能退出登录或停止该会话，此时不能再启动恢复流。
+      const currentRun = selectThreadRun(useRunStore.getState(), threadId);
+      if (
+        !useAuthStore.getState().token ||
+        currentRun.runId !== runId ||
+        currentRun.status !== RunStatus.Resuming
+      )
+        return;
+      await consumeRunStream({
+        threadId,
         url: `${API_ROOT}/runs/${runId}/resume`,
         body: { request_id: requestId, decision },
-        signal: streamController.signal,
-      })) {
-        eventDispatcher.push(event);
-      }
+        onEvent: (event) => useRunStore.getState().applyEvent(event),
+      });
     } catch (error) {
-      if (!(error instanceof DOMException && error.name === 'AbortError'))
-        useRunStore.setState({
-          error: error instanceof Error ? error.message : '审核恢复失败',
-          status: RunStatus.Failed,
-        });
+      const currentRun = selectThreadRun(useRunStore.getState(), threadId);
+      if (
+        useAuthStore.getState().token &&
+        currentRun.runId === runId &&
+        isActiveRunStatus(currentRun.status)
+      )
+        useRunStore
+          .getState()
+          .setRunError(
+            threadId,
+            error instanceof Error ? error.message : '审核恢复失败',
+            RunStatus.Failed,
+          );
     } finally {
-      if (streamController?.signal.aborted) eventDispatcher.cancel();
-      else eventDispatcher.flush();
-      if (streamController) clearActiveStream(streamController);
-      await useThreadStore.getState().refreshCurrentThread(true);
-      await useThreadStore.getState().loadThreads();
+      const currentRun = selectThreadRun(useRunStore.getState(), threadId);
+      if (useAuthStore.getState().token && currentRun.runId === runId) {
+        await useThreadStore.getState().refreshThread(threadId, true);
+        await useThreadStore.getState().loadThreads();
+      }
       setIsResolving(false);
     }
   }

@@ -1,7 +1,7 @@
 import { AlertCircle } from 'lucide-react';
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
 
-import type { ServerForm } from './useMcpSettings';
+import type { ServerForm } from '@/modules/mcp/hooks/useMcpSettings';
 import styles from './index.module.css';
 
 interface AddServerFormProps {

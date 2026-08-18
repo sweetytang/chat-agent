@@ -7,7 +7,6 @@ import { ChatComposer } from '@/modules/chat/components/ChatComposer';
 import { InlineErrorCard } from '@/modules/chat/components/InlineErrorCard';
 import { MessageBubble } from '@/modules/chat/components/MessageBubble';
 import { WelcomePanel } from '@/modules/chat/components/WelcomePanel';
-import { ACTIVE_RUN_STATUSES } from '@/modules/chat/type';
 import {
   findPreviousUserContent,
   historyBeforeMessage,
@@ -15,101 +14,89 @@ import {
 import { ApprovalCard } from '@/modules/interrupts/components/ApprovalCard';
 import { GenerativeUICard } from '@/modules/presentation/components/GenerativeUICard';
 import { StructuredOutputCard } from '@/modules/presentation/components/StructuredOutputCard';
-import {
-  abortActiveStream,
-  activateStream,
-  clearActiveStream,
-} from '@/modules/runs/domain/activeStream';
-import { createFrameEventDispatcher } from '@/modules/runs/domain/frameEventDispatcher';
+import { abortActiveStream, abortAllStreams } from '@/modules/runs/domain/activeStream';
+import { consumeRunStream } from '@/modules/runs/domain/runStream';
+import { isActiveRunStatus } from '@/modules/runs/domain/status';
 import { stopRun } from '@/modules/runs/domain/stopRun';
 import { cancelRun, RUN_STREAM_URL } from '@/modules/runs/services/runApi';
-import { streamAgentEvents } from '@/modules/runs/services/sse/client';
-import { useRunStore } from '@/modules/runs/store/run';
+import { selectThreadRun, useRunStore, type RunRequestContext } from '@/modules/runs/store/run';
 import { RunStatus } from '@/modules/runs/types/events';
 import { useThreadStore } from '@/modules/threads/store/thread';
-import type { HistoryMessage, RunMode, RunStreamRequest } from '@/modules/threads/types/history';
+import type { HistoryMessage, RunStreamRequest } from '@/modules/threads/types/history';
 
 import styles from './index.module.css';
 
-interface StartRunOptions {
-  content: string;
-  checkpointId: string | null;
-  mode: RunMode;
-  showUserMessage?: boolean;
-  baseHistory?: HistoryMessage[];
-  threadId?: string;
+function ownsRunRequest(request: RunRequestContext): boolean {
+  return (
+    Boolean(useAuthStore.getState().token) &&
+    selectThreadRun(useRunStore.getState(), request.threadId).lastRequest === request
+  );
 }
 
 export function Chat() {
   const [input, setInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [lastRequestParams, setLastRequestParams] = useState<StartRunOptions | null>(null);
-
   const submitLockRef = useRef(false);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
   const threadId = useThreadStore((state) => state.threadId);
-  const isRefreshing = useThreadStore((state) => state.isRefreshing);
+  const isRefreshing = useThreadStore((state) => Boolean(state.refreshingThreads[threadId]));
   const token = useAuthStore((state) => state.token);
-  const history = useRunStore((state) => state.history);
-  const status = useRunStore((state) => state.status);
-  const error = useRunStore((state) => state.error);
-  const reasoning = useRunStore((state) => state.reasoning);
-  const presentationItems = useRunStore((state) => state.presentationItems);
-  const pendingApproval = useRunStore((state) => state.pendingApproval);
-  const active = ACTIVE_RUN_STATUSES.has(status);
+  const {
+    history,
+    status,
+    error,
+    reasoning,
+    presentationItems,
+    pendingApproval,
+    lastRequest
+  } = useRunStore((state) => selectThreadRun(state, threadId));
+  const active = isActiveRunStatus(status);
   const controlsDisabled = active || isRefreshing || isSubmitting;
 
-  // 当线程切换（包括新会话第一次开始对话）或用户登录状态变化时，刷新当前线程的历史记录和分支信息
   useEffect(() => {
-    if (token && threadId !== 'demo-thread') {
-      const preserveRunState = ACTIVE_RUN_STATUSES.has(useRunStore.getState().status);
-      void useThreadStore.getState().refreshCurrentThread(preserveRunState);
-    }
+    window.addEventListener('beforeunload', abortAllStreams);
     return () => {
-      abortActiveStream();
+      window.removeEventListener('beforeunload', abortAllStreams);
+      abortAllStreams();
     };
-  }, [threadId, token]);
+  }, []);
 
-  async function startRun(options: StartRunOptions) {
+  async function startRun(options: RunRequestContext) {
     if (!useAuthStore.getState().token) return;
-    setLastRequestParams(options);
     const request: RunStreamRequest = {
-      thread_id: options.threadId ?? useThreadStore.getState().threadId,
+      thread_id: options.threadId,
       content: options.content,
       checkpoint_id: options.checkpointId,
       mode: options.mode,
     };
-    const streamController = new AbortController();
-    activateStream(streamController);
-    const eventDispatcher = createFrameEventDispatcher((event) =>
-      useRunStore.getState().applyEvent(event),
+    const runStore = useRunStore.getState();
+    runStore.setLastRequest(options.threadId, options);
+    runStore.beginRun(
+      options.threadId,
+      options.showUserMessage ? options.content : undefined,
+      options.baseHistory,
     );
-    useRunStore
-      .getState()
-      .beginRun(options.showUserMessage ? options.content : undefined, options.baseHistory);
     try {
-      for await (const agentEvent of streamAgentEvents({
+      await consumeRunStream({
+        threadId: options.threadId,
         url: RUN_STREAM_URL,
         body: request,
-        signal: streamController.signal,
-      }))
-        eventDispatcher.push(agentEvent);
+        onEvent: (event) => useRunStore.getState().applyEvent(event),
+      });
     } catch (streamError) {
-      if (!(streamError instanceof DOMException && streamError.name === 'AbortError'))
-        useRunStore.setState({
-          error: streamError instanceof Error ? streamError.message : '连接失败',
-          status: RunStatus.Failed,
-        });
+      if (ownsRunRequest(options))
+        useRunStore
+          .getState()
+          .setRunError(
+            options.threadId,
+            streamError instanceof Error ? streamError.message : '连接失败',
+            RunStatus.Failed,
+          );
     } finally {
-      if (streamController.signal.aborted) {
-        eventDispatcher.cancel();
-      } else {
-        eventDispatcher.flush();
-      }
-      clearActiveStream(streamController);
-      if (useThreadStore.getState().threadId === request.thread_id) {
-        await useThreadStore.getState().refreshCurrentThread(true);
+      // 退出登录会清空全部投影；旧流结束后不得用异步刷新重新写回前一账户的数据。
+      if (ownsRunRequest(options)) {
+        await useThreadStore.getState().refreshThread(options.threadId, true);
         await useThreadStore.getState().loadThreads();
       }
     }
@@ -118,30 +105,38 @@ export function Chat() {
   async function submit() {
     const content = input.trim();
     if (!content || controlsDisabled || !token || submitLockRef.current) return;
+    const selectedThread = useThreadStore.getState();
+    const isNewThread = selectedThread.threadId === 'demo-thread';
+
     setInput('');
     submitLockRef.current = true;
     setIsSubmitting(true);
     try {
-      const currentThread = useThreadStore.getState();
-      const isNewThread = currentThread.threadId === 'demo-thread';
       if (isNewThread) {
-        const currentRun = useRunStore.getState();
-        currentRun.beginRun(content);
-        currentThread.setCurrentThreadTitle(content);
-        const thread = await currentThread.createThread(content, true);
+        useRunStore.getState().beginRun('demo-thread', content);
+        selectedThread.setCurrentThreadTitle(content);
+        const thread = await selectedThread.createThread(content, true);
         if (!thread) {
-          setInput(content);
-          currentRun.reset();
+          // 创建期间用户可能已切换会话并输入新草稿，只在草稿仍为空时恢复失败内容。
+          setInput((draft) => draft || content);
+          useRunStore.getState().resetThread('demo-thread');
           return;
         }
+        void startRun({
+          content,
+          checkpointId: thread.current_checkpoint_id,
+          mode: 'send',
+          threadId: thread.id,
+        });
+        return;
       }
-      const target = useThreadStore.getState();
+
       void startRun({
         content,
-        checkpointId: target.currentCheckpointId,
+        checkpointId: selectedThread.currentCheckpointId,
         mode: 'send',
-        showUserMessage: !isNewThread,
-        threadId: target.threadId,
+        showUserMessage: true,
+        threadId: selectedThread.threadId,
       });
     } finally {
       submitLockRef.current = false;
@@ -150,21 +145,24 @@ export function Chat() {
   }
 
   function editMessage(message: HistoryMessage, content: string) {
-    const currentHistory = useRunStore.getState().history;
+    const targetThreadId = threadId;
+    const currentHistory = selectThreadRun(useRunStore.getState(), targetThreadId).history;
     void startRun({
       content,
       checkpointId: message.parent_checkpoint_id,
       mode: 'edit',
       showUserMessage: true,
       baseHistory: historyBeforeMessage(currentHistory, message.id),
+      threadId: targetThreadId,
     });
   }
 
   function regenerateMessage(message: HistoryMessage) {
-    const currentHistory = useRunStore.getState().history;
+    const targetThreadId = threadId;
+    const currentHistory = selectThreadRun(useRunStore.getState(), targetThreadId).history;
     const content = findPreviousUserContent(currentHistory, message.id);
     if (!content) {
-      useRunStore.setState({ error: '找不到该回复对应的用户消息' });
+      useRunStore.getState().setRunError(targetThreadId, '找不到该回复对应的用户消息');
       return;
     }
     void startRun({
@@ -172,21 +170,24 @@ export function Chat() {
       checkpointId: message.parent_checkpoint_id,
       mode: 'regenerate',
       baseHistory: historyBeforeMessage(currentHistory, message.id),
+      threadId: targetThreadId,
     });
   }
 
   async function stop() {
-    const runId = useRunStore.getState().runId;
-    useRunStore.setState({ status: RunStatus.Cancelled, pendingApproval: null });
-    if (runId) {
-      try {
-        await stopRun(abortActiveStream, runId, cancelRun);
-      } catch (cancelError) {
-        useRunStore.setState({
-          error: cancelError instanceof Error ? cancelError.message : '取消运行失败',
-        });
-      }
-    } else abortActiveStream();
+    const targetThreadId = threadId;
+    const runId = selectThreadRun(useRunStore.getState(), targetThreadId).runId;
+    useRunStore.getState().markCancelled(targetThreadId);
+    try {
+      await stopRun(() => abortActiveStream(targetThreadId), runId, cancelRun);
+    } catch (cancelError) {
+      useRunStore
+        .getState()
+        .setRunError(
+          targetThreadId,
+          cancelError instanceof Error ? cancelError.message : '取消运行失败',
+        );
+    }
   }
 
   function fillPrompt(prompt: string) {
@@ -195,7 +196,7 @@ export function Chat() {
   }
 
   return (
-    <AppShell controlsDisabled={controlsDisabled}>
+    <AppShell>
       <main className={styles.page}>
         <section className={styles.scroll} aria-live="polite">
           <div className={styles.messages}>
@@ -270,6 +271,7 @@ export function Chat() {
                     key={item.id}
                     requestId={requestId}
                     runId={item.runId}
+                    threadId={threadId}
                     tool={tool}
                   />
                 );
@@ -279,9 +281,9 @@ export function Chat() {
                   <InlineErrorCard
                     key={item.id}
                     message={typeof item.data.error === 'string' ? item.data.error : '运行失败'}
-                    canRetry={!!lastRequestParams && !active}
+                    canRetry={!!lastRequest && !active}
                     onRetry={() => {
-                      if (lastRequestParams) void startRun(lastRequestParams);
+                      if (lastRequest) void startRun(lastRequest);
                     }}
                   />
                 );
@@ -295,15 +297,16 @@ export function Chat() {
                 <ApprovalCard
                   requestId={pendingApproval.requestId}
                   runId={pendingApproval.runId}
+                  threadId={threadId}
                   tool={pendingApproval.tool}
                 />
               )}
             {error && !presentationItems.some((item) => item.kind === 'error') && (
               <InlineErrorCard
                 message={error}
-                canRetry={!!lastRequestParams && !active}
+                canRetry={!!lastRequest && !active}
                 onRetry={() => {
-                  if (lastRequestParams) void startRun(lastRequestParams);
+                  if (lastRequest) void startRun(lastRequest);
                 }}
               />
             )}

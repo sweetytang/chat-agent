@@ -8,24 +8,24 @@ import { useUiStore } from '@/app/store/ui';
 import { AccountMenu } from '@/modules/auth/components/AccountMenu';
 import { useAuthStore } from '@/modules/auth/store/auth';
 import { ThreadActions } from '@/modules/threads/components/ThreadActions';
+import { ThreadRunStatus } from '@/modules/threads/components/ThreadRunStatus';
 import { useThreadStore } from '@/modules/threads/store/thread';
 
 import styles from './index.module.css';
 
 interface SidebarProps {
-  disabled?: boolean;
   collapsed?: boolean;
   onNavigate?: () => void;
 }
 
-export function Sidebar({ disabled = false, collapsed = false, onNavigate }: SidebarProps) {
+export function Sidebar({ collapsed = false, onNavigate }: SidebarProps) {
   const threads = useThreadStore((state) => state.threads);
   const threadId = useThreadStore((state) => state.threadId);
   const isLoadingThreads = useThreadStore((state) => state.isLoadingThreads);
   const token = useAuthStore((state) => state.token);
 
   function startNewThread() {
-    if (!token || disabled) return;
+    if (!token) return;
     useThreadStore.getState().startNewThread();
     onNavigate?.();
   }
@@ -59,7 +59,7 @@ export function Sidebar({ disabled = false, collapsed = false, onNavigate }: Sid
             <Tooltip.Trigger asChild>
               <button
                 className={styles.iconButton}
-                disabled={disabled || !token}
+                disabled={!token}
                 onClick={startNewThread}
                 type="button"
                 aria-label="新建会话"
@@ -163,12 +163,7 @@ export function Sidebar({ disabled = false, collapsed = false, onNavigate }: Sid
           </div>
         </Tooltip.Provider>
       </div>
-      <button
-        className={styles.newButton}
-        disabled={disabled || !token}
-        onClick={startNewThread}
-        type="button"
-      >
+      <button className={styles.newButton} disabled={!token} onClick={startNewThread} type="button">
         <SquarePen size={18} />
         新建会话
       </button>
@@ -203,7 +198,7 @@ export function Sidebar({ disabled = false, collapsed = false, onNavigate }: Sid
               ) : threads.length === 0 ? (
                 <div className={styles.empty}>
                   <p>还没有保存的会话</p>
-                  <button disabled={disabled} onClick={startNewThread} type="button">
+                  <button onClick={startNewThread} type="button">
                     开始新会话
                   </button>
                 </div>
@@ -215,7 +210,6 @@ export function Sidebar({ disabled = false, collapsed = false, onNavigate }: Sid
                   >
                     <button
                       className={styles.itemLink}
-                      disabled={disabled}
                       onClick={() => {
                         useThreadStore
                           .getState()
@@ -231,7 +225,8 @@ export function Sidebar({ disabled = false, collapsed = false, onNavigate }: Sid
                       {thread.is_pinned && <Pin className={styles.pin} size={13} />}
                       <span>{thread.title ?? '未命名会话'}</span>
                     </button>
-                    <ThreadActions disabled={disabled} thread={thread} onDeleted={onNavigate} />
+                    <ThreadRunStatus threadId={thread.id} />
+                    <ThreadActions thread={thread} onDeleted={onNavigate} />
                   </div>
                 ))
               )}
