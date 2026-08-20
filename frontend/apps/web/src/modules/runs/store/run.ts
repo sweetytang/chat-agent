@@ -68,7 +68,7 @@ export const EMPTY_THREAD_RUN_STATE: ThreadRunState = {
   timeline: EMPTY_TIMELINE,
   lastSequence: -1,
   pendingApproval: null,
-  lastRequest: null,
+  lastRequest: null, // 在开始新运行时，继续保留当前请求的副本，供失败后重试。
 };
 
 function createThreadRunState(): ThreadRunState {
@@ -114,13 +114,13 @@ export function reduceRunEvent(state: ThreadRunState, event: AgentEvent): Thread
   const pendingApproval =
     event.event === 'tool.approval_required'
       ? {
-          requestId: eventString(event.data.request_id, ''),
-          tool: eventString(event.data.tool, 'tool'),
-          runId: event.run_id,
-        }
+        requestId: eventString(event.data.request_id, ''),
+        tool: eventString(event.data.tool, 'tool'),
+        runId: event.run_id,
+      }
       : event.event === 'run.completed' ||
-          event.event === 'run.cancelled' ||
-          event.event === 'run.failed'
+        event.event === 'run.cancelled' ||
+        event.event === 'run.failed'
         ? null
         : state.pendingApproval;
 
@@ -158,22 +158,22 @@ export const useRunStore = create<RunStore>((set) => ({
         const timeline = baseTimeline ?? state.timeline;
         const optimisticTimeline = optimisticUserContent
           ? {
-              version: 1 as const,
-              items: [
-                ...timeline.items,
-                {
-                  id: `user-${Date.now()}`,
-                  kind: 'message' as const,
-                  run_id: null,
-                  sequence: -1,
-                  logical_message_id: `user-${Date.now()}`,
-                  role: 'user' as const,
-                  content: optimisticUserContent,
-                  status: 'completed' as const,
-                  terminal_segment: true,
-                },
-              ],
-            }
+            version: 1 as const,
+            items: [
+              ...timeline.items,
+              {
+                id: `user-${Date.now()}`,
+                kind: 'message' as const,
+                run_id: null,
+                sequence: -1,
+                logical_message_id: `user-${Date.now()}`,
+                role: 'user' as const,
+                content: optimisticUserContent,
+                status: 'completed' as const,
+                terminal_segment: true,
+              },
+            ],
+          }
           : timeline;
         return {
           ...createThreadRunState(),

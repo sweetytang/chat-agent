@@ -34,7 +34,6 @@ function ownsRunRequest(request: RunRequestContext): boolean {
 
 export function Chat() {
   const [input, setInput] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [resolvingApprovalId, setResolvingApprovalId] = useState<string | null>(null);
   const submitLockRef = useRef(false);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
@@ -47,7 +46,7 @@ export function Chat() {
     selectThreadRun(state, threadId),
   );
   const active = isActiveRunStatus(status);
-  const controlsDisabled = active || isRefreshing || isSubmitting;
+  const controlsDisabled = active || isRefreshing;
   const { hasNewContent, scrollToBottom } = useSmartScroll(scrollRef, timeline, threadId);
 
   useEffect(() => {
@@ -101,12 +100,12 @@ export function Chat() {
   async function submit() {
     const content = input.trim();
     if (!content || controlsDisabled || !token || submitLockRef.current) return;
+    submitLockRef.current = true;
+
     const selectedThread = useThreadStore.getState();
     const isNewThread = selectedThread.threadId === 'demo-thread';
-
     setInput('');
-    submitLockRef.current = true;
-    setIsSubmitting(true);
+
     try {
       if (isNewThread) {
         useRunStore.getState().beginRun('demo-thread', content);
@@ -136,7 +135,6 @@ export function Chat() {
       });
     } finally {
       submitLockRef.current = false;
-      setIsSubmitting(false);
     }
   }
 

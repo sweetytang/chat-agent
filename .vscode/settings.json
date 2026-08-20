@@ -12,32 +12,5 @@
         "backend/packages/lui-agent-runtime/tests"
     ],
     "python.testing.cwd": "${workspaceFolder}/backend",
-    "ruff.cwd": "${workspaceFolder}/backend",
-    "workbench.colorCustomizations": {
-        "activityBar.activeBackground": "#b5c3a7",
-        "activityBar.background": "#b5c3a7",
-        "activityBar.foreground": "#15202b",
-        "activityBar.inactiveForeground": "#15202b99",
-        "activityBarBadge.background": "#677f98",
-        "activityBarBadge.foreground": "#e7e7e7",
-        "activityBarTop.activeBackground": "#b5c3a7",
-        "activityBarTop.background": "#b5c3a7",
-        "activityBarTop.foreground": "#15202b",
-        "activityBarTop.inactiveForeground": "#15202b99",
-        "commandCenter.border": "#15202b99",
-        "commandCenter.foreground": "#15202b",
-        "sash.hoverBorder": "#b5c3a7",
-        "statusBar.background": "#9caf88",
-        "statusBar.debuggingBackground": "#9caf88",
-        "statusBar.debuggingForeground": "#15202b",
-        "statusBar.foreground": "#15202b",
-        "statusBarItem.hoverBackground": "#839a6a",
-        "statusBarItem.remoteBackground": "#eceff2",
-        "statusBarItem.remoteForeground": "#15202b",
-        "titleBar.activeBackground": "#9caf88",
-        "titleBar.activeForeground": "#15202b",
-        "titleBar.inactiveBackground": "#9caf8899",
-        "titleBar.inactiveForeground": "#15202b99"
-    },
-    "peacock.color": "#9CAF88"
+    "ruff.cwd": "${workspaceFolder}/backend"
 }
