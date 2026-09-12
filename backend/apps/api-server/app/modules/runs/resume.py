@@ -11,7 +11,7 @@ from app.db.models import InterruptStatus, Run, RunStatus, Thread
 from app.modules.checkpoints.service import (
     RunBranchContext,
     latest_user_content,
-    model_messages,
+    conversation_messages,
 )
 from app.modules.interrupts.repository import InterruptRepository
 from app.modules.mcp.agent.results import normalize_tool_result
@@ -254,7 +254,7 @@ async def resumed_run_events(
             await persisted_session.refresh(thread, attribute_names=["title"])
             await set_title_after_first_round(
                 thread,
-                model_messages(recorder.snapshot),
+                conversation_messages(recorder.snapshot),
                 mode=request.mode,
                 user_content=latest_user_content(recorder.snapshot, request.content),
                 assistant_content=answer,

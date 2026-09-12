@@ -10,7 +10,7 @@ from app.db.models import RunStatus, Thread
 from app.modules.checkpoints.service import (
     RunBranchContext,
     latest_user_content,
-    model_messages,
+    conversation_messages,
 )
 from app.modules.interrupts.repository import InterruptRepository
 from app.modules.mcp.agent import McpToolSnapshot, build_langchain_tools
@@ -127,7 +127,7 @@ async def run_events(
                     "terminal_segment": True,
                 }
             )
-        input_messages = model_messages(timeline)
+        input_messages = conversation_messages(timeline)
         prompt_content = latest_user_content(timeline, request.content)
         if prompt_content.startswith(("think:", "思考：")):
             sequence += 1
@@ -413,7 +413,7 @@ async def run_events(
                 await session.refresh(thread, attribute_names=["title"])
                 await set_title_after_first_round(
                     thread,
-                    model_messages(recorder.snapshot),
+                    conversation_messages(recorder.snapshot),
                     mode=request.mode,
                     user_content=prompt_content,
                     assistant_content=assistant_content,

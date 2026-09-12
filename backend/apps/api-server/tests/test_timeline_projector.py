@@ -1,6 +1,6 @@
 from app.modules.timeline.projector import conversation_messages, project_event
 from app.modules.timeline.recorder import TimelineRecorder
-from app.modules.timeline.types import empty_timeline
+from app.modules.timeline.domain import empty_timeline
 from lui_agent_runtime.events import BusinessEvent
 
 

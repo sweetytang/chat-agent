@@ -5,12 +5,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import get_subject
+from .dependencies import current_user_uuid
 from app.db.models import InterruptStatus
 from app.db.session import get_db_session
 from app.modules.interrupts.repository import InterruptRepository
 from app.modules.runs.repository import RunRepository
 from app.modules.threads.repository import ThreadRepository
+from app.modules.checkpoints.repository import CheckpointRepository
 
 router = APIRouter(prefix="/api/interrupts", tags=["interrupts"])
 thread_router = APIRouter(
@@ -40,17 +41,12 @@ class PendingInterruptResponse(BaseModel):
     payload: dict[str, Any]
 
 
-def current_user_id(subject: str = Depends(get_subject)) -> UUID:
-    try:
-        return UUID(subject)
-    except ValueError as error:
-        raise HTTPException(status_code=401, detail="无效用户身份") from error
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_interrupt(
     request: CreateInterruptRequest,
-    user_id: UUID = Depends(current_user_id),
+    user_id: UUID = Depends(current_user_uuid),
     session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     run = await RunRepository(session).get_owned(request.run_id, user_id)
@@ -58,7 +54,7 @@ async def create_interrupt(
         raise HTTPException(status_code=404, detail="运行不存在")
     if (
         request.checkpoint_id is not None
-        and await ThreadRepository(session).get_checkpoint(
+        and await CheckpointRepository(session).get(
             run.thread_id,
             request.checkpoint_id,
         )
@@ -80,7 +76,7 @@ async def create_interrupt(
 async def resolve_interrupt(
     request_id: str,
     request: ResolveInterruptRequest,
-    user_id: UUID = Depends(current_user_id),
+    user_id: UUID = Depends(current_user_uuid),
     session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     status_by_decision = {
@@ -102,7 +98,7 @@ async def resolve_interrupt(
 @router.post("/{request_id}/resume")
 async def resume_interrupt(
     request_id: str,
-    user_id: UUID = Depends(current_user_id),
+    user_id: UUID = Depends(current_user_uuid),
     session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     repository = InterruptRepository(session)
@@ -117,7 +113,7 @@ async def resume_interrupt(
 @thread_router.get("/pending", response_model=PendingInterruptResponse | None)
 async def get_pending_interrupt(
     thread_id: UUID,
-    user_id: UUID = Depends(current_user_id),
+    user_id: UUID = Depends(current_user_uuid),
     session: AsyncSession = Depends(get_db_session),
 ) -> PendingInterruptResponse | None:
     if await ThreadRepository(session).get_owned(thread_id, user_id) is None:

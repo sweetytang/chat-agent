@@ -21,9 +21,10 @@ from app.integrations.llm.factory import create_chat_model
 from app.integrations.llm.fake import FakeChatModel
 from app.modules.checkpoints.service import (
     RunBranchContext,
-    checkpoint_timeline,
+    Checkpoint,
     create_run_branch,
 )
+from app.modules.timeline.domain import checkpoint_timeline
 from app.modules.interrupts.repository import InterruptRepository
 from app.modules.mcp.agent import McpToolSnapshot, load_mcp_snapshots
 from app.modules.mcp.crypto import CredentialCrypto
@@ -34,9 +35,9 @@ from app.modules.runs.repository import RunRepository
 from app.modules.runs.resume import resumed_run_events as _resumed_run_events
 from app.modules.runs.schemas import PendingReview, ResumeRequest, RunRequest
 from app.modules.runs.streaming import run_events as _run_events
-from app.modules.threads.repository import ThreadRepository
+from app.modules.checkpoints.repository import CheckpointRepository
 from app.modules.timeline.projector import conversation_messages
-from app.modules.timeline.types import TimelineSnapshot, empty_timeline
+from app.modules.timeline.domain import empty_timeline
 from lui_agent_runtime.driver import LangGraphAgentDriver
 from lui_agent_runtime.events import BusinessEvent
 from lui_agent_runtime.graph.runtime import stream_graph_events
@@ -158,24 +159,19 @@ async def _load_branch_base(
     checkpoint_id: UUID | None,
     *,
     use_current_if_none: bool = True,
-) -> tuple[UUID | None, TimelineSnapshot]:
-    repository = ThreadRepository(session)
+) -> Checkpoint | None:
     base_checkpoint_id = (
         thread.current_checkpoint_id
-        if checkpoint_id is None and use_current_if_none
+        if checkpoint_id is None and use_current_if_none # 分辨是否是第一条消息
         else checkpoint_id
     )
     if base_checkpoint_id is None:
-        return None, empty_timeline()
+        return None
 
-    checkpoint = await repository.get_checkpoint(thread.id, base_checkpoint_id)
+    checkpoint = await CheckpointRepository(session).get(thread.id, base_checkpoint_id)
     if checkpoint is None:
         raise HTTPException(status_code=404, detail="checkpoint 不存在")
-    try:
-        timeline = checkpoint_timeline(checkpoint.state)
-    except ValueError as error:
-        raise HTTPException(status_code=409, detail=str(error)) from error
-    return base_checkpoint_id, timeline
+    return checkpoint
 
 
 async def _prepare_persisted_run(
@@ -184,17 +180,18 @@ async def _prepare_persisted_run(
     request: RunRequest,
     thread: Thread,
 ) -> RunBranchContext | None:
-    base_checkpoint_id, base_timeline = await _load_branch_base(
+    parent_checkpoint = await _load_branch_base(
         session,
         thread,
         request.checkpoint_id,
         use_current_if_none="checkpoint_id" not in request.model_fields_set,
     )
     if request.mode == "regenerate" and (
-        not conversation_messages(base_timeline)
-        or conversation_messages(base_timeline)[-1].get("role") != "user"
+        parent_checkpoint is None
+        or conversation_messages(checkpoint_timeline(parent_checkpoint))[-1].get("role") != "user"
     ):
         raise HTTPException(status_code=400, detail="重新生成必须指定用户消息 checkpoint")
+    
     await RunRepository(session).create(thread.id, run_id=run_id)
     branch_context = await create_run_branch(
         session,
@@ -202,8 +199,7 @@ async def _prepare_persisted_run(
         run_id=run_id,
         mode=request.mode,
         content=request.content,
-        base_checkpoint_id=base_checkpoint_id,
-        base_timeline=base_timeline,
+        parent_checkpoint= parent_checkpoint
     )
     await session.commit()
     return branch_context
@@ -298,6 +294,7 @@ async def stream_run(
     persistence_session: AsyncSession | None = None
     branch_context: RunBranchContext | None = None
     try:
+
         if session is not None:
             try:
                 thread_id = UUID(request.thread_id)
@@ -314,7 +311,7 @@ async def stream_run(
                 )
         if branch_context is not None:
             persistence_session = session
-    except ValueError, OSError, RuntimeError:
+    except (ValueError, OSError, RuntimeError):
         if session is not None:
             await session.rollback()
     mcp_loader = None
@@ -450,14 +447,14 @@ async def resume_run(
             raise HTTPException(status_code=503, detail="持久化服务不可用")
         if pending.branch_context is None:
             raise HTTPException(status_code=409, detail="审核 checkpoint 已失效")
-        checkpoint = await ThreadRepository(session).get_checkpoint(
+        checkpoint = await CheckpointRepository(session).get(
             persisted_run.thread_id,
             pending.branch_context.checkpoint_id,
         )
         if checkpoint is None:
             raise HTTPException(status_code=409, detail="审核 checkpoint 已失效")
         try:
-            timeline = checkpoint_timeline(checkpoint.state)
+            timeline = checkpoint_timeline(checkpoint)
         except ValueError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
         pending = replace(

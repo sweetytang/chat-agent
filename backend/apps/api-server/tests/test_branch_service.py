@@ -9,7 +9,7 @@ from app.api import runs
 from app.api.runs import RunBranchContext, RunRequest, _load_branch_base
 from app.db.models import Checkpoint, Run, RunStatus
 from app.modules.checkpoints import service
-from app.modules.timeline.types import empty_timeline
+from app.modules.timeline.domain import empty_timeline
 
 
 def message(item_id: str, role: str, content: str) -> dict:
@@ -52,46 +52,47 @@ class FakePersistenceSession:
 
 @pytest.mark.asyncio
 async def test_explicit_null_checkpoint_means_root_branch() -> None:
-    checkpoint_id, timeline = await _load_branch_base(
+    parent_checkpoint = await _load_branch_base(
         object(),
         SimpleNamespace(current_checkpoint_id=uuid4()),
         None,
         use_current_if_none=False,
     )
 
-    assert checkpoint_id is None
-    assert timeline == empty_timeline()
+    assert parent_checkpoint is None
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("mode", ["send", "edit"])
 async def test_send_and_edit_create_user_then_agent_checkpoint(monkeypatch, mode) -> None:
-    base_id, user_id, agent_id = uuid4(), uuid4(), uuid4()
+    base_checkpoint = SimpleNamespace(id=uuid4(), state={"timeline": empty_timeline()})
+    user_id, agent_id = uuid4(), uuid4()
     calls = []
     user_timeline = {"version": 1, "items": [message("user", "user", "新问题")]}
+    user_checkpoint = SimpleNamespace(id=user_id, state={"timeline": user_timeline})
+    agent_checkpoint = SimpleNamespace(id=agent_id, parent_id=user_id, state={"timeline": user_timeline})
 
     async def fake_user(_session, _thread, **kwargs):
         calls.append(("user", kwargs))
-        return SimpleNamespace(id=user_id), user_timeline
+        return user_checkpoint
 
     async def fake_agent(_session, _thread, **kwargs):
         calls.append(("agent", kwargs))
-        return SimpleNamespace(id=agent_id, parent_id=user_id, state={"timeline": user_timeline})
+        return agent_checkpoint
 
-    monkeypatch.setattr(service, "append_user_checkpoint", fake_user)
-    monkeypatch.setattr(service, "append_agent_checkpoint", fake_agent)
+    monkeypatch.setattr(service, "_append_user_checkpoint", fake_user)
+    monkeypatch.setattr(service, "_append_agent_checkpoint", fake_agent)
     context = await service.create_run_branch(
         object(),
         SimpleNamespace(),
         run_id=uuid4(),
         mode=mode,
         content="新问题",
-        base_checkpoint_id=base_id,
-        base_timeline=empty_timeline(),
+        parent_checkpoint=base_checkpoint,
     )
 
-    assert calls[0][1]["parent_id"] == base_id
-    assert calls[1][1]["parent_id"] == user_id
+    assert calls[0][1]["parent_checkpoint"] == base_checkpoint
+    assert calls[1][1]["input_checkpoint"] == user_checkpoint
     assert context.checkpoint_id == agent_id
     assert context.input_checkpoint.id == user_id
 
@@ -100,34 +101,35 @@ async def test_send_and_edit_create_user_then_agent_checkpoint(monkeypatch, mode
 async def test_regenerate_creates_sibling_agent_without_new_user_checkpoint(monkeypatch) -> None:
     user_id, agent_id = uuid4(), uuid4()
     timeline = {"version": 1, "items": [message("user", "user", "原问题")]}
+    user_checkpoint = SimpleNamespace(id=user_id, state={"timeline": timeline})
+    agent_checkpoint = SimpleNamespace(id=agent_id, parent_id=user_id, state={"timeline": timeline})
 
     async def unexpected_user(*_args, **_kwargs):
         raise AssertionError("重新生成不应新增用户消息")
 
     async def fake_agent(_session, _thread, **kwargs):
-        assert kwargs["parent_id"] == user_id
-        return SimpleNamespace(id=agent_id, parent_id=user_id, state={"timeline": timeline})
+        assert kwargs["input_checkpoint"] == user_checkpoint
+        return agent_checkpoint
 
-    monkeypatch.setattr(service, "append_user_checkpoint", unexpected_user)
-    monkeypatch.setattr(service, "append_agent_checkpoint", fake_agent)
+    monkeypatch.setattr(service, "_append_user_checkpoint", unexpected_user)
+    monkeypatch.setattr(service, "_append_agent_checkpoint", fake_agent)
     context = await service.create_run_branch(
         object(),
         SimpleNamespace(),
         run_id=uuid4(),
         mode="regenerate",
         content="原问题",
-        base_checkpoint_id=user_id,
-        base_timeline=timeline,
+        parent_checkpoint=user_checkpoint,
     )
 
     assert context.checkpoint_id == agent_id
-    assert context.input_checkpoint is None
+    assert context.input_checkpoint == user_checkpoint
 
 
 @pytest.mark.asyncio
 async def test_prepare_regenerate_rejects_non_user_checkpoint(monkeypatch) -> None:
     async def fake_load_branch_base(*_args, **_kwargs):
-        return uuid4(), {"version": 1, "items": [message("assistant", "assistant", "旧回复")]}
+        return SimpleNamespace(id=uuid4(), state={"timeline": {"version": 1, "items": [message("assistant", "assistant", "旧回复")]}})
 
     monkeypatch.setattr(runs, "_load_branch_base", fake_load_branch_base)
     with pytest.raises(HTTPException) as raised:
@@ -399,8 +401,8 @@ def test_timeline_projects_selected_sibling_and_latest_descendant() -> None:
         ),
     ]
 
-    branch_a = service.project_timeline(checkpoints[-1], checkpoints)
-    branch_b = service.project_timeline(checkpoints[3], checkpoints)
+    branch_a = service.resolve_timeline_branch(checkpoints[-1], checkpoints)
+    branch_b = service.resolve_timeline_branch(checkpoints[3], checkpoints)
     projected_a = branch_a["items"][0]
     projected_b = branch_b["items"][0]
 
@@ -442,7 +444,7 @@ def test_timeline_projects_branch_options_on_terminal_error_without_assistant_me
         ),
     ]
 
-    projected = service.project_timeline(checkpoints[1], checkpoints)
+    projected = service.resolve_timeline_branch(checkpoints[1], checkpoints)
     terminal_error = projected["items"][-1]
 
     assert terminal_error["kind"] == "error"

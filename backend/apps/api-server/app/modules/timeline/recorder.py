@@ -6,8 +6,8 @@ from time import monotonic
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Checkpoint
-from app.modules.timeline.projector import project_event
-from app.modules.timeline.types import TimelineSnapshot, checkpoint_timeline, empty_timeline
+from .projector import project_event
+from .domain import checkpoint_timeline, empty_timeline, TimelineSnapshot
 from lui_agent_runtime.events import BusinessEvent
 
 
@@ -24,7 +24,7 @@ class TimelineRecorder:
     ) -> None:
         self.event_factory = event_factory
         self.snapshot = (
-            checkpoint_timeline(checkpoint.state)
+            checkpoint_timeline(checkpoint)
             if checkpoint is not None
             else snapshot or empty_timeline()
         )

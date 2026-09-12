@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from app.modules.timeline.types import TimelineSnapshot, validate_timeline
+from .domain import validate_timeline, TimelineSnapshot
 from lui_agent_runtime.events import RuntimeEvent
 
 
@@ -30,6 +30,7 @@ def _append_error(items: list[dict[str, Any]], event: RuntimeEvent, message: str
     item_id = event.data.get("item_id")
     if not isinstance(item_id, str) or not item_id:
         item_id = f"{event.run_id}:error:{event.sequence}"
+    # 执行锁
     if any(item.get("id") == item_id for item in items):
         return
     items.append(

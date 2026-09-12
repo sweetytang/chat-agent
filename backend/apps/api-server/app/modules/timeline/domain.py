@@ -22,7 +22,18 @@ def validate_timeline(value: object) -> TimelineSnapshot:
     return deepcopy(value)
 
 
-def checkpoint_timeline(state: object) -> TimelineSnapshot:
+def checkpoint_timeline(checkpoint: object) -> TimelineSnapshot:
+    """从Checkpoint读取校验过的timeline字段"""
+
+    state = checkpoint.state if hasattr(checkpoint, "state") else checkpoint
     if not isinstance(state, dict) or set(state) != {"timeline"}:
         raise ValueError("checkpoint state 不是 timeline 单一事实来源")
     return validate_timeline(state["timeline"])
+
+
+__all__ = [
+    "TimelineSnapshot",
+    "empty_timeline",
+    "validate_timeline",
+    "checkpoint_timeline"
+]
