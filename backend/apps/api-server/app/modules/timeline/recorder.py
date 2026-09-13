@@ -6,9 +6,9 @@ from time import monotonic
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Checkpoint
-from .projector import project_event
+from .domain.reducer import reduce_timeline
 from .domain import checkpoint_timeline, empty_timeline, TimelineSnapshot
-from lui_agent_runtime.events import BusinessEvent
+from lui_agent_runtime.events import RuntimeEvent
 
 
 class TimelineRecorder:
@@ -17,7 +17,7 @@ class TimelineRecorder:
     def __init__(
         self,
         *,
-        event_factory: Callable[..., BusinessEvent],
+        event_factory: Callable[..., RuntimeEvent],
         snapshot: TimelineSnapshot | None = None,
         checkpoint: Checkpoint | None = None,
         session: AsyncSession | None = None,
@@ -34,16 +34,16 @@ class TimelineRecorder:
         self._force_flush = False
         self._last_flush = monotonic()
 
-    def event(
+    def record(
         self,
         run_id: str,
         thread_id: str,
         sequence: int,
         name: str,
         **data: object,
-    ) -> BusinessEvent:
+    ) -> RuntimeEvent:
         event = self.event_factory(run_id, thread_id, sequence, name, **data)
-        self.snapshot = project_event(self.snapshot, event)
+        self.snapshot = reduce_timeline(self.snapshot, event)
         if self.checkpoint is not None:
             self.checkpoint.state = {"timeline": self.snapshot}
             self._dirty_events += 1

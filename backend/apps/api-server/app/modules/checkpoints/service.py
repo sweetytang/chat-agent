@@ -2,24 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from copy import deepcopy
-from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Checkpoint, Thread
-from app.modules.threads.repository import ThreadRepository
-from .repository import CheckpointRepository
-from app.modules.timeline.projector import conversation_messages, latest_user_content
+from app.modules.runs.schemas import RunBranchContext
 from app.modules.timeline.domain import empty_timeline, checkpoint_timeline, TimelineSnapshot
-
-
-@dataclass(frozen=True)
-class RunBranchContext:
-    checkpoint_id: UUID
-    timeline: TimelineSnapshot
-    checkpoint: Checkpoint | None = None
-    input_checkpoint: Checkpoint | None = None
+from .repository import CheckpointRepository
 
 
 async def _append_user_checkpoint(
@@ -97,7 +87,7 @@ async def create_run_branch(
                 branch_name="编辑分支" if mode == "edit" else None,
             )
 
-    assert input_checkpoint is not None
+    # assert input_checkpoint is not None
 
     agent_checkpoint = await _append_agent_checkpoint(
         session,
@@ -107,14 +97,13 @@ async def create_run_branch(
     )
     
     return RunBranchContext(
-        agent_checkpoint.id,
-        timeline = checkpoint_timeline(input_checkpoint),
         checkpoint=agent_checkpoint,
         input_checkpoint=input_checkpoint,
     )
 
 
-def _latest_descendant_id(
+
+def _get_latest_descendant_id(
     checkpoint: Checkpoint,
     parent_id_2_children_checkpoint: dict[str | None, list[Checkpoint]],
 ) -> str:
@@ -174,7 +163,7 @@ def resolve_timeline_branch(
             "checkpoint_id": str(item_checkpoint.id),
             "parent_checkpoint_id": parent_id,
             "branch_options": (
-                [{"checkpoint_id": _latest_descendant_id(sibling, parent_id_2_children_checkpoint)} for sibling in siblings]
+                [{"checkpoint_id": _get_latest_descendant_id(sibling, parent_id_2_children_checkpoint)} for sibling in siblings]
                 if len(siblings) > 1
                 else []
             ),
@@ -186,12 +175,3 @@ def resolve_timeline_branch(
         })
         
     return result
-
-
-__all__ = [
-    "RunBranchContext",
-    "latest_user_content",
-    "conversation_messages",
-    "create_run_branch",
-    "resolve_timeline_branch",
-]

@@ -6,7 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.modules.checkpoints.service import RunBranchContext
+from app.db.models import Checkpoint
+from app.modules.timeline.domain import checkpoint_timeline, TimelineSnapshot
 from app.modules.mcp.agent import McpToolSnapshot
 
 
@@ -21,6 +22,20 @@ class ResumeRequest(BaseModel):
     request_id: str = Field(min_length=1)
     decision: str = Field(pattern="^(approve|edit|reject)$")
     payload: dict[str, object] | None = None
+
+
+@dataclass(frozen=True)
+class RunBranchContext:
+    checkpoint: Checkpoint | None = None
+    input_checkpoint: Checkpoint | None = None
+
+    @property
+    def checkpoint_id(self) -> UUID:
+        return self.checkpoint.id if self.checkpoint is not None else None
+    
+    @property
+    def timeline(self) -> TimelineSnapshot:
+        return checkpoint_timeline(self.checkpoint)
 
 
 @dataclass(frozen=True)

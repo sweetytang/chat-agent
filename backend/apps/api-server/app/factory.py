@@ -7,11 +7,12 @@ from app.api.interrupts import (
     router as interrupts_router,
     thread_router as thread_interrupts_router,
 )
-from app.api.runs import configure_mcp_host, router as runs_router
+from app.api.runs import router as runs_router
 from app.api.threads import router as threads_router
 from app.core.config import get_settings
 from app.modules.mcp.host import McpHost, StreamableHttpClientFactory
 from app.modules.mcp.router import get_mcp_host, router as mcp_router
+from app.modules.mcp.dependencies import configure_mcp_host
 
 
 def create_app() -> FastAPI:

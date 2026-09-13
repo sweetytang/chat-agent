@@ -12,6 +12,7 @@ class RunRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+
     async def create(
         self,
         thread_id: UUID,
@@ -29,6 +30,7 @@ class RunRepository:
         await self.session.flush()
         return run
 
+
     async def get_owned(self, run_id: UUID, user_id: UUID) -> Run | None:
         run = await self.session.get(Run, run_id)
         if run is None:
@@ -36,6 +38,7 @@ class RunRepository:
         thread = await self.session.get(Thread, run.thread_id)
         return run if thread is not None and thread.user_id == user_id else None
 
+    
     async def update_status(
         self,
         run_id: UUID,

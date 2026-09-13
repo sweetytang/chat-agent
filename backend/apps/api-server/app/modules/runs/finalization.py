@@ -4,57 +4,11 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Run, RunStatus
-from app.modules.checkpoints.service import RunBranchContext
 from app.modules.runs.repository import RunRepository
-from app.modules.runs.schemas import RunRequest
+from app.modules.runs.schemas import RunRequest, RunBranchContext
 from app.modules.timeline.recorder import TimelineRecorder
-from lui_agent_runtime.events import BusinessEvent
-
-
-def _next_visible_sequence(recorder: TimelineRecorder) -> int:
-    return (
-        max(
-            (
-                int(item.get("sequence", -1))
-                for item in recorder.snapshot["items"]
-                if isinstance(item.get("sequence"), int)
-            ),
-            default=-1,
-        )
-        + 1
-    )
-
-
-async def persist_run_failure(
-    run_id: str,
-    thread_id: str,
-    message: str,
-    session: AsyncSession | None,
-    branch_context: RunBranchContext | None,
-    event_factory: Callable[..., BusinessEvent],
-) -> BusinessEvent:
-    if session is None or branch_context is None or branch_context.checkpoint is None:
-        return event_factory(run_id, thread_id, 1, "run.failed", error=message)
-
-    recorder = TimelineRecorder(
-        event_factory=event_factory,
-        checkpoint=branch_context.checkpoint,
-        session=session,
-    )
-    sequence = _next_visible_sequence(recorder)
-    event = recorder.event(
-        run_id,
-        thread_id,
-        sequence,
-        "run.failed",
-        item_id=f"{run_id}:resume-error:{sequence}",
-        error=message,
-    )
-    await RunRepository(session).update_status(
-        UUID(run_id), RunStatus.FAILED, error_message=message
-    )
-    await recorder.flush()
-    return event
+from app.modules.timeline.domain import get_next_sequence
+from lui_agent_runtime.events import RuntimeEvent
 
 
 async def finalize_incomplete_stream(
@@ -63,7 +17,7 @@ async def finalize_incomplete_stream(
     session: AsyncSession | None,
     branch_context: RunBranchContext | None,
     *,
-    event_factory: Callable[..., BusinessEvent],
+    event_factory: Callable[..., RuntimeEvent],
     cancel_requested: bool,
     interrupted_is_terminal: bool,
 ) -> None:
@@ -85,11 +39,11 @@ async def finalize_incomplete_stream(
         checkpoint=branch_context.checkpoint,
         session=session,
     )
-    sequence = _next_visible_sequence(recorder)
-    recorder.event(run_id, request.thread_id, sequence, "run.cancelled")
+    sequence = get_next_sequence(recorder)
+    recorder.record(run_id, request.thread_id, sequence, "run.cancelled")
     error_message = None if cancel_requested else "连接已中断，已保留部分内容，请重试"
     if error_message is not None:
-        recorder.event(
+        recorder.record(
             run_id,
             request.thread_id,
             sequence + 1,

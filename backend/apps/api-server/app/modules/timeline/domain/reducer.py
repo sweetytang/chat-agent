@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from .domain import validate_timeline, TimelineSnapshot
+from . import validate_timeline, TimelineSnapshot
 from lui_agent_runtime.events import RuntimeEvent
 
 
@@ -54,7 +54,7 @@ def _fail_unfinished_items(items: list[dict[str, Any]], run_id: str) -> None:
             items[index] = {**item, "status": "failed"}
 
 
-def project_event(snapshot: TimelineSnapshot, event: RuntimeEvent) -> TimelineSnapshot:
+def reduce_timeline(snapshot: TimelineSnapshot, event: RuntimeEvent) -> TimelineSnapshot:
     """把一个业务事件纯投影为新快照；条目只原地更新，不改变首次插入位置。"""
 
     result = validate_timeline(snapshot)
@@ -185,27 +185,3 @@ def project_event(snapshot: TimelineSnapshot, event: RuntimeEvent) -> TimelineSn
 
     return result
 
-
-def conversation_messages(snapshot: TimelineSnapshot) -> list[dict[str, str]]:
-    """从时间线派生模型上下文，同一 logical message 的文本段合并。"""
-
-    grouped: list[dict[str, str]] = []
-    indexes: dict[tuple[str, str], int] = {}
-    for item in validate_timeline(snapshot)["items"]:
-        if item.get("kind") != "message" or item.get("role") not in {"user", "assistant"}:
-            continue
-        role = str(item["role"])
-        logical_id = _text(item.get("logical_message_id"), _text(item.get("id")))
-        key = (role, logical_id)
-        if key not in indexes:
-            indexes[key] = len(grouped)
-            grouped.append({"role": role, "content": ""})
-        grouped[indexes[key]]["content"] += _text(item.get("content"))
-    return grouped
-
-
-def latest_user_content(snapshot: TimelineSnapshot, fallback: str = "") -> str:
-    for message in reversed(conversation_messages(snapshot)):
-        if message["role"] == "user":
-            return message["content"]
-    return fallback

@@ -1,32 +1,55 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Awaitable, Callable
-import re
 from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import RunStatus, Thread
-from app.modules.checkpoints.service import (
-    RunBranchContext,
-    latest_user_content,
-    conversation_messages,
-)
-from app.modules.interrupts.repository import InterruptRepository
 from app.modules.mcp.agent import McpToolSnapshot, build_langchain_tools
-from app.modules.runs.context import (
-    RunDependencies,
-    configure_run_dependencies,
-    get_run_dependencies,
-)
-from app.modules.runs.repository import RunRepository
-from app.modules.runs.schemas import PendingReview, RunRequest
 from app.modules.threads.title import set_title_after_first_round
 from app.modules.timeline.recorder import TimelineRecorder
+from app.modules.timeline.domain import extract_conversation_messages, get_latest_user_content
+from app.modules.runs.interrupts import create_approval_interrupt
+from .dependencies import run_dependencies_manager
+from .repository import RunRepository
+from .finalization import finalize_incomplete_stream
+from .coordination import run_coordination
+from .schemas import RunRequest, RunBranchContext
+from .shortcuts import (
+    execute_shortcut_rule,
+    handle_reasoning_shortcut,
+    handle_search_interrupt_shortcut,
+    is_shortcut_rule,
+)
 
 
-def _runtime() -> RunDependencies:
-    return get_run_dependencies()
+
+
+async def managed_run_stream(
+    events: AsyncIterator[str],
+    *,
+    run_id: str,
+    request: RunRequest,
+    session: AsyncSession | None,
+    branch_context: RunBranchContext | None,
+    interrupted_is_terminal: bool = True,
+) -> AsyncIterator[str]:
+    try:
+        async for event in events:
+            yield event
+    finally:
+        try:
+            await finalize_incomplete_stream(
+                run_id,
+                request,
+                session,
+                branch_context,
+                interrupted_is_terminal=interrupted_is_terminal,
+            )
+        finally:
+            run_coordination.remove_cancel_event(run_id)
+
 
 
 async def run_events(
@@ -37,31 +60,30 @@ async def run_events(
     mcp_snapshots: tuple[McpToolSnapshot, ...] = (),
     mcp_load_error: str | None = None,
     mcp_loader: Callable[[], Awaitable[tuple[McpToolSnapshot, ...]]] | None = None,
-    dependencies: RunDependencies | None = None,
 ) -> AsyncIterator[str]:
     """先提供稳定的业务事件协议，再把模型节点接入同一事件出口。"""
 
-    if dependencies is not None:
-        configure_run_dependencies(dependencies)
-    cancel_event = _runtime()._cancel_events[run_id]
-    lock = _runtime()._thread_lock(request.thread_id)
+    run_dependencies = run_dependencies_manager.configure_run_dependencies()
+    cancel_event = run_dependencies.cancel_events[run_id]
+    chat_lock = run_dependencies.setdefault_chat_lock(request.thread_id)
     recorder = TimelineRecorder(
-        event_factory=_runtime()._event,
+        event_factory=run_dependencies.event_factory,
         snapshot=branch_context.timeline if branch_context is not None else None,
         checkpoint=branch_context.checkpoint if branch_context is not None else None,
         session=session,
     )
     sequence = 0
-    yield recorder.event(run_id, request.thread_id, sequence, "run.queued").to_sse()
-    async with lock:
+    yield recorder.record(run_id, request.thread_id, sequence, "run.queued").to_sse()
+    
+    async with chat_lock:
         if cancel_event.is_set():
             yield (
-                recorder.event(run_id, request.thread_id, sequence + 1, "run.cancelled").to_sse()
+                recorder.record(run_id, request.thread_id, sequence + 1, "run.cancelled").to_sse()
             )
             return
 
         sequence += 1
-        yield recorder.event(run_id, request.thread_id, sequence, "run.started").to_sse()
+        yield recorder.record(run_id, request.thread_id, sequence, "run.started").to_sse()
         if mcp_loader is not None:
             try:
                 mcp_snapshots = await mcp_loader()
@@ -72,7 +94,7 @@ async def run_events(
         if mcp_load_error:
             sequence += 1
             yield (
-                recorder.event(
+                recorder.record(
                     run_id,
                     request.thread_id,
                     sequence,
@@ -83,27 +105,25 @@ async def run_events(
             )
         repository = RunRepository(session) if session is not None else None
         if repository is not None:
-            assert session is not None
+            # assert session is not None
             await repository.update_status(UUID(run_id), RunStatus.RUNNING)
             await session.commit()
         if branch_context is not None and branch_context.checkpoint is not None:
             agent_checkpoint = branch_context.checkpoint
             sequence += 1
             yield (
-                recorder.event(
+                recorder.record(
                     run_id,
                     request.thread_id,
                     sequence,
                     "checkpoint.created",
                     checkpoint_id=str(agent_checkpoint.id),
-                    parent_id=str(agent_checkpoint.parent_id)
-                    if agent_checkpoint.parent_id
-                    else None,
+                    parent_id=str(agent_checkpoint.parent_id) if agent_checkpoint.parent_id else None,
                 ).to_sse()
             )
             sequence += 1
             yield (
-                recorder.event(
+                recorder.record(
                     run_id,
                     request.thread_id,
                     sequence,
@@ -113,8 +133,8 @@ async def run_events(
             )
 
         timeline = branch_context.timeline if branch_context is not None else recorder.snapshot
-        if branch_context is None:
-            timeline["items"].append(
+        if branch_context is None: # 匿名 Demo 模式
+            timeline["items"].append( # 手动在内存时间线里，伪造追加一条用户发送的消息！
                 {
                     "id": f"{run_id}:user",
                     "kind": "message",
@@ -127,161 +147,84 @@ async def run_events(
                     "terminal_segment": True,
                 }
             )
-        input_messages = conversation_messages(timeline)
-        prompt_content = latest_user_content(timeline, request.content)
-        if prompt_content.startswith(("think:", "思考：")):
-            sequence += 1
-            yield (
-                recorder.event(
-                    run_id,
-                    request.thread_id,
-                    sequence,
-                    "reasoning.delta",
-                    item_id=f"{run_id}:reasoning:0",
-                    content="正在分析请求并选择合适的执行路径。",
-                ).to_sse()
-            )
+        input_messages = extract_conversation_messages(timeline)
+        prompt_content = get_latest_user_content(timeline, request.content)
 
-        # 这是模型没有产生文本时的安全兜底，不能把用户输入伪装成 assistant 回复。
-        reply = "收到你的消息。"
-        calculator_match = re.fullmatch(
-            r"(?:calc|计算)(?::|：)?\s*(.+)", prompt_content, re.IGNORECASE
+        # 1. 模拟思考前缀（若有）
+
+        async for sse, sequence in handle_reasoning_shortcut(
+            recorder,
+            run_id=run_id,
+            thread_id=request.thread_id,
+            prompt_content=prompt_content,
+            sequence=sequence,
+        ):
+            yield sse
+
+        # 2. 搜索审批中断前缀（若命中，直接推送中断事件并 return 挂起）
+
+        search_interrupt = await handle_search_interrupt_shortcut(
+            session,
+            recorder,
+            run_id=run_id,
+            thread_id=request.thread_id,
+            request=request,
+            branch_context=branch_context,
+            prompt_content=prompt_content,
+            sequence=sequence,
         )
-        if calculator_match:
-            expression = calculator_match.group(1)
-            tool_call_id = f"{run_id}:tool:calculator:0"
-            sequence += 1
-            yield (
-                recorder.event(
-                    run_id,
-                    request.thread_id,
-                    sequence,
-                    "tool.call",
-                    tool_call_id=tool_call_id,
-                    tool="calculator",
-                    arguments={"expression": expression},
-                ).to_sse()
-            )
-            try:
-                calculated_value = _runtime().calculate(expression)
-                reply = f"计算结果：{calculated_value:g}"
-                tool_data = {"tool": "calculator", "content": {"result": calculated_value}}
-            except (SyntaxError, ValueError, ZeroDivisionError) as error:
-                reply = f"计算失败：{error}"
-                tool_data = {"tool": "calculator", "content": {"error": str(error)}}
-            sequence += 1
-            yield (
-                recorder.event(
-                    run_id,
-                    request.thread_id,
-                    sequence,
-                    "tool.result",
-                    tool_call_id=tool_call_id,
-                    **tool_data,
-                ).to_sse()
-            )
-
-        if prompt_content.startswith("json:"):
-            sequence += 1
-            yield (
-                recorder.event(
-                    run_id,
-                    request.thread_id,
-                    sequence,
-                    "structured_output.delta",
-                    item_id=f"{run_id}:structured:{sequence}",
-                    value={"type": "text", "value": prompt_content.removeprefix("json:").strip()},
-                ).to_sse()
-            )
-        if prompt_content.startswith("ui:"):
-            sequence += 1
-            yield (
-                recorder.event(
-                    run_id,
-                    request.thread_id,
-                    sequence,
-                    "generative_ui.delta",
-                    item_id=f"{run_id}:generative-ui:{sequence}",
-                    value={
-                        "component": "NoticeCard",
-                        "props": {"text": prompt_content.removeprefix("ui:").strip()},
-                    },
-                    component="NoticeCard",
-                    props={"text": prompt_content.removeprefix("ui:").strip()},
-                ).to_sse()
-            )
-
-        if prompt_content.startswith(("search:", "搜索：")):
-            request_id = str(uuid4())
-            tool_call_id = request_id
-            if repository is not None:
-                assert session is not None
-                await InterruptRepository(session).create(
-                    UUID(run_id),
-                    request_id,
-                    "tool",
-                    {
-                        "tool": "web_search",
-                        "query": prompt_content.split(":", 1)[-1].strip(),
-                        "tool_call_id": tool_call_id,
-                    },
-                    branch_context.checkpoint_id if branch_context else None,
-                )
-                await repository.update_status(UUID(run_id), RunStatus.INTERRUPTED)
-            pending_review = PendingReview(
-                run_id,
-                request,
-                branch_context,
-                persisted=repository is not None,
-                tool_call_id=tool_call_id,
-            )
-            sequence += 1
-            tool_call_event = recorder.event(
-                run_id,
-                request.thread_id,
-                sequence,
-                "tool.call",
-                tool="web_search",
-                tool_call_id=tool_call_id,
-                request_id=request_id,
-                arguments={"query": prompt_content.split(":", 1)[-1].strip()},
-            )
-            sequence += 1
-            approval_event = recorder.event(
-                run_id,
-                request.thread_id,
-                sequence,
-                "tool.approval_required",
-                tool="web_search",
-                tool_call_id=tool_call_id,
-                request_id=request_id,
-            )
-            await recorder.flush()
-            _runtime()._pending_reviews[request_id] = pending_review
+        if search_interrupt is not None:
+            tool_call_event, approval_event, sequence = search_interrupt
             yield tool_call_event.to_sse()
             yield approval_event.to_sse()
-            return
+            return  # 触发中断，提前结束流
 
-        assistant_content = reply
-        use_graph = calculator_match is None and not prompt_content.startswith(("json:", "ui:"))
-        if use_graph:
-            provider = _runtime().get_provider_config()
+        # 3. 如果命中计算器/卡片等快捷规则，执行规则流
+
+        assistant_content = "收到你的消息。"
+        if is_shortcut_rule(prompt_content):
+            async for sse, sequence, assistant_content in execute_shortcut_rule(
+                recorder,
+                run_dependencies,
+                run_id=run_id,
+                thread_id=request.thread_id,
+                prompt_content=prompt_content,
+                sequence=sequence,
+            ):
+                yield sse
+            # 快捷规则完成后，补齐标准的 assistant 消息闭环
+            message_id = f"{run_id}:assistant"
+            item_id = f"{message_id}:segment:0"
+            sequence += 1
+            yield recorder.record(run_id, request.thread_id, sequence, "message.started", role="assistant", item_id=item_id, message_id=message_id).to_sse()
+            if cancel_event.is_set():
+                sequence += 1
+                yield recorder.record(run_id, request.thread_id, sequence, "run.cancelled").to_sse()
+                return
+            sequence += 1
+            yield recorder.record(run_id, request.thread_id, sequence, "message.delta", item_id=item_id, content=assistant_content).to_sse()
+            sequence += 1
+            yield recorder.record(run_id, request.thread_id, sequence, "message.completed", item_id=item_id, message_id=message_id).to_sse()
+        else :
+            # 4. 否则：进入真实大模型 LangGraph 图执行分支
+
+            provider = run_dependencies.get_provider_config()
             model = (
-                _runtime().FakeChatModel()
+                run_dependencies.fake_chat_model()
                 if provider.provider == "fake"
-                else _runtime().create_chat_model(provider)
+                else run_dependencies.create_chat_model(provider)
             )
             chunks: list[str] = []
             mcp_tools = tuple(build_langchain_tools(mcp_snapshots))
             snapshots_by_name = {
                 snapshot.identity.internal_name: snapshot for snapshot in mcp_snapshots
             }
-            async for graph_event in _runtime().stream_graph_events(
+            async for graph_event in run_dependencies.agent_driver().stream(
                 model,
                 input_messages,
                 run_id=run_id,
                 thread_id=request.thread_id,
-                tools=[*_runtime().default_langchain_tools(), *mcp_tools],
+                tools=[*run_dependencies.default_langchain_tools(), *mcp_tools],
                 continue_after_tools=True,
                 approval_tool_names=frozenset(snapshots_by_name),
             ):
@@ -293,61 +236,31 @@ async def run_events(
                     arguments = graph_event.data.get("arguments")
                     if not isinstance(arguments, dict):
                         arguments = {}
-                    request_id = str(uuid4())
-                    tool_call_id = str(graph_event.data.get("tool_call_id") or request_id)
-                    payload = {
-                        "tool": tool_name,
-                        "remote_name": snapshot.identity.remote_name,
-                        "server_id": snapshot.identity.server_id,
-                        "arguments": arguments,
-                        "tool_call_id": tool_call_id,
-                        "security_version": snapshot.security_version,
-                    }
-                    if repository is not None:
-                        assert session is not None
-                        await InterruptRepository(session).create(
-                            UUID(run_id),
-                            request_id,
-                            "mcp_tool",
-                            payload,
-                            branch_context.checkpoint_id if branch_context else None,
-                        )
-                        await repository.update_status(UUID(run_id), RunStatus.INTERRUPTED)
-                    pending_review = PendingReview(
-                        run_id,
-                        request,
-                        branch_context,
-                        persisted=repository is not None,
+
+                    tool_call_id = str(graph_event.data.get("tool_call_id") or uuid4())
+                    tool_call_event, approval_event, sequence = await create_approval_interrupt(
+                        session,
+                        recorder,
+                        run_id=run_id,
+                        thread_id=request.thread_id,
+                        request=request,
+                        branch_context=branch_context,
+                        sequence=sequence,
+                        kind="mcp_tool",
+                        tool_name=tool_name,
+                        arguments=arguments,
+                        extra_payload={
+                            "remote_name": snapshot.identity.remote_name,
+                            "server_id": snapshot.identity.server_id,
+                            "security_version": snapshot.security_version,
+                        },
                         mcp_snapshot=snapshot,
-                        arguments=arguments,
-                        tool_call_id=tool_call_id,
+                        custom_tool_call_id=tool_call_id,
                     )
-                    sequence += 1
-                    tool_call_event = recorder.event(
-                        run_id,
-                        request.thread_id,
-                        sequence,
-                        "tool.call",
-                        tool=tool_name,
-                        tool_call_id=tool_call_id,
-                        request_id=request_id,
-                        arguments=arguments,
-                    )
-                    sequence += 1
-                    approval_event = recorder.event(
-                        run_id,
-                        request.thread_id,
-                        sequence,
-                        "tool.approval_required",
-                        tool=tool_name,
-                        tool_call_id=tool_call_id,
-                        request_id=request_id,
-                    )
-                    await recorder.flush()
-                    _runtime()._pending_reviews[request_id] = pending_review
+           
                     # MCP SDK 的 AnyIO 上下文必须在建立它的 SSE 任务中关闭，
                     # 审核会切换到另一个请求任务，因此这里先释放连接，恢复时再懒加载。
-                    mcp_host = _runtime()._mcp_host
+                    mcp_host = run_dependencies.mcp_host
                     if mcp_host is not None:
                         await mcp_host.disconnect(snapshot.identity.server_id)
                     yield tool_call_event.to_sse()
@@ -356,71 +269,30 @@ async def run_events(
                 if graph_event.event == "message.delta":
                     chunks.append(str(graph_event.data.get("content", "")))
                 sequence += 1
-                projected_event = recorder.event(
+                projected_event = recorder.record(
                     run_id, request.thread_id, sequence, graph_event.event, **graph_event.data
                 )
                 await recorder.flush_if_due()
                 yield projected_event.to_sse()
-            assistant_content = "".join(chunks) or reply
-        else:
-            message_id = f"{run_id}:assistant"
-            item_id = f"{message_id}:segment:0"
-            sequence += 1
-            yield (
-                recorder.event(
-                    run_id,
-                    request.thread_id,
-                    sequence,
-                    "message.started",
-                    role="assistant",
-                    item_id=item_id,
-                    message_id=message_id,
-                ).to_sse()
-            )
-            if cancel_event.is_set():
-                sequence += 1
-                yield (
-                    recorder.event(run_id, request.thread_id, sequence, "run.cancelled").to_sse()
-                )
-                return
-            sequence += 1
-            yield (
-                recorder.event(
-                    run_id,
-                    request.thread_id,
-                    sequence,
-                    "message.delta",
-                    item_id=item_id,
-                    content=reply,
-                ).to_sse()
-            )
-            sequence += 1
-            yield (
-                recorder.event(
-                    run_id,
-                    request.thread_id,
-                    sequence,
-                    "message.completed",
-                    item_id=item_id,
-                    message_id=message_id,
-                ).to_sse()
-            )
+            assistant_content = "".join(chunks) or assistant_content
+
+
         if repository is not None and branch_context is not None:
-            assert session is not None
+            # assert session is not None
             thread = await session.get(Thread, UUID(request.thread_id))
             if thread is not None:
                 # run 可能等待过线程锁；写标题前同步其他 run 已提交的最新值。
                 await session.refresh(thread, attribute_names=["title"])
                 await set_title_after_first_round(
                     thread,
-                    conversation_messages(recorder.snapshot),
+                    extract_conversation_messages(recorder.snapshot),
                     mode=request.mode,
                     user_content=prompt_content,
                     assistant_content=assistant_content,
                 )
                 sequence += 1
                 yield (
-                    recorder.event(
+                    recorder.record(
                         run_id,
                         request.thread_id,
                         sequence,
@@ -433,7 +305,7 @@ async def run_events(
                 )
                 sequence += 1
                 yield (
-                    recorder.event(
+                    recorder.record(
                         run_id,
                         request.thread_id,
                         sequence,
@@ -444,6 +316,7 @@ async def run_events(
             await repository.update_status(UUID(run_id), RunStatus.COMPLETED)
             await session.commit()
         sequence += 1
-        yield recorder.event(run_id, request.thread_id, sequence, "run.completed").to_sse()
+        yield recorder.record(run_id, request.thread_id, sequence, "run.completed").to_sse()
         await recorder.flush()
-    _runtime()._cancel_events.pop(run_id, None)
+        
+    run_dependencies.cancel_events.pop(run_id, None)

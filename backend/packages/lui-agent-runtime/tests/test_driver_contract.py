@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator
 import pytest
 
 from lui_agent_runtime.driver import LangGraphAgentDriver
-from lui_agent_runtime.events import BusinessEvent, RuntimeEvent, encode_sse
+from lui_agent_runtime.events import RuntimeEvent, encode_sse
 
 
 @pytest.mark.asyncio
@@ -17,11 +17,11 @@ async def test_langgraph_driver_forwards_runtime_events() -> None:
     ]
 
     assert events == [RuntimeEvent(1, "message.delta", "run-1", "thread-1", 0, {"content": "ok"})]
-    assert not isinstance(events[0], BusinessEvent)
+    assert not isinstance(events[0], RuntimeEvent)
 
 
 def test_business_event_keeps_legacy_sse_payload() -> None:
-    event = BusinessEvent(1, "run.started", "run-1", "thread-1", 0, {})
+    event = RuntimeEvent(1, "run.started", "run-1", "thread-1", 0, {})
 
     assert event.to_sse() == encode_sse(event)
     assert (
