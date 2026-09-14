@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Callable
-from typing import Any
 import json
 from uuid import UUID
 
@@ -49,9 +48,7 @@ async def resumed_run_events(
     decision = resume_request.decision
     edited_payload = resume_request.payload
 
-    recorder = TimelineRecorder(
-        event_factory=run_dependencies_manager.configure_run_dependencies().event_factory,
-        snapshot=run_context.timeline if run_context is not None else None,
+    timeline_recorder = TimelineRecorder(
         checkpoint=run_context.checkpoint if run_context is not None else None,
         session=session,
     )
@@ -75,7 +72,7 @@ async def resumed_run_events(
         )
         await repository.update_status(UUID(run_id), RunStatus.RESUMING)
         await persisted_session.commit()
-    yield recorder.record(run_id, request.thread_id, sequence, "run.resuming").to_sse()
+    yield timeline_recorder.record(run_id, request.thread_id, sequence, "run.resuming").to_sse()
     sequence += 1
 
     if pendind_review.mcp_snapshot is not None:
@@ -95,7 +92,7 @@ async def resumed_run_events(
                 # 浏览器只能看到连接中断并显示 network error，丢失真正的失败原因。
                 error = str(cause)
                 yield (
-                    recorder.record(
+                    timeline_recorder.record(
                         run_id,
                         request.thread_id,
                         sequence,
@@ -107,7 +104,7 @@ async def resumed_run_events(
                 )
                 sequence += 1
                 yield (
-                    recorder.record(
+                    timeline_recorder.record(
                         run_id,
                         request.thread_id,
                         sequence,
@@ -119,13 +116,13 @@ async def resumed_run_events(
                 if repository is not None:
                     assert persisted_session is not None
                     await repository.update_status(UUID(run_id), RunStatus.FAILED)
-                    await recorder.flush()
+                    await timeline_recorder.flush()
                 return
             except Exception:
                 # 非 Host 异常仍使用通用文案，避免意外泄露内部信息。
                 error = "MCP 工具调用失败，请检查 Server 状态、地址和凭据"
                 yield (
-                    recorder.record(
+                    timeline_recorder.record(
                         run_id,
                         request.thread_id,
                         sequence,
@@ -137,7 +134,7 @@ async def resumed_run_events(
                 )
                 sequence += 1
                 yield (
-                    recorder.record(
+                    timeline_recorder.record(
                         run_id,
                         request.thread_id,
                         sequence,
@@ -149,7 +146,7 @@ async def resumed_run_events(
                 if repository is not None:
                     assert persisted_session is not None
                     await repository.update_status(UUID(run_id), RunStatus.FAILED)
-                    await recorder.flush()
+                    await timeline_recorder.flush()
                 return
         tool_name = snapshot.identity.internal_name
     else:
@@ -158,7 +155,7 @@ async def resumed_run_events(
             result = {"error": "用户拒绝执行搜索"}
         tool_name = "web_search"
     yield (
-        recorder.record(
+        timeline_recorder.record(
             run_id,
             request.thread_id,
             sequence,
@@ -173,7 +170,7 @@ async def resumed_run_events(
     answer = "已按要求拒绝工具执行。" if decision == "reject" else "工具执行完成。"
     message_id = f"{run_id}:assistant"
     item_id = f"{message_id}:resume:{request_id}"
-    yield recorder.record(
+    yield timeline_recorder.record(
         run_id,
         request.thread_id,
         sequence,
@@ -207,7 +204,7 @@ async def resumed_run_events(
             answer_parts.append(content)
             sequence += 1
             yield (
-                recorder.record(
+                timeline_recorder.record(
                     run_id,
                     request.thread_id,
                     sequence,
@@ -225,7 +222,7 @@ async def resumed_run_events(
     if not answer_parts:
         sequence += 1
         yield (
-            recorder.record(
+            timeline_recorder.record(
                 run_id,
                 request.thread_id,
                 sequence,
@@ -235,7 +232,7 @@ async def resumed_run_events(
             ).to_sse()
         )
     sequence += 1
-    yield recorder.record(
+    yield timeline_recorder.record(
         run_id,
         request.thread_id,
         sequence,
@@ -251,39 +248,16 @@ async def resumed_run_events(
             await persisted_session.refresh(thread, attribute_names=["title"])
             await set_title_after_first_round(
                 thread,
-                extract_conversation_messages(recorder.snapshot),
+                extract_conversation_messages(timeline_recorder.snapshot),
                 mode=request.mode,
-                user_content=get_latest_user_content(recorder.snapshot, request.content),
+                user_content=get_latest_user_content(timeline_recorder.snapshot, request.content),
                 assistant_content=answer,
             )
-            sequence += 1
-            yield (
-                recorder.record(
-                    run_id,
-                    request.thread_id,
-                    sequence,
-                    "checkpoint.created",
-                    checkpoint_id=str(run_context.checkpoint_id),
-                    parent_id=str(run_context.checkpoint.parent_id)
-                    if run_context.checkpoint and run_context.checkpoint.parent_id
-                    else None,
-                ).to_sse()
-            )
-            sequence += 1
-            yield (
-                recorder.record(
-                    run_id,
-                    request.thread_id,
-                    sequence,
-                    "thread.updated",
-                    current_checkpoint_id=str(run_context.checkpoint_id),
-                ).to_sse()
-            )
         await repository.update_status(UUID(run_id), RunStatus.COMPLETED)
-        await recorder.flush()
+        await timeline_recorder.flush()
     sequence += 1
-    yield recorder.record(run_id, request.thread_id, sequence, "run.completed").to_sse()
-    await recorder.flush()
+    yield timeline_recorder.record(run_id, request.thread_id, sequence, "run.completed").to_sse()
+    await timeline_recorder.flush()
 
 
 
@@ -329,18 +303,16 @@ async def persist_run_failure(
     message: str,
     session: AsyncSession | None,
     run_context: RunContext | None,
-    event_factory: Callable[..., RuntimeEvent] = build_event,
 ) -> RuntimeEvent:
     if session is None or run_context is None or run_context.checkpoint is None:
-        return event_factory(run_id, thread_id, 1, "run.failed", error=message)
+        return build_event(run_id, thread_id, 1, "run.failed", error=message)
 
-    recorder = TimelineRecorder(
-        event_factory=event_factory,
+    timeline_recorder = TimelineRecorder(
         checkpoint=run_context.checkpoint,
         session=session,
     )
-    sequence = get_next_sequence(recorder)
-    event = recorder.record(
+    sequence = get_next_sequence(timeline_recorder)
+    event = timeline_recorder.record(
         run_id,
         thread_id,
         sequence,
@@ -351,5 +323,5 @@ async def persist_run_failure(
     await RunRepository(session).update_status(
         UUID(run_id), RunStatus.FAILED, error_message=message
     )
-    await recorder.flush()
+    await timeline_recorder.flush()
     return event

@@ -13,7 +13,7 @@ from app.modules.checkpoints.repository import CheckpointRepository
 from app.modules.timeline.domain import checkpoint_timeline, extract_conversation_messages, empty_timeline
 from app.modules.mcp.agent import McpToolSnapshot
 from .repository import RunRepository
-from .coordination import run_coordination
+from .dependencies import run_dependencies_manager
 from .resume import safe_resumed_run_events
 from .schemas import ResumeRequest, RunRequest, PendingReview, RunContext
 from .streaming import managed_run_stream, run_events
@@ -86,6 +86,7 @@ class RunService:
         )
         
         await session.commit()
+
         return RunContext(
             checkpoint=agent_checkpoint,
             input_checkpoint=input_checkpoint,
@@ -95,10 +96,10 @@ class RunService:
 
     @staticmethod
     def stream_run(
+        session: AsyncSession | None,
         run_id: str,
         request: RunRequest,
-        session: AsyncSession | None = None,
-        run_context: RunContext | None = None,
+        run_context: RunContext | None,
         *,
         mcp_loader: Callable[[], Awaitable[tuple[McpToolSnapshot, ...]]] | None = None,
         interrupted_is_terminal: bool = True,
@@ -106,17 +107,17 @@ class RunService:
         """开启并执行一个完整的生命周期受控流（Managed Stream）。"""
 
         inner_events = run_events(
-            run_id=run_id,
-            request=request,
-            session=session,
-            run_context=run_context,
+            session,
+            run_id,
+            request,
+            run_context,
             mcp_loader=mcp_loader,
         )
         return managed_run_stream(
             inner_events,
+            session=session,
             run_id=run_id,
             request=request,
-            session=session,
             run_context=run_context,
             interrupted_is_terminal=interrupted_is_terminal,
         )
@@ -153,7 +154,7 @@ class RunService:
     @staticmethod
     def cancel_run(run_id: str) -> bool:
         """触发目标运行的取消信号。"""
-        return run_coordination.trigger_cancel(run_id)
+        return run_dependencies_manager.get_run_dependencies().run_coordination.trigger_cancel(run_id)
 
 
 run_service = RunService()

@@ -10,7 +10,6 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.api.dependencies import require_user_uuid
 from app.core.security import get_optional_subject
 from app.db.models import McpServerDefinition, Thread
 from app.db.session import get_optional_db_session
@@ -21,8 +20,11 @@ from app.modules.mcp.dependencies import get_mcp_host
 from app.modules.runs.service import run_service
 from app.modules.runs.repository import RunRepository
 from app.modules.runs.schemas import PendingReview, ResumeRequest, RunRequest, RunContext
-from app.modules.runs.coordination import run_coordination
+from app.modules.runs.dependencies import run_dependencies_manager
+from app.modules.threads.repository import ThreadRepository
 from app.modules.checkpoints.repository import CheckpointRepository
+
+from app.common.utils.to_uuid import to_uuid
 
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
@@ -51,51 +53,51 @@ async def stream_run(
     subject: str | None = Depends(get_optional_subject),
     session: AsyncSession | None = Depends(get_optional_db_session),
 ) -> StreamingResponse:
+    run_dependencies = run_dependencies_manager.configure_run_dependencies()
+    run_coordination = run_dependencies.run_coordination
     run_id = str(uuid4())
+    subject = to_uuid(subject)
     run_coordination.register_cancel_event(run_id)
     run_context: RunContext | None = None
+    target_session: AsyncSession | None = None
+    mcp_loader = None
     try:
-        if session is not None:
-            try:
-                thread_id = UUID(request.thread_id)
-            except ValueError:
-                thread_id = None
-            thread = await session.get(Thread, thread_id) if thread_id is not None else None
-            if thread is not None:
-                if thread.user_id != require_user_uuid(subject):
-                    raise HTTPException(status_code=404, detail="线程不存在")
-                run_context = await run_service.prepare_run_context(
-                    session,
-                    UUID(run_id),
-                    request,
-                    thread,
-                )
+        # 只允许认证用户去数据库加载持久化线程
+        if session is not None and subject is not None:
+            target_session = session
+            thread_id = to_uuid(request.thread_id)
+            thread = await ThreadRepository(session).get_owned(thread_id, subject) if thread_id is not None else None
+            if thread is None:
+                raise HTTPException(status_code=404, detail="线程不存在")
+            run_context = await run_service.prepare_run_context(
+                session,
+                UUID(run_id),
+                request,
+                thread,
+            )
+            # MCP 只有登录用户才有配置，直接在此就绪
+            mcp_host = get_mcp_host()
+            if mcp_host is not None:
+                async def mcp_loader() -> tuple[McpToolSnapshot, ...]:
+                    return tuple(
+                        await load_mcp_snapshots(
+                            session,
+                            subject,
+                            mcp_host,
+                            _decode_mcp_credentials,
+                        )
+                    )
     except (ValueError, OSError, RuntimeError):
         if session is not None:
             await session.rollback()
-
-    # 是否启用持久化：只有成功准备好分支上下文时，才传入 session； 要么是有效会话，要么明确是纯内存匿名模式（None）
-    target_session = session if run_context is not None else None
-    mcp_loader = None
-    mcp_host = get_mcp_host()
-    if target_session is not None and mcp_host is not None and subject is not None:
-        async def mcp_loader() -> tuple[McpToolSnapshot, ...]:
-            return tuple(
-                await load_mcp_snapshots(
-                    target_session,
-                    UUID(subject),
-                    mcp_host,
-                    _decode_mcp_credentials,
-                )
-            )
         
-    # ✨ 核心流式响应：直接调用 run_service.stream_run
+    # 核心流式响应：直接调用 run_service.stream_run
     return StreamingResponse(
         run_service.stream_run(
-            run_id=run_id,
-            request=request,
-            session=target_session,
-            run_context=run_context,
+            target_session,
+            run_id,
+            request,
+            run_context,
             mcp_loader=mcp_loader,
         ),
         media_type="text/event-stream",
@@ -111,7 +113,8 @@ async def cancel_run(
     subject: str | None = Depends(get_optional_subject),
     session: AsyncSession | None = Depends(get_optional_db_session),
 ) -> dict[str, str]:
-    await RunRepository(session).get_owned(UUID(run_id), require_user_uuid(subject))
+    subject = to_uuid(subject)
+    await RunRepository(session).get_owned(to_uuid(run_id), subject)
     if not run_service.cancel_run(run_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="运行不存在")
     return {"run_id": run_id, "status": "cancelling"}
@@ -125,6 +128,9 @@ async def resume_run(
     subject: str | None = Depends(get_optional_subject),
     session: AsyncSession | None = Depends(get_optional_db_session),
 ) -> StreamingResponse:
+    run_dependencies = run_dependencies_manager.configure_run_dependencies()
+    run_coordination = run_dependencies.run_coordination
+    subject = to_uuid(subject)
     pending = run_coordination.get_pending_review(request.request_id)
     # 纯内存 demo interrupt 没有 branch context，不应为了鉴权主动连接数据库。
     # 持久化 interrupt 或服务重启后的恢复才查询 run 所有者。
@@ -133,7 +139,7 @@ async def resume_run(
     if requires_persistence:
         if session is None:
             raise HTTPException(status_code=503, detail="持久化服务不可用")
-        persisted_run = await RunRepository(session).get_owned(UUID(run_id), require_user_uuid(subject))
+        persisted_run = await RunRepository(session).get_owned(to_uuid(run_id), subject)
         if persisted_run is None:
             raise HTTPException(status_code=404, detail="运行不存在")
 
@@ -179,7 +185,7 @@ async def resume_run(
                     )
                 mcp_snapshots = await load_mcp_snapshots(
                     session,
-                    UUID(subject),
+                    subject,
                     mcp_host,
                     _decode_mcp_credentials,
                 )

@@ -6,7 +6,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import Run, RunStatus
 from app.modules.timeline.recorder import TimelineRecorder
 from app.modules.timeline.domain import get_next_sequence
-from lui_agent_runtime.events import RuntimeEvent
 from .repository import RunRepository
 from .schemas import RunRequest, RunContext
 
@@ -17,7 +16,6 @@ async def finalize_incomplete_stream(
     session: AsyncSession | None,
     run_context: RunContext | None,
     *,
-    event_factory: Callable[..., RuntimeEvent],
     cancel_requested: bool,
     interrupted_is_terminal: bool,
 ) -> None:
@@ -34,16 +32,15 @@ async def finalize_incomplete_stream(
     if run is None or run.status in terminal_statuses:
         return
 
-    recorder = TimelineRecorder(
-        event_factory=event_factory,
+    timeline_recorder = TimelineRecorder(
         checkpoint=run_context.checkpoint,
         session=session,
     )
-    sequence = get_next_sequence(recorder)
-    recorder.record(run_id, request.thread_id, sequence, "run.cancelled")
+    sequence = get_next_sequence(timeline_recorder)
+    timeline_recorder.record(run_id, request.thread_id, sequence, "run.cancelled")
     error_message = None if cancel_requested else "连接已中断，已保留部分内容，请重试"
     if error_message is not None:
-        recorder.record(
+        timeline_recorder.record(
             run_id,
             request.thread_id,
             sequence + 1,
@@ -56,4 +53,4 @@ async def finalize_incomplete_stream(
         RunStatus.CANCELLED,
         error_message=error_message,
     )
-    await recorder.flush()
+    await timeline_recorder.flush()

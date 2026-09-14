@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Awaitable, Callable
 from uuid import UUID, uuid4
+import anyio
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +15,6 @@ from app.modules.runs.interrupts import create_approval_interrupt
 from .dependencies import run_dependencies_manager
 from .repository import RunRepository
 from .finalization import finalize_incomplete_stream
-from .coordination import run_coordination
 from .schemas import RunRequest, RunContext
 from .shortcuts import (
     execute_shortcut_rule,
@@ -36,27 +36,32 @@ async def managed_run_stream(
     interrupted_is_terminal: bool = True,
 ) -> AsyncIterator[str]:
     try:
+        run_dependencies = run_dependencies_manager.configure_run_dependencies()
+        run_coordination = run_dependencies.run_coordination
         async for event in events:
             yield event
     finally:
-        try:
-            await finalize_incomplete_stream(
-                run_id,
-                request,
-                session,
-                run_context,
-                interrupted_is_terminal=interrupted_is_terminal,
-            )
-        finally:
-            run_coordination.remove_cancel_event(run_id)
+        # 使用 shield=True 保护终止状态写入数据库，不被客户端断开的 cancel 信号打断
+        with anyio.CancelScope(shield=True):
+            try:
+                await finalize_incomplete_stream(
+                    run_id,
+                    request,
+                    session,
+                    run_context,
+                    cancel_requested=run_coordination.is_cancel_requested(run_id),
+                    interrupted_is_terminal=interrupted_is_terminal,
+                )
+            finally:
+                run_coordination.remove_cancel_event(run_id)
 
 
 
 async def run_events(
+    session: AsyncSession | None,
     run_id: str,
     request: RunRequest,
-    session: AsyncSession | None = None,
-    run_context: RunContext | None = None,
+    run_context: RunContext | None,
     mcp_snapshots: tuple[McpToolSnapshot, ...] = (),
     mcp_load_error: str | None = None,
     mcp_loader: Callable[[], Awaitable[tuple[McpToolSnapshot, ...]]] | None = None,
@@ -64,26 +69,21 @@ async def run_events(
     """先提供稳定的业务事件协议，再把模型节点接入同一事件出口。"""
 
     run_dependencies = run_dependencies_manager.configure_run_dependencies()
-    cancel_event = run_dependencies.cancel_events[run_id]
-    chat_lock = run_dependencies.setdefault_chat_lock(request.thread_id)
-    recorder = TimelineRecorder(
-        event_factory=run_dependencies.event_factory,
-        snapshot=run_context.timeline if run_context is not None else None,
+    run_coordination = run_dependencies.run_coordination
+    timeline_recorder = TimelineRecorder(
         checkpoint=run_context.checkpoint if run_context is not None else None,
         session=session,
     )
     sequence = 0
-    yield recorder.record(run_id, request.thread_id, sequence, "run.queued").to_sse()
+    yield timeline_recorder.record(run_id, request.thread_id, sequence, "run.queued").to_sse()
     
-    async with chat_lock:
-        if cancel_event.is_set():
-            yield (
-                recorder.record(run_id, request.thread_id, sequence + 1, "run.cancelled").to_sse()
-            )
+    async with run_coordination.setdefault_chat_lock(request.thread_id):
+        sequence += 1
+        if run_coordination.is_cancel_requested(run_id):
+            yield timeline_recorder.record(run_id, request.thread_id, sequence, "run.cancelled").to_sse()
             return
 
-        sequence += 1
-        yield recorder.record(run_id, request.thread_id, sequence, "run.started").to_sse()
+        yield timeline_recorder.record(run_id, request.thread_id, sequence, "run.started").to_sse()
         if mcp_loader is not None:
             try:
                 mcp_snapshots = await mcp_loader()
@@ -94,7 +94,7 @@ async def run_events(
         if mcp_load_error:
             sequence += 1
             yield (
-                recorder.record(
+                timeline_recorder.record(
                     run_id,
                     request.thread_id,
                     sequence,
@@ -105,34 +105,10 @@ async def run_events(
             )
         repository = RunRepository(session) if session is not None else None
         if repository is not None:
-            # assert session is not None
             await repository.update_status(UUID(run_id), RunStatus.RUNNING)
             await session.commit()
-        if run_context is not None and run_context.checkpoint is not None:
-            agent_checkpoint = run_context.checkpoint
-            sequence += 1
-            yield (
-                recorder.record(
-                    run_id,
-                    request.thread_id,
-                    sequence,
-                    "checkpoint.created",
-                    checkpoint_id=str(agent_checkpoint.id),
-                    parent_id=str(agent_checkpoint.parent_id) if agent_checkpoint.parent_id else None,
-                ).to_sse()
-            )
-            sequence += 1
-            yield (
-                recorder.record(
-                    run_id,
-                    request.thread_id,
-                    sequence,
-                    "thread.updated",
-                    current_checkpoint_id=str(agent_checkpoint.id),
-                ).to_sse()
-            )
 
-        timeline = run_context.timeline if run_context is not None else recorder.snapshot
+        timeline = run_context.timeline if run_context is not None else timeline_recorder.snapshot
         if run_context is None: # 匿名 Demo 模式
             timeline["items"].append( # 手动在内存时间线里，伪造追加一条用户发送的消息！
                 {
@@ -153,7 +129,7 @@ async def run_events(
         # 1. 模拟思考前缀（若有）
 
         async for sse, sequence in handle_reasoning_shortcut(
-            recorder,
+            timeline_recorder,
             run_id=run_id,
             thread_id=request.thread_id,
             prompt_content=prompt_content,
@@ -165,7 +141,7 @@ async def run_events(
 
         search_interrupt = await handle_search_interrupt_shortcut(
             session,
-            recorder,
+            timeline_recorder,
             run_id=run_id,
             thread_id=request.thread_id,
             request=request,
@@ -184,7 +160,7 @@ async def run_events(
         assistant_content = "收到你的消息。"
         if is_shortcut_rule(prompt_content):
             async for sse, sequence, assistant_content in execute_shortcut_rule(
-                recorder,
+                timeline_recorder,
                 run_dependencies,
                 run_id=run_id,
                 thread_id=request.thread_id,
@@ -196,15 +172,15 @@ async def run_events(
             message_id = f"{run_id}:assistant"
             item_id = f"{message_id}:segment:0"
             sequence += 1
-            yield recorder.record(run_id, request.thread_id, sequence, "message.started", role="assistant", item_id=item_id, message_id=message_id).to_sse()
-            if cancel_event.is_set():
+            yield timeline_recorder.record(run_id, request.thread_id, sequence, "message.started", role="assistant", item_id=item_id, message_id=message_id).to_sse()
+            if run_coordination.is_cancel_requested(run_id):
                 sequence += 1
-                yield recorder.record(run_id, request.thread_id, sequence, "run.cancelled").to_sse()
+                yield timeline_recorder.record(run_id, request.thread_id, sequence, "run.cancelled").to_sse()
                 return
             sequence += 1
-            yield recorder.record(run_id, request.thread_id, sequence, "message.delta", item_id=item_id, content=assistant_content).to_sse()
+            yield timeline_recorder.record(run_id, request.thread_id, sequence, "message.delta", item_id=item_id, content=assistant_content).to_sse()
             sequence += 1
-            yield recorder.record(run_id, request.thread_id, sequence, "message.completed", item_id=item_id, message_id=message_id).to_sse()
+            yield timeline_recorder.record(run_id, request.thread_id, sequence, "message.completed", item_id=item_id, message_id=message_id).to_sse()
         else :
             # 4. 否则：进入真实大模型 LangGraph 图执行分支
 
@@ -228,6 +204,7 @@ async def run_events(
                 continue_after_tools=True,
                 approval_tool_names=frozenset(snapshots_by_name),
             ):
+                # 调用工具事件
                 if graph_event.event == "tool.approval_requested":
                     tool_name = str(graph_event.data.get("tool", ""))
                     snapshot = snapshots_by_name.get(tool_name)
@@ -240,7 +217,7 @@ async def run_events(
                     tool_call_id = str(graph_event.data.get("tool_call_id") or uuid4())
                     tool_call_event, approval_event, sequence = await create_approval_interrupt(
                         session,
-                        recorder,
+                        timeline_recorder,
                         run_id=run_id,
                         thread_id=request.thread_id,
                         request=request,
@@ -260,63 +237,41 @@ async def run_events(
            
                     # MCP SDK 的 AnyIO 上下文必须在建立它的 SSE 任务中关闭，
                     # 审核会切换到另一个请求任务，因此这里先释放连接，恢复时再懒加载。
-                    mcp_host = run_dependencies.mcp_host
+                    mcp_host_getter = run_dependencies.mcp_host
+                    mcp_host = mcp_host_getter() if callable(mcp_host_getter) else mcp_host_getter
                     if mcp_host is not None:
                         await mcp_host.disconnect(snapshot.identity.server_id)
                     yield tool_call_event.to_sse()
                     yield approval_event.to_sse()
                     return
+
+                # 普通增量消息
                 if graph_event.event == "message.delta":
                     chunks.append(str(graph_event.data.get("content", "")))
                 sequence += 1
-                projected_event = recorder.record(
+                projected_event = timeline_recorder.record(
                     run_id, request.thread_id, sequence, graph_event.event, **graph_event.data
                 )
-                await recorder.flush_if_due()
+                await timeline_recorder.flush_if_due()
                 yield projected_event.to_sse()
             assistant_content = "".join(chunks) or assistant_content
 
 
         if repository is not None and run_context is not None:
-            # assert session is not None
             thread = await session.get(Thread, UUID(request.thread_id))
             if thread is not None:
                 # run 可能等待过线程锁；写标题前同步其他 run 已提交的最新值。
                 await session.refresh(thread, attribute_names=["title"])
                 await set_title_after_first_round(
                     thread,
-                    extract_conversation_messages(recorder.snapshot),
+                    extract_conversation_messages(timeline_recorder.snapshot),
                     mode=request.mode,
                     user_content=prompt_content,
                     assistant_content=assistant_content,
                 )
-                sequence += 1
-                yield (
-                    recorder.record(
-                        run_id,
-                        request.thread_id,
-                        sequence,
-                        "checkpoint.created",
-                        checkpoint_id=str(run_context.checkpoint_id),
-                        parent_id=str(run_context.checkpoint.parent_id)
-                        if run_context.checkpoint and run_context.checkpoint.parent_id
-                        else None,
-                    ).to_sse()
-                )
-                sequence += 1
-                yield (
-                    recorder.record(
-                        run_id,
-                        request.thread_id,
-                        sequence,
-                        "thread.updated",
-                        current_checkpoint_id=str(run_context.checkpoint_id),
-                    ).to_sse()
-                )
             await repository.update_status(UUID(run_id), RunStatus.COMPLETED)
             await session.commit()
+            
         sequence += 1
-        yield recorder.record(run_id, request.thread_id, sequence, "run.completed").to_sse()
-        await recorder.flush()
-        
-    run_dependencies.cancel_events.pop(run_id, None)
+        yield timeline_recorder.record(run_id, request.thread_id, sequence, "run.completed").to_sse()
+        await timeline_recorder.flush()

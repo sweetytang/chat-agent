@@ -58,7 +58,6 @@ export function Chat() {
   }, []);
 
   async function startRun(options: RunRequestContext) {
-    if (!useAuthStore.getState().token) return;
     const request: RunStreamRequest = {
       thread_id: options.threadId,
       content: options.content,
@@ -99,7 +98,7 @@ export function Chat() {
 
   async function submit() {
     const content = input.trim();
-    if (!content || controlsDisabled || !token || submitLockRef.current) return;
+    if (!content || controlsDisabled || submitLockRef.current) return;
     submitLockRef.current = true;
 
     const selectedThread = useThreadStore.getState();
@@ -107,6 +106,19 @@ export function Chat() {
     setInput('');
 
     try {
+      // 1. 如果未登录（匿名游客）：直接在 demo-thread 上流式运行，无需建表建库
+      if (!token) {
+        void startRun({
+          content,
+          checkpointId: null,
+          mode: 'send',
+          showUserMessage: true,
+          threadId: 'demo-thread',
+        });
+        return;
+      }
+
+      // 2. 如果已登录且是 demo-thread：为用户新建正式持久化会话
       if (isNewThread) {
         useRunStore.getState().beginRun('demo-thread', content);
         selectedThread.setCurrentThreadTitle(content);
@@ -246,7 +258,7 @@ export function Chat() {
               active={active}
               canRetry={!!lastRequest && !active}
               controlsDisabled={controlsDisabled}
-              empty={<WelcomePanel authenticated={Boolean(token)} onPrompt={fillPrompt} />}
+              empty={<WelcomePanel authenticated={true} onPrompt={fillPrompt} />}
               loading={isRefreshing}
               onBranchSwitch={(checkpointId) =>
                 void useThreadStore.getState().switchCheckpoint(checkpointId)
@@ -274,7 +286,7 @@ export function Chat() {
           <ChatComposer
             ref={composerRef}
             value={input}
-            disabled={!token || isRefreshing}
+            disabled={isRefreshing}
             running={active}
             onChange={setInput}
             onSubmit={() => void submit()}

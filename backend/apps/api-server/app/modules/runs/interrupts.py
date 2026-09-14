@@ -19,7 +19,7 @@ from .schemas import PendingReview, RunRequest, RunContext
 
 async def create_approval_interrupt(
     session: AsyncSession | None,
-    recorder: TimelineRecorder,
+    timeline_recorder: TimelineRecorder,
     *,
     run_id: str,
     thread_id: str,
@@ -73,11 +73,11 @@ async def create_approval_interrupt(
         arguments=arguments,
         tool_call_id=tool_call_id,
     )
-    run_dependencies_manager.get_run_dependencies().pending_reviews[request_id] = pending_review
+    run_dependencies_manager.get_run_dependencies().run_coordination.register_pending_review(request_id, pending_review)
 
     # 3. 产生并投影两个关联事件
     sequence += 1
-    tool_call_event = recorder.event(
+    tool_call_event = timeline_recorder.record(
         run_id,
         thread_id,
         sequence,
@@ -89,7 +89,7 @@ async def create_approval_interrupt(
     )
 
     sequence += 1
-    approval_event = recorder.event(
+    approval_event = timeline_recorder.record(
         run_id,
         thread_id,
         sequence,
@@ -100,12 +100,6 @@ async def create_approval_interrupt(
     )
 
     # 确保时间线快照及时固化
-    await recorder.flush()
+    await timeline_recorder.flush()
 
     return tool_call_event, approval_event, sequence
-
-
-
-__all__ = [
-    "create_approval_interrupt",
-]

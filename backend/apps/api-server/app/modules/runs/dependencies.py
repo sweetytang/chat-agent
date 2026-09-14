@@ -6,8 +6,7 @@
 
 from __future__ import annotations
 
-import asyncio
-from collections.abc import Callable, MutableMapping, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -22,7 +21,7 @@ from lui_agent_runtime.tools.langchain import default_langchain_tools
 from lui_agent_runtime.tools.registry import calculate
 from lui_agent_runtime.events import RuntimeEvent
 from .domain import build_event
-from .coordination import run_coordination
+from .coordination import run_coordination, RunCoordination
 
 
 class McpHostLike(Protocol):
@@ -32,11 +31,8 @@ class McpHostLike(Protocol):
 @dataclass(frozen=True)
 class RunDependencies:
     """运行编排需要的最小外部能力集合。"""
-
-    cancel_events: MutableMapping[str, asyncio.Event]
-    setdefault_chat_lock: Callable[[str], asyncio.Lock]
+    run_coordination: RunCoordination
     event_factory: Callable[..., RuntimeEvent]
-    pending_reviews: MutableMapping[str, Any]
     mcp_host: Callable[[], McpHostLike | None]
     calculate: Callable[[str], float]
     get_provider_config: Callable[[], Any]
@@ -50,10 +46,8 @@ def build_run_dependencies() -> RunDependencies:
     """由 API 边界装配当前进程实现，运行模块不反向依赖路由。"""
 
     return RunDependencies(
-        cancel_events=run_coordination.cancel_events,
-        setdefault_chat_lock=run_coordination.setdefault_chat_lock,
+        run_coordination=run_coordination,
         event_factory=build_event,
-        pending_reviews=run_coordination.pending_reviews,
         mcp_host=get_mcp_host,
         calculate=calculate,
         get_provider_config=get_provider_config,

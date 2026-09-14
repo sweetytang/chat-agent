@@ -22,7 +22,7 @@ export function WelcomePanel({
       <p>
         {authenticated
           ? '从一个问题开始，我会协助你思考、组织并执行。'
-          : '登录后即可开始对话，并在不同设备间继续你的工作。'}
+          : '可以直接开始体验对话；登录后可在多设备间同步会话记录。'}
       </p>
       {authenticated ? (
         <div className={styles.prompts}>
