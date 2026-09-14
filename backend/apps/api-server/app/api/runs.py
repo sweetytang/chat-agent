@@ -20,10 +20,9 @@ from app.modules.mcp.crypto import CredentialCrypto
 from app.modules.mcp.dependencies import get_mcp_host
 from app.modules.runs.service import run_service
 from app.modules.runs.repository import RunRepository
-from app.modules.runs.schemas import PendingReview, ResumeRequest, RunRequest, RunBranchContext
+from app.modules.runs.schemas import PendingReview, ResumeRequest, RunRequest, RunContext
 from app.modules.runs.coordination import run_coordination
 from app.modules.checkpoints.repository import CheckpointRepository
-from app.modules.timeline.domain import empty_timeline, checkpoint_timeline
 
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
@@ -54,7 +53,7 @@ async def stream_run(
 ) -> StreamingResponse:
     run_id = str(uuid4())
     run_coordination.register_cancel_event(run_id)
-    branch_context: RunBranchContext | None = None
+    run_context: RunContext | None = None
     try:
         if session is not None:
             try:
@@ -65,7 +64,7 @@ async def stream_run(
             if thread is not None:
                 if thread.user_id != require_user_uuid(subject):
                     raise HTTPException(status_code=404, detail="线程不存在")
-                branch_context = await run_service.prepare_branch(
+                run_context = await run_service.prepare_run_context(
                     session,
                     UUID(run_id),
                     request,
@@ -76,7 +75,7 @@ async def stream_run(
             await session.rollback()
 
     # 是否启用持久化：只有成功准备好分支上下文时，才传入 session； 要么是有效会话，要么明确是纯内存匿名模式（None）
-    target_session = session if branch_context is not None else None
+    target_session = session if run_context is not None else None
     mcp_loader = None
     mcp_host = get_mcp_host()
     if target_session is not None and mcp_host is not None and subject is not None:
@@ -96,7 +95,7 @@ async def stream_run(
             run_id=run_id,
             request=request,
             session=target_session,
-            branch_context=branch_context,
+            run_context=run_context,
             mcp_loader=mcp_loader,
         ),
         media_type="text/event-stream",
@@ -148,13 +147,13 @@ async def resume_run(
                     interrupt.checkpoint_id,
                 )
             # 一步到位构造真实的 branch_context，拒绝 empty_timeline() 假数据
-            branch_context = RunBranchContext(checkpoint=checkpoint) if checkpoint is not None else None
+            run_context = RunContext(checkpoint=checkpoint) if checkpoint is not None else None
 
             query = str(interrupt.payload.get("query", ""))
             pending = PendingReview(
                 run_id,
                 RunRequest(thread_id=str(persisted_run.thread_id), content=f"search: {query}"),
-                branch_context,
+                run_context,
                 persisted=True,
                 tool_call_id=str(interrupt.payload.get("tool_call_id") or request.request_id),
             )
@@ -196,7 +195,7 @@ async def resume_run(
                         thread_id=str(persisted_run.thread_id),
                         content="MCP 工具审核",
                     ),
-                    branch_context,
+                    run_context,
                     persisted=True,
                     mcp_snapshot=snapshot,
                     arguments=arguments if isinstance(arguments, dict) else {},

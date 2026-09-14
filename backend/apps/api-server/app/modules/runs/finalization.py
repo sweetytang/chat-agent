@@ -4,24 +4,24 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Run, RunStatus
-from app.modules.runs.repository import RunRepository
-from app.modules.runs.schemas import RunRequest, RunBranchContext
 from app.modules.timeline.recorder import TimelineRecorder
 from app.modules.timeline.domain import get_next_sequence
 from lui_agent_runtime.events import RuntimeEvent
+from .repository import RunRepository
+from .schemas import RunRequest, RunContext
 
 
 async def finalize_incomplete_stream(
     run_id: str,
     request: RunRequest,
     session: AsyncSession | None,
-    branch_context: RunBranchContext | None,
+    run_context: RunContext | None,
     *,
     event_factory: Callable[..., RuntimeEvent],
     cancel_requested: bool,
     interrupted_is_terminal: bool,
 ) -> None:
-    if session is None or branch_context is None or branch_context.checkpoint is None:
+    if session is None or run_context is None or run_context.checkpoint is None:
         return
     try:
         parsed_run_id = UUID(run_id)
@@ -36,7 +36,7 @@ async def finalize_incomplete_stream(
 
     recorder = TimelineRecorder(
         event_factory=event_factory,
-        checkpoint=branch_context.checkpoint,
+        checkpoint=run_context.checkpoint,
         session=session,
     )
     sequence = get_next_sequence(recorder)

@@ -14,7 +14,7 @@ from app.modules.timeline.recorder import TimelineRecorder
 from lui_agent_runtime.events import RuntimeEvent
 from .dependencies import run_dependencies_manager
 from .repository import RunRepository
-from .schemas import PendingReview, RunRequest, RunBranchContext
+from .schemas import PendingReview, RunRequest, RunContext
 
 
 async def create_approval_interrupt(
@@ -24,7 +24,7 @@ async def create_approval_interrupt(
     run_id: str,
     thread_id: str,
     request: RunRequest,
-    branch_context: RunBranchContext | None,
+    run_context: RunContext | None,
     sequence: int,
     kind: str,
     tool_name: str,
@@ -59,7 +59,7 @@ async def create_approval_interrupt(
             request_id,
             kind,
             payload,
-            branch_context.checkpoint_id if branch_context else None,
+            run_context.checkpoint_id if run_context else None,
         )
         await RunRepository(session).update_status(UUID(run_id), RunStatus.INTERRUPTED)
 
@@ -67,7 +67,7 @@ async def create_approval_interrupt(
     pending_review = PendingReview(
         run_id,
         request,
-        branch_context,
+        run_context,
         persisted=session is not None,
         mcp_snapshot=mcp_snapshot,
         arguments=arguments,

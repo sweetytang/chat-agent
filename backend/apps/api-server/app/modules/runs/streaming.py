@@ -15,7 +15,7 @@ from .dependencies import run_dependencies_manager
 from .repository import RunRepository
 from .finalization import finalize_incomplete_stream
 from .coordination import run_coordination
-from .schemas import RunRequest, RunBranchContext
+from .schemas import RunRequest, RunContext
 from .shortcuts import (
     execute_shortcut_rule,
     handle_reasoning_shortcut,
@@ -32,7 +32,7 @@ async def managed_run_stream(
     run_id: str,
     request: RunRequest,
     session: AsyncSession | None,
-    branch_context: RunBranchContext | None,
+    run_context: RunContext | None,
     interrupted_is_terminal: bool = True,
 ) -> AsyncIterator[str]:
     try:
@@ -44,7 +44,7 @@ async def managed_run_stream(
                 run_id,
                 request,
                 session,
-                branch_context,
+                run_context,
                 interrupted_is_terminal=interrupted_is_terminal,
             )
         finally:
@@ -56,7 +56,7 @@ async def run_events(
     run_id: str,
     request: RunRequest,
     session: AsyncSession | None = None,
-    branch_context: RunBranchContext | None = None,
+    run_context: RunContext | None = None,
     mcp_snapshots: tuple[McpToolSnapshot, ...] = (),
     mcp_load_error: str | None = None,
     mcp_loader: Callable[[], Awaitable[tuple[McpToolSnapshot, ...]]] | None = None,
@@ -68,8 +68,8 @@ async def run_events(
     chat_lock = run_dependencies.setdefault_chat_lock(request.thread_id)
     recorder = TimelineRecorder(
         event_factory=run_dependencies.event_factory,
-        snapshot=branch_context.timeline if branch_context is not None else None,
-        checkpoint=branch_context.checkpoint if branch_context is not None else None,
+        snapshot=run_context.timeline if run_context is not None else None,
+        checkpoint=run_context.checkpoint if run_context is not None else None,
         session=session,
     )
     sequence = 0
@@ -108,8 +108,8 @@ async def run_events(
             # assert session is not None
             await repository.update_status(UUID(run_id), RunStatus.RUNNING)
             await session.commit()
-        if branch_context is not None and branch_context.checkpoint is not None:
-            agent_checkpoint = branch_context.checkpoint
+        if run_context is not None and run_context.checkpoint is not None:
+            agent_checkpoint = run_context.checkpoint
             sequence += 1
             yield (
                 recorder.record(
@@ -132,8 +132,8 @@ async def run_events(
                 ).to_sse()
             )
 
-        timeline = branch_context.timeline if branch_context is not None else recorder.snapshot
-        if branch_context is None: # 匿名 Demo 模式
+        timeline = run_context.timeline if run_context is not None else recorder.snapshot
+        if run_context is None: # 匿名 Demo 模式
             timeline["items"].append( # 手动在内存时间线里，伪造追加一条用户发送的消息！
                 {
                     "id": f"{run_id}:user",
@@ -169,7 +169,7 @@ async def run_events(
             run_id=run_id,
             thread_id=request.thread_id,
             request=request,
-            branch_context=branch_context,
+            run_context=run_context,
             prompt_content=prompt_content,
             sequence=sequence,
         )
@@ -244,7 +244,7 @@ async def run_events(
                         run_id=run_id,
                         thread_id=request.thread_id,
                         request=request,
-                        branch_context=branch_context,
+                        run_context=run_context,
                         sequence=sequence,
                         kind="mcp_tool",
                         tool_name=tool_name,
@@ -277,7 +277,7 @@ async def run_events(
             assistant_content = "".join(chunks) or assistant_content
 
 
-        if repository is not None and branch_context is not None:
+        if repository is not None and run_context is not None:
             # assert session is not None
             thread = await session.get(Thread, UUID(request.thread_id))
             if thread is not None:
@@ -297,9 +297,9 @@ async def run_events(
                         request.thread_id,
                         sequence,
                         "checkpoint.created",
-                        checkpoint_id=str(branch_context.checkpoint_id),
-                        parent_id=str(branch_context.checkpoint.parent_id)
-                        if branch_context.checkpoint and branch_context.checkpoint.parent_id
+                        checkpoint_id=str(run_context.checkpoint_id),
+                        parent_id=str(run_context.checkpoint.parent_id)
+                        if run_context.checkpoint and run_context.checkpoint.parent_id
                         else None,
                     ).to_sse()
                 )
@@ -310,7 +310,7 @@ async def run_events(
                         request.thread_id,
                         sequence,
                         "thread.updated",
-                        current_checkpoint_id=str(branch_context.checkpoint_id),
+                        current_checkpoint_id=str(run_context.checkpoint_id),
                     ).to_sse()
                 )
             await repository.update_status(UUID(run_id), RunStatus.COMPLETED)

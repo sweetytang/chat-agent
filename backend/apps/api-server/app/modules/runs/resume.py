@@ -18,7 +18,7 @@ from app.modules.timeline.domain import extract_conversation_messages, get_lates
 from lui_agent_runtime.events import RuntimeEvent
 from .dependencies import run_dependencies_manager
 from .repository import RunRepository
-from .schemas import PendingReview, ResumeRequest, RunBranchContext
+from .schemas import PendingReview, ResumeRequest, RunContext
 from .domain import build_event
 
 
@@ -43,7 +43,7 @@ async def resumed_run_events(
         raise ValueError('resumed_run_events: pending_review can not be empty')
     run_id = pendind_review.run_id
     request = pendind_review.request
-    branch_context = pendind_review.branch_context
+    run_context = pendind_review.run_context
     tool_call_id = pendind_review.tool_call_id
     request_id = resume_request.request_id
     decision = resume_request.decision
@@ -51,8 +51,8 @@ async def resumed_run_events(
 
     recorder = TimelineRecorder(
         event_factory=run_dependencies_manager.configure_run_dependencies().event_factory,
-        snapshot=branch_context.timeline if branch_context is not None else None,
-        checkpoint=branch_context.checkpoint if branch_context is not None else None,
+        snapshot=run_context.timeline if run_context is not None else None,
+        checkpoint=run_context.checkpoint if run_context is not None else None,
         session=session,
     )
     tool_call_id = pendind_review.tool_call_id if pendind_review and pendind_review.tool_call_id else request_id
@@ -243,7 +243,7 @@ async def resumed_run_events(
         item_id=item_id,
         message_id=message_id,
     ).to_sse()
-    if repository is not None and branch_context is not None:
+    if repository is not None and run_context is not None:
         assert persisted_session is not None
         thread = await persisted_session.get(Thread, UUID(request.thread_id))
         if thread is not None:
@@ -263,9 +263,9 @@ async def resumed_run_events(
                     request.thread_id,
                     sequence,
                     "checkpoint.created",
-                    checkpoint_id=str(branch_context.checkpoint_id),
-                    parent_id=str(branch_context.checkpoint.parent_id)
-                    if branch_context.checkpoint and branch_context.checkpoint.parent_id
+                    checkpoint_id=str(run_context.checkpoint_id),
+                    parent_id=str(run_context.checkpoint.parent_id)
+                    if run_context.checkpoint and run_context.checkpoint.parent_id
                     else None,
                 ).to_sse()
             )
@@ -276,7 +276,7 @@ async def resumed_run_events(
                     request.thread_id,
                     sequence,
                     "thread.updated",
-                    current_checkpoint_id=str(branch_context.checkpoint_id),
+                    current_checkpoint_id=str(run_context.checkpoint_id),
                 ).to_sse()
             )
         await repository.update_status(UUID(run_id), RunStatus.COMPLETED)
@@ -298,7 +298,7 @@ async def safe_resumed_run_events(
     run_id = pendind_review.run_id
     request = pendind_review.request
     thread_id = getattr(request, "thread_id", "")
-    branch_context = pendind_review.branch_context
+    run_context = pendind_review.run_context
 
     try:
         async for event in resumed_run_events(
@@ -309,7 +309,7 @@ async def safe_resumed_run_events(
             yield event
     except McpHostError as error:
         yield (
-            await persist_run_failure(run_id, thread_id, str(error), session, branch_context)
+            await persist_run_failure(run_id, thread_id, str(error), session, run_context)
         ).to_sse()
     except Exception as error:
         yield (
@@ -318,7 +318,7 @@ async def safe_resumed_run_events(
                 thread_id,
                 f"MCP 恢复失败（{type(error).__name__}）",
                 session,
-                branch_context,
+                run_context,
             )
         ).to_sse()
 
@@ -328,15 +328,15 @@ async def persist_run_failure(
     thread_id: str,
     message: str,
     session: AsyncSession | None,
-    branch_context: RunBranchContext | None,
+    run_context: RunContext | None,
     event_factory: Callable[..., RuntimeEvent] = build_event,
 ) -> RuntimeEvent:
-    if session is None or branch_context is None or branch_context.checkpoint is None:
+    if session is None or run_context is None or run_context.checkpoint is None:
         return event_factory(run_id, thread_id, 1, "run.failed", error=message)
 
     recorder = TimelineRecorder(
         event_factory=event_factory,
-        checkpoint=branch_context.checkpoint,
+        checkpoint=run_context.checkpoint,
         session=session,
     )
     sequence = get_next_sequence(recorder)

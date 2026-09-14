@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Awaitable, Callable
-from uuid import UUID
+from uuid import UUID, uuid4
 
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Thread
+from app.modules.checkpoints.repository import CheckpointRepository
+from app.modules.timeline.domain import checkpoint_timeline, extract_conversation_messages, empty_timeline
 from app.modules.mcp.agent import McpToolSnapshot
+from .repository import RunRepository
 from .coordination import run_coordination
-from .domain import prepare_persisted_run
 from .resume import safe_resumed_run_events
-from .schemas import ResumeRequest, RunRequest, PendingReview, RunBranchContext
+from .schemas import ResumeRequest, RunRequest, PendingReview, RunContext
 from .streaming import managed_run_stream, run_events
 
 
@@ -20,15 +23,74 @@ class RunService:
     """运行流程服务门面，统筹协调执行、流式管理与恢复。"""
 
     @staticmethod
-    async def prepare_branch(
+    async def prepare_run_context(
         session: AsyncSession,
         run_id: UUID,
         request: RunRequest,
         thread: Thread,
-    ) -> RunBranchContext | None:
-        """为即将开始的运行准备持久化分支上下文。"""
+    ) -> RunContext | None:
+        """加载上文的checkpoint，准备接下来的user、assistant的checkpoint"""
+        
+        # 1.加载上下文
+        # 优先相信前端显式指定的父节点（无论它是合法 UUID 还是 None 表示根节点）
+        # 只有在完全没传该字段时（比如三方脚本简易调用），才退化为取 thread.current_checkpoint_id
+        base_checkpoint_id = (
+            thread.current_checkpoint_id
+            if request.checkpoint_id is None and "checkpoint_id" not in request.model_fields_set # 没传checkpoint_id
+            else request.checkpoint_id
+        )
+        base_checkpoint = None
+        if base_checkpoint_id is not None:
+            base_checkpoint = await CheckpointRepository(session).get(thread.id, base_checkpoint_id)
+        
+        if base_checkpoint_id is not None and base_checkpoint is None:
+            raise HTTPException(status_code=404, detail="checkpoint 不存在")
+        
+        if request.mode == "regenerate" and (
+            base_checkpoint is None
+            or extract_conversation_messages(checkpoint_timeline(base_checkpoint))[-1].get("role") != "user"
+        ):
+            raise HTTPException(status_code=400, detail="重新生成必须指定用户消息 checkpoint")
+            
+        await RunRepository(session).create(thread.id, run_id=run_id)
+            
+        # 2. 如果是重新生成，直接跳过新建 user checkpoint；否则新建一条 user checkpoint
+        input_checkpoint = base_checkpoint
+        if request.mode != "regenerate":
+            timeline = checkpoint_timeline(input_checkpoint) if input_checkpoint is not None else empty_timeline()
+            item_id = str(uuid4())
+            timeline["items"].append({
+                "id": item_id,
+                "kind": "message",
+                "run_id": str(run_id),
+                "sequence": -1,
+                "logical_message_id": item_id,
+                "role": "user",
+                "content": request.content,
+                "status": "completed",
+                "terminal_segment": True,
+            })
+            input_checkpoint = await CheckpointRepository(session).append(
+                thread,
+                {"timeline": timeline},
+                input_checkpoint.id if input_checkpoint is not None else None,
+                "编辑分支" if request.mode == "edit" else None,
+            )
+        
+        # 3. 生成agent回复的占位Checkpoint
+        agent_checkpoint = await CheckpointRepository(session).append(
+            thread,
+            {"timeline": checkpoint_timeline(input_checkpoint)},
+            input_checkpoint.id,
+            "重新生成" if request.mode == "regenerate" else None,
+        )
+        
+        await session.commit()
+        return RunContext(
+            checkpoint=agent_checkpoint,
+            input_checkpoint=input_checkpoint,
+        )
 
-        return await prepare_persisted_run(session, run_id, request, thread)
 
 
     @staticmethod
@@ -36,7 +98,7 @@ class RunService:
         run_id: str,
         request: RunRequest,
         session: AsyncSession | None = None,
-        branch_context: RunBranchContext | None = None,
+        run_context: RunContext | None = None,
         *,
         mcp_loader: Callable[[], Awaitable[tuple[McpToolSnapshot, ...]]] | None = None,
         interrupted_is_terminal: bool = True,
@@ -47,7 +109,7 @@ class RunService:
             run_id=run_id,
             request=request,
             session=session,
-            branch_context=branch_context,
+            run_context=run_context,
             mcp_loader=mcp_loader,
         )
         return managed_run_stream(
@@ -55,7 +117,7 @@ class RunService:
             run_id=run_id,
             request=request,
             session=session,
-            branch_context=branch_context,
+            run_context=run_context,
             interrupted_is_terminal=interrupted_is_terminal,
         )
 
@@ -83,7 +145,7 @@ class RunService:
             run_id=pending_review.run_id,
             request=pending_review.request,  # 恢复时由分支快照恢复上下文
             session=session,
-            branch_context=pending_review.branch_context,
+            run_context=pending_review.run_context,
             interrupted_is_terminal=interrupted_is_terminal,
         )
 
@@ -96,9 +158,8 @@ class RunService:
 
 run_service = RunService()
 
+
+
 __all__ = [
-    "RunService",
-    "managed_run_stream",
-    "run_events",
     "run_service",
 ]

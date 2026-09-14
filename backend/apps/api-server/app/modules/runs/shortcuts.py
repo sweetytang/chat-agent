@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.timeline.recorder import TimelineRecorder
 from lui_agent_runtime.events import RuntimeEvent
 from .dependencies import RunDependencies
-from .schemas import RunRequest, RunBranchContext
+from .schemas import RunRequest, RunContext
 from .interrupts import create_approval_interrupt
 
 
@@ -148,7 +148,7 @@ async def handle_search_interrupt_shortcut(
     run_id: str,
     thread_id: str,
     request: RunRequest,
-    branch_context: RunBranchContext | None,
+    run_context: RunContext | None,
     prompt_content: str,
     sequence: int,
 ) -> tuple[RuntimeEvent, RuntimeEvent, int] | None:
@@ -166,7 +166,7 @@ async def handle_search_interrupt_shortcut(
         run_id=run_id,
         thread_id=thread_id,
         request=request,
-        branch_context=branch_context,
+        run_context=run_context,
         sequence=sequence,
         kind="tool",
         tool_name="web_search",

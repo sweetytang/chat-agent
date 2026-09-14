@@ -25,7 +25,7 @@ class ResumeRequest(BaseModel):
 
 
 @dataclass(frozen=True)
-class RunBranchContext:
+class RunContext:
     checkpoint: Checkpoint | None = None
     input_checkpoint: Checkpoint | None = None
 
@@ -42,7 +42,7 @@ class RunBranchContext:
 class PendingReview:
     run_id: str
     request: RunRequest
-    branch_context: RunBranchContext | None
+    run_context: RunContext | None
     persisted: bool = False
     mcp_snapshot: McpToolSnapshot | None = None
     arguments: dict[str, Any] | None = None
