@@ -16,13 +16,8 @@ async def get_owned_thread(
 
     thread = await ThreadRepository(session).get_owned(thread_id, user_id)
     if thread is None:
-        raise HTTPException(
-            status_code=404,
-            detail="线程不存在"
-        )
+        raise HTTPException(status_code=404, detail="线程不存在")
     return thread
 
 
-__all__ = [
-    "get_owned_thread"
-]
+__all__ = ["get_owned_thread"]

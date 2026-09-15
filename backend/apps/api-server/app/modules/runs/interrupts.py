@@ -35,12 +35,12 @@ async def create_approval_interrupt(
     custom_tool_call_id: str | None = None,
 ) -> tuple[RuntimeEvent, RuntimeEvent, int]:
     """创建审批中断。
-    
+
     统一处理：
     1. 持久化模式下向数据库插入 Interrupt 实体并置 Run 为 INTERRUPTED
     2. 注册 PendingReview 到运行时内存协调器
     3. 生成并记录 tool.call 与 tool.approval_required 两个时间线事件
-    
+
     返回: (tool_call_event, approval_event, next_sequence)
     """
     request_id = custom_request_id or str(uuid4())
@@ -73,7 +73,9 @@ async def create_approval_interrupt(
         arguments=arguments,
         tool_call_id=tool_call_id,
     )
-    run_dependencies_manager.get_run_dependencies().run_coordination.register_pending_review(request_id, pending_review)
+    run_dependencies_manager.get_run_dependencies().run_coordination.register_pending_review(
+        request_id, pending_review
+    )
 
     # 3. 产生并投影两个关联事件
     sequence += 1

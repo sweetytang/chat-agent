@@ -116,38 +116,42 @@ class McpHost:
             "args": args,
             "env": env,
         }
-        # 刷新和安全配置更新后的重连必须先关闭旧会话，避免连接与凭据泄漏。
         await self.disconnect(key)
         machine = self._states.setdefault(key, McpStateMachine())
         machine.transition(McpConnectionState.CONNECTING)
-        context = None
+
+        # 使用 try...finally 确保 context 在当前任务中安全进入并退出，不残留 AnyIO CancelScope
+        context = self.factory.connect(
+            endpoint=endpoint,
+            headers=headers,
+            command=command,
+            args=args,
+            env=env,
+        )
         entered = False
         try:
-            context = self.factory.connect(
-                endpoint=endpoint, headers=headers or {}, command=command, args=args, env=env
-            )
             client = await context.__aenter__()
             entered = True
-            tools = await client.list_tools()
-            descriptors = tuple(
-                McpToolDescriptor(
-                    server_id,
-                    str(item.get("name", "")),
-                    str(item.get("description", "")),
-                    dict(item.get("inputSchema") or item.get("input_schema") or {}),
-                    dict(item.get("annotations") or {}),
-                )
-                for item in tools
-                if item.get("name")
-            )
+            raw_tools = await client.list_tools()
         except Exception as error:
-            if entered and context is not None:
-                with suppress(Exception):
-                    await context.__aexit__(type(error), error, error.__traceback__)
             machine.transition(McpConnectionState.ERROR)
             raise McpHostError(_safe_error(error)) from error
-        self._contexts[key] = context
-        self._clients[key] = client
+        finally:
+            if entered:
+                with suppress(Exception):
+                    await context.__aexit__(None, None, None)
+
+        descriptors = tuple(
+            McpToolDescriptor(
+                server_id,
+                str(tool.get("name", "")),
+                str(tool.get("description", "")),
+                dict(tool.get("inputSchema") or tool.get("input_schema") or {}),
+                dict(tool.get("annotations") or {}),
+            )
+            for tool in raw_tools
+            if tool.get("name")
+        )
         self._catalog[key] = descriptors
         self._configs[key] = config
         machine.transition(McpConnectionState.CONNECTED)

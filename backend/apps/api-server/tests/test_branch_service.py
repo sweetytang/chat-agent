@@ -70,7 +70,9 @@ async def test_send_and_edit_create_user_then_agent_checkpoint(monkeypatch, mode
     calls = []
     user_timeline = {"version": 1, "items": [message("user", "user", "新问题")]}
     user_checkpoint = SimpleNamespace(id=user_id, state={"timeline": user_timeline})
-    agent_checkpoint = SimpleNamespace(id=agent_id, parent_id=user_id, state={"timeline": user_timeline})
+    agent_checkpoint = SimpleNamespace(
+        id=agent_id, parent_id=user_id, state={"timeline": user_timeline}
+    )
 
     async def fake_user(_session, _thread, **kwargs):
         calls.append(("user", kwargs))
@@ -129,7 +131,12 @@ async def test_regenerate_creates_sibling_agent_without_new_user_checkpoint(monk
 @pytest.mark.asyncio
 async def test_prepare_regenerate_rejects_non_user_checkpoint(monkeypatch) -> None:
     async def fake_load_branch_base(*_args, **_kwargs):
-        return SimpleNamespace(id=uuid4(), state={"timeline": {"version": 1, "items": [message("assistant", "assistant", "旧回复")]}})
+        return SimpleNamespace(
+            id=uuid4(),
+            state={
+                "timeline": {"version": 1, "items": [message("assistant", "assistant", "旧回复")]}
+            },
+        )
 
     monkeypatch.setattr(runs, "_load_branch_base", fake_load_branch_base)
     with pytest.raises(HTTPException) as raised:

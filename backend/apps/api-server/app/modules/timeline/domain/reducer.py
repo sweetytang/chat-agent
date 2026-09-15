@@ -184,4 +184,3 @@ def reduce_timeline(snapshot: TimelineSnapshot, event: RuntimeEvent) -> Timeline
                 items[index] = {**item, "status": status}
 
     return result
-

@@ -46,7 +46,7 @@ async def get_thread(
     session: AsyncSession = Depends(get_db_session),
 ) -> ThreadResponse:
     """前端未用到，保留满足RESTful 资源模型的完整性"""
-    
+
     thread = await ThreadRepository(session).get_owned(thread_id, user_id)
     if thread is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="线程不存在")

@@ -31,6 +31,7 @@ class McpHostLike(Protocol):
 @dataclass(frozen=True)
 class RunDependencies:
     """运行编排需要的最小外部能力集合。"""
+
     run_coordination: RunCoordination
     event_factory: Callable[..., RuntimeEvent]
     mcp_host: Callable[[], McpHostLike | None]

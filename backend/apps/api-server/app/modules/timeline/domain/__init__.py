@@ -7,12 +7,9 @@ from .domain import (
     validate_timeline,
     checkpoint_timeline,
     get_latest_user_content,
-    get_next_sequence,
     extract_conversation_messages,
 )
 from .reducer import reduce_timeline
-
-
 
 
 __all__ = [
@@ -22,7 +19,6 @@ __all__ = [
     "validate_timeline",
     "checkpoint_timeline",
     "get_latest_user_content",
-    "get_next_sequence",
     "extract_conversation_messages",
     "reduce_timeline",
 ]

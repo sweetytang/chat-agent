@@ -41,8 +41,6 @@ class PendingInterruptResponse(BaseModel):
     payload: dict[str, Any]
 
 
-
-
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_interrupt(
     request: CreateInterruptRequest,

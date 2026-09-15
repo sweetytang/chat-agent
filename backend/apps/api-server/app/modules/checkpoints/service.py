@@ -7,7 +7,6 @@ from app.db.models import Checkpoint
 from app.modules.timeline.domain import empty_timeline, checkpoint_timeline, TimelineSnapshot
 
 
-
 def _get_latest_descendant_id(
     checkpoint: Checkpoint,
     parent_id_2_children_checkpoint: dict[str | None, list[Checkpoint]],
@@ -64,19 +63,28 @@ def resolve_timeline_branch(
 
         parent_id = str(item_checkpoint.parent_id) if item_checkpoint.parent_id else None
         siblings = parent_id_2_children_checkpoint.get(parent_id, [])
-        item.update({
-            "checkpoint_id": str(item_checkpoint.id),
-            "parent_checkpoint_id": parent_id,
-            "branch_options": (
-                [{"checkpoint_id": _get_latest_descendant_id(sibling, parent_id_2_children_checkpoint)} for sibling in siblings]
-                if len(siblings) > 1
-                else []
-            ),
-            "branch_index": (
-                next((i for i, s in enumerate(siblings) if s.id == item_checkpoint.id), 0)
-                if len(siblings) > 1
-                else None
-            )
-        })
-        
+        item.update(
+            {
+                "checkpoint_id": str(item_checkpoint.id),
+                "parent_checkpoint_id": parent_id,
+                "branch_options": (
+                    [
+                        {
+                            "checkpoint_id": _get_latest_descendant_id(
+                                sibling, parent_id_2_children_checkpoint
+                            )
+                        }
+                        for sibling in siblings
+                    ]
+                    if len(siblings) > 1
+                    else []
+                ),
+                "branch_index": (
+                    next((i for i, s in enumerate(siblings) if s.id == item_checkpoint.id), 0)
+                    if len(siblings) > 1
+                    else None
+                ),
+            }
+        )
+
     return result

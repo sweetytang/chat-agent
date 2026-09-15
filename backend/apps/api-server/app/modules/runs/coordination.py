@@ -11,7 +11,7 @@ from app.modules.runs.schemas import PendingReview
 
 class RunCoordination:
     """管理运行过程中的进程内锁、取消信号和待审状态。
-    
+
     单机多协程下使用内存对象；
     未来多实例分布式部署时，可将其对应方法平滑替换为 Redis Pub/Sub 与分布式锁。
     """
@@ -45,7 +45,7 @@ class RunCoordination:
         """检查该 run 是否已被触发取消信号。若未注册或未触发均返回 False。"""
         event = self._cancel_events.get(run_id)
         return event.is_set() if event is not None else False
-    
+
     def remove_cancel_event(self, run_id: str) -> None:
         self._cancel_events.pop(run_id, None)
 
@@ -67,6 +67,4 @@ class RunCoordination:
 # 进程内单例
 run_coordination = RunCoordination()
 
-__all__ = [
-    "run_coordination"
-]
+__all__ = ["run_coordination"]

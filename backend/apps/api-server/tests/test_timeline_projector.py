@@ -32,7 +32,9 @@ def test_interleaved_events_keep_semantic_order_and_stable_items() -> None:
         "segment-2",
     ]
     assert snapshot["items"][2]["status"] == "completed"
-    assert extract_conversation_messages(snapshot) == [{"role": "assistant", "content": "先查询查询完成"}]
+    assert extract_conversation_messages(snapshot) == [
+        {"role": "assistant", "content": "先查询查询完成"}
+    ]
 
 
 def test_multiple_same_kind_items_are_not_overwritten() -> None:

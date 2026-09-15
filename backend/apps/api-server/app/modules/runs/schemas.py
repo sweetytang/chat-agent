@@ -32,7 +32,7 @@ class RunContext:
     @property
     def checkpoint_id(self) -> UUID:
         return self.checkpoint.id if self.checkpoint is not None else None
-    
+
     @property
     def timeline(self) -> TimelineSnapshot:
         return checkpoint_timeline(self.checkpoint)

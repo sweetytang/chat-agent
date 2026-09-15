@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 def current_user_uuid(subject: str = Depends(get_subject)) -> UUID:
     """提取当前登录用户的 UUID。"""
-    
+
     return require_user_uuid(subject)
 
 
@@ -22,7 +22,6 @@ def require_user_uuid(subject: str | None) -> UUID:
         return UUID(subject)
     except ValueError as error:
         raise HTTPException(status_code=401, detail="无效用户身份") from error
-
 
 
 __all__ = [

@@ -1,11 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from ..recorder import TimelineRecorder
-
+from typing import Any
 
 type TimelineItem = dict[str, Any]
 type TimelineSnapshot = dict[str, Any]
@@ -58,7 +54,3 @@ def get_latest_user_content(snapshot: TimelineSnapshot, fallback: str = "") -> s
         if message["role"] == "user":
             return message["content"]
     return fallback
-
-
-def get_next_sequence(recorder: TimelineRecorder) -> int:
-    return max((int(item.get("sequence", -1)) for item in recorder.snapshot["items"]), default=-1) + 1

@@ -7,9 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Checkpoint
 from app.modules.runs.domain import build_event
-from .domain import reduce_timeline
-from .domain import checkpoint_timeline, empty_timeline, TimelineSnapshot
 from lui_agent_runtime.events import RuntimeEvent
+
+from .domain import checkpoint_timeline, empty_timeline, reduce_timeline
 
 
 class TimelineRecorder:
@@ -23,12 +23,25 @@ class TimelineRecorder:
         session: AsyncSession | None = None,
     ) -> None:
         self.event_factory = event_factory if event_factory is not None else build_event
-        self.snapshot = checkpoint_timeline(checkpoint) if checkpoint is not None else empty_timeline()
+        self._snapshot = (
+            checkpoint_timeline(checkpoint) if checkpoint is not None else empty_timeline()
+        )
         self.checkpoint = checkpoint
         self.session = session
         self._dirty_events = 0
         self._force_flush = False
         self._last_flush = monotonic()
+
+    @property
+    def snapshot(self):
+        return self._snapshot
+
+    @property
+    def next_sequence(self) -> int:
+        """获取下一个可用的事件序号。"""
+        return (
+            max((int(item.get("sequence", -1)) for item in self._snapshot["items"]), default=-1) + 1
+        )
 
     def record(
         self,
@@ -39,9 +52,9 @@ class TimelineRecorder:
         **data: object,
     ) -> RuntimeEvent:
         event = self.event_factory(run_id, thread_id, sequence, event_name, **data)
-        self.snapshot = reduce_timeline(self.snapshot, event)
+        self._snapshot = reduce_timeline(self._snapshot, event)
         if self.checkpoint is not None:
-            self.checkpoint.state = {"timeline": self.snapshot}
+            self.checkpoint.state = {"timeline": self._snapshot}
             self._dirty_events += 1
             self._force_flush = self._force_flush or event_name not in {
                 "message.delta",

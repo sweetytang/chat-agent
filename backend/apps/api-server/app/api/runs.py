@@ -46,7 +46,6 @@ def _decode_mcp_credentials(encrypted: str | None) -> dict[str, str]:
     return value
 
 
-
 @router.post("/stream")
 async def stream_run(
     request: RunRequest,
@@ -66,7 +65,11 @@ async def stream_run(
         if session is not None and subject is not None:
             target_session = session
             thread_id = to_uuid(request.thread_id)
-            thread = await ThreadRepository(session).get_owned(thread_id, subject) if thread_id is not None else None
+            thread = (
+                await ThreadRepository(session).get_owned(thread_id, subject)
+                if thread_id is not None
+                else None
+            )
             if thread is None:
                 raise HTTPException(status_code=404, detail="线程不存在")
             run_context = await run_service.prepare_run_context(
@@ -78,6 +81,7 @@ async def stream_run(
             # MCP 只有登录用户才有配置，直接在此就绪
             mcp_host = get_mcp_host()
             if mcp_host is not None:
+
                 async def mcp_loader() -> tuple[McpToolSnapshot, ...]:
                     return tuple(
                         await load_mcp_snapshots(
@@ -87,10 +91,10 @@ async def stream_run(
                             _decode_mcp_credentials,
                         )
                     )
-    except (ValueError, OSError, RuntimeError):
+    except ValueError, OSError, RuntimeError:
         if session is not None:
             await session.rollback()
-        
+
     # 核心流式响应：直接调用 run_service.stream_run
     return StreamingResponse(
         run_service.stream_run(
@@ -105,8 +109,6 @@ async def stream_run(
     )
 
 
-
-
 @router.post("/{run_id}/cancel", status_code=status.HTTP_202_ACCEPTED)
 async def cancel_run(
     run_id: str,
@@ -118,7 +120,6 @@ async def cancel_run(
     if not run_service.cancel_run(run_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="运行不存在")
     return {"run_id": run_id, "status": "cancelling"}
-
 
 
 @router.post("/{run_id}/resume")
@@ -143,6 +144,8 @@ async def resume_run(
         if persisted_run is None:
             raise HTTPException(status_code=404, detail="运行不存在")
 
+    # 如果服务重启了，内存里的 pending 会是 None。
+    # 本阶段负责从数据库拉取当时的 Checkpoint 和 Interrupt 记录，完美重建当时的执行上下文
     if pending is None and session is not None:
         interrupt = await InterruptRepository(session).get_by_request_id(request.request_id)
         if interrupt is not None and persisted_run is not None and str(interrupt.run_id) == run_id:
@@ -210,7 +213,7 @@ async def resume_run(
 
     if pending is None or pending.run_id != run_id:
         raise HTTPException(status_code=409, detail="审核请求不存在或已过期")
-    
+
     if pending.mcp_snapshot is not None:
         if session is None:
             raise HTTPException(status_code=503, detail="持久化服务不可用")
@@ -233,7 +236,6 @@ async def resume_run(
             request,
             pending,
             session=session,
-            interrupted_is_terminal=False,
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},

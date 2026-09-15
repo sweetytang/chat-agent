@@ -3,6 +3,4 @@
 from .repository import CheckpointRepository
 
 
-__all__ = [
-    "CheckpointRepository"
-]
+__all__ = ["CheckpointRepository"]

@@ -54,15 +54,13 @@ async def execute_shortcut_rule(
     sequence: int,
 ) -> AsyncIterator[tuple[str, int, str]]:
     """执行 calc / json / ui 等本地快捷规则。
-    
+
     yield: (sse_text, current_sequence, assistant_reply_text)
     """
     reply = "收到你的消息。"
 
     # 1. 计算器快捷指令 (calc: / 计算：)
-    calculator_match = re.fullmatch(
-        r"(?:calc|计算)(?::|：)?\s*(.+)", prompt_content, re.IGNORECASE
-    )
+    calculator_match = re.fullmatch(r"(?:calc|计算)(?::|：)?\s*(.+)", prompt_content, re.IGNORECASE)
     if calculator_match:
         expression = calculator_match.group(1)
         tool_call_id = f"{run_id}:tool:calculator:0"
@@ -153,7 +151,7 @@ async def handle_search_interrupt_shortcut(
     sequence: int,
 ) -> tuple[RuntimeEvent, RuntimeEvent, int] | None:
     """如果输入命中 search:/搜索: 前缀，创建搜索审批中断并返回待发送的事件。
-    
+
     若未命中返回 None；若命中返回 (tool_call_event, approval_event, next_sequence)。
     """
     if not prompt_content.startswith(("search:", "搜索：")):

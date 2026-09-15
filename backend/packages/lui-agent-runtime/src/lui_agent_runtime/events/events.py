@@ -15,7 +15,7 @@ class RuntimeEvent:
     data: dict[str, Any]
 
     def to_sse(self) -> str:
-            return encode_sse(self)
+        return encode_sse(self)
 
 
 def encode_sse(event: RuntimeEvent) -> str:

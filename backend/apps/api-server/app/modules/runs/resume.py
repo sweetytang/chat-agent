@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator
 import json
 from uuid import UUID
 
@@ -13,13 +13,11 @@ from app.modules.mcp.agent.results import normalize_tool_result
 from app.modules.mcp.host import McpHostError
 from app.modules.threads.title import set_title_after_first_round
 from app.modules.timeline.recorder import TimelineRecorder
-from app.modules.timeline.domain import extract_conversation_messages, get_latest_user_content, get_next_sequence
-from lui_agent_runtime.events import RuntimeEvent
+from app.modules.timeline.domain import extract_conversation_messages, get_latest_user_content
 from .dependencies import run_dependencies_manager
 from .repository import RunRepository
-from .schemas import PendingReview, ResumeRequest, RunContext
-from .domain import build_event
-
+from .finalization import mark_run_failure
+from .schemas import PendingReview, ResumeRequest
 
 
 def _chunk_text(value: object) -> str:
@@ -32,14 +30,14 @@ def _chunk_text(value: object) -> str:
     return ""
 
 
-async def resumed_run_events(
+async def generate_resumed_run_events(
     resume_request: ResumeRequest,
     pendind_review: PendingReview,
     *,
     session: AsyncSession | None = None,
 ) -> AsyncIterator[str]:
     if pendind_review is None:
-        raise ValueError('resumed_run_events: pending_review can not be empty')
+        raise ValueError("generate_resumed_run_events: pending_review can not be empty")
     run_id = pendind_review.run_id
     request = pendind_review.request
     run_context = pendind_review.run_context
@@ -52,7 +50,11 @@ async def resumed_run_events(
         checkpoint=run_context.checkpoint if run_context is not None else None,
         session=session,
     )
-    tool_call_id = pendind_review.tool_call_id if pendind_review and pendind_review.tool_call_id else request_id
+    tool_call_id = (
+        pendind_review.tool_call_id
+        if pendind_review and pendind_review.tool_call_id
+        else request_id
+    )
     sequence = 0
     # 演示线程可以在有 PostgreSQL 会话时运行，但它没有对应的数据库 run。
     # 只有确认记录存在，恢复流程才进入持久化分支。
@@ -260,34 +262,31 @@ async def resumed_run_events(
     await timeline_recorder.flush()
 
 
-
-async def safe_resumed_run_events(
+async def safe_generate_resumed_run_events(
     resume_request: ResumeRequest,
     pendind_review: PendingReview,
     *,
     session: AsyncSession | None = None,
 ) -> AsyncIterator[str]:
     """恢复流的最后一道边界，避免未捕获异常直接表现为浏览器 network error。"""
-    
+
     run_id = pendind_review.run_id
     request = pendind_review.request
     thread_id = getattr(request, "thread_id", "")
     run_context = pendind_review.run_context
 
     try:
-        async for event in resumed_run_events(
+        async for event in generate_resumed_run_events(
             resume_request,
             pendind_review,
-            session = session,
+            session=session,
         ):
             yield event
     except McpHostError as error:
-        yield (
-            await persist_run_failure(run_id, thread_id, str(error), session, run_context)
-        ).to_sse()
+        yield (await mark_run_failure(run_id, thread_id, str(error), session, run_context)).to_sse()
     except Exception as error:
         yield (
-            await persist_run_failure(
+            await mark_run_failure(
                 run_id,
                 thread_id,
                 f"MCP 恢复失败（{type(error).__name__}）",
@@ -295,33 +294,3 @@ async def safe_resumed_run_events(
                 run_context,
             )
         ).to_sse()
-
-
-async def persist_run_failure(
-    run_id: str,
-    thread_id: str,
-    message: str,
-    session: AsyncSession | None,
-    run_context: RunContext | None,
-) -> RuntimeEvent:
-    if session is None or run_context is None or run_context.checkpoint is None:
-        return build_event(run_id, thread_id, 1, "run.failed", error=message)
-
-    timeline_recorder = TimelineRecorder(
-        checkpoint=run_context.checkpoint,
-        session=session,
-    )
-    sequence = get_next_sequence(timeline_recorder)
-    event = timeline_recorder.record(
-        run_id,
-        thread_id,
-        sequence,
-        "run.failed",
-        item_id=f"{run_id}:resume-error:{sequence}",
-        error=message,
-    )
-    await RunRepository(session).update_status(
-        UUID(run_id), RunStatus.FAILED, error_message=message
-    )
-    await timeline_recorder.flush()
-    return event
