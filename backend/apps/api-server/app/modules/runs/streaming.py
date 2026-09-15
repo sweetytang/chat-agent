@@ -97,9 +97,9 @@ async def generate_run_events(
                     error=mcp_load_error,
                 ).to_sse()
             )
-        repository = RunRepository(session) if session is not None else None
-        if repository is not None:
-            await repository.update_status(UUID(run_id), RunStatus.RUNNING)
+        run_repository = RunRepository(session) if session is not None else None
+        if run_repository is not None:
+            await run_repository.update_status(UUID(run_id), RunStatus.RUNNING)
             await session.commit()
 
         timeline = run_context.timeline if run_context is not None else timeline_recorder.snapshot
@@ -177,29 +177,30 @@ async def generate_run_events(
         #     yield timeline_recorder.record(run_id, request.thread_id, sequence, "message.completed", item_id=item_id, message_id=message_id).to_sse()
         # else :
         # 4. 否则：进入真实大模型 LangGraph 图执行分支
-        if True:  # 无效判断 后面删掉
-            provider = run_dependencies.get_provider_config()
-            model = (
-                run_dependencies.fake_chat_model()
-                if provider.provider == "fake"
-                else run_dependencies.create_chat_model(provider)
-            )
-            chunks: list[str] = []
-            mcp_tools = tuple(build_langchain_tools(mcp_snapshots))
-            snapshots_by_name = {
-                snapshot.identity.internal_name: snapshot for snapshot in mcp_snapshots
-            }
-            async for graph_event in run_dependencies.agent_driver().stream(
-                model,
-                input_messages,
-                run_id=run_id,
-                thread_id=request.thread_id,
-                tools=[*run_dependencies.default_langchain_tools(), *mcp_tools],
-                continue_after_tools=True,
-                approval_tool_names=frozenset(snapshots_by_name),
-            ):
-                # 调用工具事件
-                if graph_event.event == "tool.approval_requested":
+
+        provider = run_dependencies.get_provider_config()
+        model = (
+            run_dependencies.fake_chat_model()
+            if provider.provider == "fake"
+            else run_dependencies.create_chat_model(provider)
+        )
+        chunks: list[str] = []
+        mcp_tools = tuple(build_langchain_tools(mcp_snapshots))
+        snapshots_by_name = {
+            snapshot.identity.internal_name: snapshot for snapshot in mcp_snapshots
+        }
+        async for graph_event in run_dependencies.agent_driver().stream(
+            model,
+            input_messages,
+            run_id=run_id,
+            thread_id=request.thread_id,
+            tools=[*run_dependencies.default_langchain_tools(), *mcp_tools],
+            continue_after_tools=True,
+            approval_tool_names=frozenset(snapshots_by_name),
+        ):
+            match graph_event.event:
+                case "tool.approval_requested":
+                    # 调用工具事件
                     tool_name = str(graph_event.data.get("tool", ""))
                     snapshot = snapshots_by_name.get(tool_name)
                     if snapshot is None:
@@ -213,7 +214,6 @@ async def generate_run_events(
                         session,
                         timeline_recorder,
                         run_id=run_id,
-                        thread_id=request.thread_id,
                         request=request,
                         run_context=run_context,
                         sequence=sequence,
@@ -226,7 +226,7 @@ async def generate_run_events(
                             "security_version": snapshot.security_version,
                         },
                         mcp_snapshot=snapshot,
-                        custom_tool_call_id=tool_call_id,
+                        tool_call_id=tool_call_id,
                     )
 
                     # MCP SDK 的 AnyIO 上下文必须在建立它的 SSE 任务中关闭，
@@ -239,18 +239,19 @@ async def generate_run_events(
                     yield approval_event.to_sse()
                     return
 
-                # 普通增量消息
-                if graph_event.event == "message.delta":
+                case "message.delta":
+                    # 普通增量消息
                     chunks.append(str(graph_event.data.get("content", "")))
-                sequence += 1
-                projected_event = timeline_recorder.record(
-                    run_id, request.thread_id, sequence, graph_event.event, **graph_event.data
-                )
-                await timeline_recorder.flush_if_due()
-                yield projected_event.to_sse()
-            assistant_content = "".join(chunks) or assistant_content
 
-        if repository is not None and run_context is not None:
+            sequence += 1
+            projected_event = timeline_recorder.record(
+                run_id, request.thread_id, sequence, graph_event.event, **graph_event.data
+            )
+            await timeline_recorder.flush_if_due()
+            yield projected_event.to_sse()
+        assistant_content = "".join(chunks) or assistant_content
+
+        if run_repository is not None and run_context is not None:
             thread = await session.get(Thread, UUID(request.thread_id))
             if thread is not None:
                 # run 可能等待过线程锁；写标题前同步其他 run 已提交的最新值。
@@ -262,11 +263,12 @@ async def generate_run_events(
                     user_content=prompt_content,
                     assistant_content=assistant_content,
                 )
-            await repository.update_status(UUID(run_id), RunStatus.COMPLETED)
-            await session.commit()
+            await run_repository.update_status(UUID(run_id), RunStatus.COMPLETED)
 
+        # 先落库 commit，后发送completed事件
         sequence += 1
-        yield timeline_recorder.record(
+        completed_event = timeline_recorder.record(
             run_id, request.thread_id, sequence, "run.completed"
-        ).to_sse()
+        )
         await timeline_recorder.flush()
+        yield completed_event.to_sse()

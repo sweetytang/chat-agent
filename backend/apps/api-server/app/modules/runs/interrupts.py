@@ -12,9 +12,10 @@ from app.modules.interrupts.repository import InterruptRepository
 from app.modules.mcp.agent import McpToolSnapshot
 from app.modules.timeline.recorder import TimelineRecorder
 from lui_agent_runtime.events import RuntimeEvent
+
 from .dependencies import run_dependencies_manager
 from .repository import RunRepository
-from .schemas import PendingReview, RunRequest, RunContext
+from .schemas import PendingReview, RunContext, RunRequest
 
 
 async def create_approval_interrupt(
@@ -22,7 +23,6 @@ async def create_approval_interrupt(
     timeline_recorder: TimelineRecorder,
     *,
     run_id: str,
-    thread_id: str,
     request: RunRequest,
     run_context: RunContext | None,
     sequence: int,
@@ -31,8 +31,7 @@ async def create_approval_interrupt(
     arguments: dict[str, Any],
     extra_payload: dict[str, Any] | None = None,
     mcp_snapshot: McpToolSnapshot | None = None,
-    custom_request_id: str | None = None,
-    custom_tool_call_id: str | None = None,
+    tool_call_id: str | None = None,
 ) -> tuple[RuntimeEvent, RuntimeEvent, int]:
     """创建审批中断。
 
@@ -43,8 +42,8 @@ async def create_approval_interrupt(
 
     返回: (tool_call_event, approval_event, next_sequence)
     """
-    request_id = custom_request_id or str(uuid4())
-    tool_call_id = custom_tool_call_id or request_id
+    request_id = str(uuid4())
+    tool_call_id = tool_call_id or request_id
 
     # 1. 数据库持久化处理
     if session is not None:
@@ -81,7 +80,7 @@ async def create_approval_interrupt(
     sequence += 1
     tool_call_event = timeline_recorder.record(
         run_id,
-        thread_id,
+        request.thread_id,
         sequence,
         "tool.call",
         tool=tool_name,
@@ -93,7 +92,7 @@ async def create_approval_interrupt(
     sequence += 1
     approval_event = timeline_recorder.record(
         run_id,
-        thread_id,
+        request.thread_id,
         sequence,
         "tool.approval_required",
         tool=tool_name,

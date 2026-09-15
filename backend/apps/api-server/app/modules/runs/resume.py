@@ -2,32 +2,25 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 import json
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import InterruptStatus, Run, RunStatus, Thread
+from app.db.models import Checkpoint, InterruptStatus, Run, RunStatus, Thread
 from app.modules.interrupts.repository import InterruptRepository
+from app.modules.mcp.agent import build_langchain_tools
 from app.modules.mcp.agent.results import normalize_tool_result
 from app.modules.mcp.host import McpHostError
+from app.modules.runs.interrupts import create_approval_interrupt
 from app.modules.threads.title import set_title_after_first_round
-from app.modules.timeline.recorder import TimelineRecorder
 from app.modules.timeline.domain import extract_conversation_messages, get_latest_user_content
+from app.modules.timeline.recorder import TimelineRecorder
+
 from .dependencies import run_dependencies_manager
-from .repository import RunRepository
 from .finalization import mark_run_failure
-from .schemas import PendingReview, ResumeRequest
-
-
-def _chunk_text(value: object) -> str:
-    if isinstance(value, str):
-        return value
-    if isinstance(value, list):
-        return "".join(
-            _chunk_text(item.get("text", "") if isinstance(item, dict) else item) for item in value
-        )
-    return ""
+from .repository import RunRepository
+from .schemas import PendingReview, ResumeRequest, RunContext
 
 
 async def generate_resumed_run_events(
@@ -46,16 +39,7 @@ async def generate_resumed_run_events(
     decision = resume_request.decision
     edited_payload = resume_request.payload
 
-    timeline_recorder = TimelineRecorder(
-        checkpoint=run_context.checkpoint if run_context is not None else None,
-        session=session,
-    )
-    tool_call_id = (
-        pendind_review.tool_call_id
-        if pendind_review and pendind_review.tool_call_id
-        else request_id
-    )
-    sequence = 0
+    checkpoint = run_context.checkpoint if run_context is not None else None
     # 演示线程可以在有 PostgreSQL 会话时运行，但它没有对应的数据库 run。
     # 只有确认记录存在，恢复流程才进入持久化分支。
     persisted_session = None
@@ -64,25 +48,45 @@ async def generate_resumed_run_events(
             persisted_session = (
                 session if await session.get(Run, UUID(run_id)) is not None else None
             )
+            # 上一轮的model实例都是游离态，想要更改同步数据库，必须Re-attach（checkpoint）；只读则不用重新获取（input_checkpoint）
+            if persisted_session is not None and checkpoint is not None:
+                db_checkpoint = await session.get(Checkpoint, checkpoint.id)
+                if db_checkpoint is not None:
+                    checkpoint = db_checkpoint
+                    if run_context is not None:
+                        run_context = RunContext(
+                            checkpoint=checkpoint,
+                            input_checkpoint=run_context.input_checkpoint,
+                        )
         except ValueError, OSError, RuntimeError:
             await session.rollback()
+
+    timeline_recorder = TimelineRecorder(
+        checkpoint=checkpoint,
+        session=session,
+    )
+    tool_call_id = (
+        pendind_review.tool_call_id
+        if pendind_review and pendind_review.tool_call_id
+        else request_id
+    )
+
     repository = RunRepository(persisted_session) if persisted_session is not None else None
     if repository is not None:
-        assert persisted_session is not None
         await InterruptRepository(persisted_session).update_status(
             request_id, InterruptStatus.RESUMED
         )
         await repository.update_status(UUID(run_id), RunStatus.RESUMING)
         await persisted_session.commit()
+    sequence = timeline_recorder.next_sequence
     yield timeline_recorder.record(run_id, request.thread_id, sequence, "run.resuming").to_sse()
-    sequence += 1
 
-    if pendind_review.mcp_snapshot is not None:
-        snapshot = pendind_review.mcp_snapshot
+    snapshot = pendind_review.mcp_snapshot
+    arguments = pendind_review.arguments or {}
+    if snapshot is not None:
         if decision == "reject":
             result: object = {"error": "用户拒绝执行 MCP 工具"}
         else:
-            arguments = pendind_review.arguments or {}
             if decision == "edit" and edited_payload is not None:
                 candidate = edited_payload.get("arguments", edited_payload)
                 if isinstance(candidate, dict):
@@ -93,6 +97,7 @@ async def generate_resumed_run_events(
                 # MCP 调用发生在 StreamingResponse 已返回 200 之后。若异常直接冒泡，
                 # 浏览器只能看到连接中断并显示 network error，丢失真正的失败原因。
                 error = str(cause)
+                sequence += 1
                 yield (
                     timeline_recorder.record(
                         run_id,
@@ -123,6 +128,7 @@ async def generate_resumed_run_events(
             except Exception:
                 # 非 Host 异常仍使用通用文案，避免意外泄露内部信息。
                 error = "MCP 工具调用失败，请检查 Server 状态、地址和凭据"
+                sequence += 1
                 yield (
                     timeline_recorder.record(
                         run_id,
@@ -156,6 +162,7 @@ async def generate_resumed_run_events(
         if decision == "reject":
             result = {"error": "用户拒绝执行搜索"}
         tool_name = "web_search"
+    sequence += 1
     yield (
         timeline_recorder.record(
             run_id,
@@ -167,81 +174,115 @@ async def generate_resumed_run_events(
             content=result,
         ).to_sse()
     )
-    sequence += 1
-    # 审核恢复必须把工具结果重新交给模型，而不是直接伪造“工具执行完成”。
-    answer = "已按要求拒绝工具执行。" if decision == "reject" else "工具执行完成。"
-    message_id = f"{run_id}:assistant"
-    item_id = f"{message_id}:resume:{request_id}"
-    yield timeline_recorder.record(
-        run_id,
-        request.thread_id,
-        sequence,
-        "message.started",
-        role="assistant",
-        item_id=item_id,
-        message_id=message_id,
-    ).to_sse()
-    answer_parts: list[str] = []
-    try:
-        run_dependencies = run_dependencies_manager.get_run_dependencies()
-        provider = run_dependencies.get_provider_config()
-        model = (
-            run_dependencies.fake_chat_model(chunks=("收到工具结果：",))
-            if provider.provider == "fake"
-            else run_dependencies.create_chat_model(provider)
+
+    # 1. 组装输入消息（对齐上下文协议）
+    # 从当前完整的时间线快照中提取出历史所有的对话消息
+    conversation_history = extract_conversation_messages(timeline_recorder.snapshot)
+    input_messages: list[HumanMessage | AIMessage | SystemMessage | ToolMessage] = []
+    for msg in conversation_history:
+        role = msg.get("role")
+        content = msg.get("content", "")
+        if role == "user":
+            input_messages.append(HumanMessage(content=content))
+        elif role == "assistant":
+            input_messages.append(AIMessage(content=content))
+        elif role == "system":
+            input_messages.append(SystemMessage(content=content))
+
+    # 拼入被恢复工具的调用和执行结果
+    input_messages.append(
+        AIMessage(
+            content="",
+            tool_calls=[{"name": tool_name, "args": arguments, "id": tool_call_id}],
         )
-        model_messages_for_resume = [
-            HumanMessage(content=request.content),
-            HumanMessage(
-                content=(
-                    "以下是 MCP 工具返回结果，请基于用户问题给出最终答复：\n"
-                    + json.dumps(result, ensure_ascii=False)
-                )
+    )
+    input_messages.append(
+        ToolMessage(
+            content=(
+                json.dumps(result, ensure_ascii=False)
+                if isinstance(result, (dict, list))
+                else str(result)
             ),
-        ]
-        async for chunk in model.astream(model_messages_for_resume):
-            content = _chunk_text(getattr(chunk, "content", ""))
-            if not content:
-                continue
-            answer_parts.append(content)
-            sequence += 1
-            yield (
-                timeline_recorder.record(
-                    run_id,
-                    request.thread_id,
-                    sequence,
-                    "message.delta",
-                    item_id=item_id,
-                    content=content,
-                ).to_sse()
-            )
-    except Exception:
-        # 工具已成功执行时，即使二次模型调用失败，也返回可解释的降级答复。
-        answer_parts = []
-        answer = "工具已执行，但生成最终答复失败，请重试。"
-    else:
-        answer = "".join(answer_parts) or "工具已执行，但生成最终答复失败，请重试。"
-    if not answer_parts:
-        sequence += 1
-        yield (
-            timeline_recorder.record(
-                run_id,
-                request.thread_id,
-                sequence,
-                "message.delta",
-                item_id=item_id,
-                content=answer,
-            ).to_sse()
+            tool_call_id=tool_call_id,
         )
-    sequence += 1
-    yield timeline_recorder.record(
-        run_id,
-        request.thread_id,
-        sequence,
-        "message.completed",
-        item_id=item_id,
-        message_id=message_id,
-    ).to_sse()
+    )
+
+    # 2. 调用驱动替换为 agent_driver().stream（对齐执行引擎）
+    run_dependencies = run_dependencies_manager.get_run_dependencies()
+    provider = run_dependencies.get_provider_config()
+    model = (
+        run_dependencies.fake_chat_model(chunks=("收到工具结果：",))
+        if provider.provider == "fake"
+        else run_dependencies.create_chat_model(provider)
+    )
+
+    mcp_snapshots = (snapshot,) if snapshot is not None else ()
+    mcp_tools = tuple(build_langchain_tools(mcp_snapshots))
+    snapshots_by_name = {item.identity.internal_name: item for item in mcp_snapshots}
+
+    chunks: list[str] = []
+    assistant_content = "工具执行完成。" if decision != "reject" else "已按要求拒绝工具执行。"
+
+    async for graph_event in run_dependencies.agent_driver().stream(
+        model,
+        input_messages,
+        run_id=run_id,
+        thread_id=request.thread_id,
+        tools=[*run_dependencies.default_langchain_tools(), *mcp_tools],
+        continue_after_tools=True,
+        approval_tool_names=frozenset(snapshots_by_name),
+    ):
+        # 连续审批递归处理（如遇第二个敏感工具）
+        if graph_event.event == "tool.approval_requested":
+            next_tool_name = str(graph_event.data.get("tool", ""))
+            next_snapshot = snapshots_by_name.get(next_tool_name)
+            if next_snapshot is None:
+                continue
+            next_arguments = graph_event.data.get("arguments")
+            if not isinstance(next_arguments, dict):
+                next_arguments = {}
+
+            next_tool_call_id = str(graph_event.data.get("tool_call_id") or uuid4())
+            tool_call_event, approval_event, sequence = await create_approval_interrupt(
+                session,
+                timeline_recorder,
+                run_id=run_id,
+                request=request,
+                run_context=run_context,
+                sequence=sequence,
+                kind="mcp_tool",
+                tool_name=next_tool_name,
+                arguments=next_arguments,
+                extra_payload={
+                    "remote_name": next_snapshot.identity.remote_name,
+                    "server_id": next_snapshot.identity.server_id,
+                    "security_version": next_snapshot.security_version,
+                },
+                mcp_snapshot=next_snapshot,
+                tool_call_id=next_tool_call_id,
+            )
+
+            mcp_host_getter = run_dependencies.mcp_host
+            mcp_host = mcp_host_getter() if callable(mcp_host_getter) else mcp_host_getter
+            if mcp_host is not None:
+                await mcp_host.disconnect(next_snapshot.identity.server_id)
+            yield tool_call_event.to_sse()
+            yield approval_event.to_sse()
+            return
+
+        if graph_event.event == "message.delta":
+            chunks.append(str(graph_event.data.get("content", "")))
+
+        # 3. 事件消费对齐（对齐前端协议，sequence 严格单调自增）
+        sequence += 1
+        projected_event = timeline_recorder.record(
+            run_id, request.thread_id, sequence, graph_event.event, **graph_event.data
+        )
+        await timeline_recorder.flush_if_due()
+        yield projected_event.to_sse()
+
+    assistant_content = "".join(chunks) or assistant_content
+
     if repository is not None and run_context is not None:
         assert persisted_session is not None
         thread = await persisted_session.get(Thread, UUID(request.thread_id))
@@ -253,13 +294,14 @@ async def generate_resumed_run_events(
                 extract_conversation_messages(timeline_recorder.snapshot),
                 mode=request.mode,
                 user_content=get_latest_user_content(timeline_recorder.snapshot, request.content),
-                assistant_content=answer,
+                assistant_content=assistant_content,
             )
         await repository.update_status(UUID(run_id), RunStatus.COMPLETED)
-        await timeline_recorder.flush()
+
     sequence += 1
-    yield timeline_recorder.record(run_id, request.thread_id, sequence, "run.completed").to_sse()
+    completed_event = timeline_recorder.record(run_id, request.thread_id, sequence, "run.completed")
     await timeline_recorder.flush()
+    yield completed_event.to_sse()
 
 
 async def safe_generate_resumed_run_events(

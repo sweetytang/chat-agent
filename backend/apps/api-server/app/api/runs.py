@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-from dataclasses import replace
 import json
 from uuid import UUID, uuid4
 
@@ -9,23 +8,22 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.common.utils.to_uuid import to_uuid
 from app.core.config import get_settings
 from app.core.security import get_optional_subject
-from app.db.models import McpServerDefinition, Thread
+from app.db.models import McpServerDefinition
 from app.db.session import get_optional_db_session
+from app.modules.checkpoints.repository import CheckpointRepository
 from app.modules.interrupts.repository import InterruptRepository
 from app.modules.mcp.agent import McpToolSnapshot, load_mcp_snapshots
 from app.modules.mcp.crypto import CredentialCrypto
 from app.modules.mcp.dependencies import get_mcp_host
-from app.modules.runs.service import run_service
-from app.modules.runs.repository import RunRepository
-from app.modules.runs.schemas import PendingReview, ResumeRequest, RunRequest, RunContext
 from app.modules.runs.dependencies import run_dependencies_manager
+from app.modules.runs.repository import RunRepository
+from app.modules.runs.schemas import PendingReview, ResumeRequest, RunContext, RunRequest
+from app.modules.runs.service import run_service
 from app.modules.threads.repository import ThreadRepository
-from app.modules.checkpoints.repository import CheckpointRepository
-
-from app.common.utils.to_uuid import to_uuid
-
+from app.modules.timeline.domain import get_latest_user_content
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
@@ -125,17 +123,17 @@ async def cancel_run(
 @router.post("/{run_id}/resume")
 async def resume_run(
     run_id: str,
-    request: ResumeRequest,
+    resume_request: ResumeRequest,
     subject: str | None = Depends(get_optional_subject),
     session: AsyncSession | None = Depends(get_optional_db_session),
 ) -> StreamingResponse:
     run_dependencies = run_dependencies_manager.configure_run_dependencies()
     run_coordination = run_dependencies.run_coordination
     subject = to_uuid(subject)
-    pending = run_coordination.get_pending_review(request.request_id)
-    # 纯内存 demo interrupt 没有 branch context，不应为了鉴权主动连接数据库。
+    pending_review = run_coordination.get_pending_review(resume_request.request_id)
+    # 纯内存 demo interrupt 没有 run_context，不应为了鉴权主动连接数据库。
     # 持久化 interrupt 或服务重启后的恢复才查询 run 所有者。
-    requires_persistence = pending is None or pending.persisted
+    requires_persistence = pending_review is None or pending_review.persisted
     persisted_run = None
     if requires_persistence:
         if session is None:
@@ -143,42 +141,55 @@ async def resume_run(
         persisted_run = await RunRepository(session).get_owned(to_uuid(run_id), subject)
         if persisted_run is None:
             raise HTTPException(status_code=404, detail="运行不存在")
-
-    # 如果服务重启了，内存里的 pending 会是 None。
-    # 本阶段负责从数据库拉取当时的 Checkpoint 和 Interrupt 记录，完美重建当时的执行上下文
-    if pending is None and session is not None:
-        interrupt = await InterruptRepository(session).get_by_request_id(request.request_id)
-        if interrupt is not None and persisted_run is not None and str(interrupt.run_id) == run_id:
+    # 1. 如果内存里没有pending_review，从数据库的 Checkpoint 和 Interrupt 记录中，完整重建真实的执行上下文
+    # 因为如果服务重启或路由到新实例，内存里的 pending_review 会是 None。
+    if pending_review is None and session is not None and persisted_run is not None:
+        interrupt = await InterruptRepository(session).get_by_request_id(resume_request.request_id)
+        if interrupt is not None and str(interrupt.run_id) == run_id:
+            # 1. 重建 Checkpoint 上下文 (包含 input_checkpoint)
             checkpoint = None
+            input_checkpoint = None
             if interrupt.checkpoint_id is not None:
                 checkpoint = await CheckpointRepository(session).get(
                     persisted_run.thread_id,
                     interrupt.checkpoint_id,
                 )
-            # 一步到位构造真实的 branch_context，拒绝 empty_timeline() 假数据
-            run_context = RunContext(checkpoint=checkpoint) if checkpoint is not None else None
-
-            query = str(interrupt.payload.get("query", ""))
-            pending = PendingReview(
-                run_id,
-                RunRequest(thread_id=str(persisted_run.thread_id), content=f"search: {query}"),
-                run_context,
-                persisted=True,
-                tool_call_id=str(interrupt.payload.get("tool_call_id") or request.request_id),
+                if checkpoint is not None and checkpoint.parent_id is not None:
+                    input_checkpoint = await CheckpointRepository(session).get(
+                        persisted_run.thread_id,
+                        checkpoint.parent_id,
+                    )
+            run_context = (
+                RunContext(checkpoint=checkpoint, input_checkpoint=input_checkpoint)
+                if checkpoint is not None
+                else None
             )
+
+            # 2. 从真实的 checkpoint timeline 中提取用户当时的真实提问文本，绝不伪造
+            original_user_content = (
+                get_latest_user_content(run_context.timeline) if run_context is not None else ""
+            )
+            tool_call_id = str(interrupt.payload.get("tool_call_id") or resume_request.request_id)
+            arguments = interrupt.payload.get("arguments")
+            if not isinstance(arguments, dict):
+                arguments = {}
+
+            # 3. 处理 MCP 工具快照恢复
+            mcp_snapshot = None
             if interrupt.kind == "mcp_tool":
                 server_id = interrupt.payload.get("server_id")
                 tool_name = interrupt.payload.get("tool")
                 security_version = interrupt.payload.get("security_version")
-                arguments = interrupt.payload.get("arguments")
                 try:
                     server = await session.get(McpServerDefinition, UUID(str(server_id)))
-                except ValueError:
+                except ValueError, TypeError:
                     server = None
+
                 mcp_host = get_mcp_host()
                 if (
                     server is None
                     or server.security_version != security_version
+                    or server.deleted_at is not None
                     or mcp_host is None
                     or subject is None
                 ):
@@ -186,55 +197,59 @@ async def resume_run(
                         status_code=409,
                         detail="MCP 安全配置已变化，审核请求已失效",
                     )
+
                 mcp_snapshots = await load_mcp_snapshots(
                     session,
                     subject,
                     mcp_host,
                     _decode_mcp_credentials,
                 )
-                snapshot = next(
+                mcp_snapshot = next(
                     (item for item in mcp_snapshots if item.identity.internal_name == tool_name),
                     None,
                 )
-                if snapshot is None:
+                if mcp_snapshot is None:
                     raise HTTPException(status_code=409, detail="MCP 工具已不可用")
-                pending = PendingReview(
-                    run_id,
-                    RunRequest(
-                        thread_id=str(persisted_run.thread_id),
-                        content="MCP 工具审核",
-                    ),
-                    run_context,
-                    persisted=True,
-                    mcp_snapshot=snapshot,
-                    arguments=arguments if isinstance(arguments, dict) else {},
-                    tool_call_id=str(interrupt.payload.get("tool_call_id") or request.request_id),
-                )
 
-    if pending is None or pending.run_id != run_id:
+            # 4. 一体化构造规范、完整、不缺斤少两的 PendingReview
+            pending_review = PendingReview(
+                run_id=run_id,
+                request=RunRequest(
+                    thread_id=str(persisted_run.thread_id),
+                    content=original_user_content,
+                ),
+                run_context=run_context,
+                persisted=True,
+                mcp_snapshot=mcp_snapshot,
+                arguments=arguments,
+                tool_call_id=tool_call_id,
+            )
+    # 2. 基础校验
+    if pending_review is None or pending_review.run_id != run_id:
         raise HTTPException(status_code=409, detail="审核请求不存在或已过期")
 
-    if pending.mcp_snapshot is not None:
+    # 3. 校验 MCP 安全快照
+    if pending_review.mcp_snapshot is not None:
         if session is None:
             raise HTTPException(status_code=503, detail="持久化服务不可用")
         try:
-            server_id = UUID(pending.mcp_snapshot.identity.server_id)
+            server_id = UUID(pending_review.mcp_snapshot.identity.server_id)
         except ValueError as error:
             raise HTTPException(status_code=409, detail="MCP 审核快照无效") from error
         server = await session.get(McpServerDefinition, server_id)
         if (
             server is None
-            or server.security_version != pending.mcp_snapshot.security_version
+            or server.security_version != pending_review.mcp_snapshot.security_version
             or server.deleted_at is not None
         ):
             raise HTTPException(status_code=409, detail="MCP 安全配置已变化，审核请求已失效")
 
-    run_coordination.remove_pending_review(request.request_id)
+    run_coordination.remove_pending_review(resume_request.request_id)
 
     return StreamingResponse(
         run_service.stream_resume(
-            request,
-            pending,
+            resume_request,
+            pending_review,
             session=session,
         ),
         media_type="text/event-stream",

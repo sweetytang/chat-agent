@@ -10,9 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.timeline.recorder import TimelineRecorder
 from lui_agent_runtime.events import RuntimeEvent
+
 from .dependencies import RunDependencies
-from .schemas import RunRequest, RunContext
 from .interrupts import create_approval_interrupt
+from .schemas import RunContext, RunRequest
 
 
 def is_shortcut_rule(prompt_content: str) -> bool:
@@ -162,7 +163,6 @@ async def handle_search_interrupt_shortcut(
         session,
         recorder,
         run_id=run_id,
-        thread_id=thread_id,
         request=request,
         run_context=run_context,
         sequence=sequence,

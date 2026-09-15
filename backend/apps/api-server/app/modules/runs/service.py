@@ -10,17 +10,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Thread
 from app.modules.checkpoints.repository import CheckpointRepository
+from app.modules.mcp.agent import McpToolSnapshot
 from app.modules.timeline.domain import (
     checkpoint_timeline,
-    extract_conversation_messages,
     empty_timeline,
+    extract_conversation_messages,
 )
-from app.modules.mcp.agent import McpToolSnapshot
-from .repository import RunRepository
+
 from .dependencies import run_dependencies_manager
+from .repository import RunRepository
 from .resume import safe_generate_resumed_run_events
-from .schemas import ResumeRequest, RunRequest, PendingReview, RunContext
-from .streaming import managed_run_stream, generate_run_events
+from .schemas import PendingReview, ResumeRequest, RunContext, RunRequest
+from .streaming import generate_run_events, managed_run_stream
 
 
 class RunService:
