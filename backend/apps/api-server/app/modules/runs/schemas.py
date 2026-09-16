@@ -7,8 +7,8 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.db.models import Checkpoint
-from app.modules.timeline.domain import checkpoint_timeline, TimelineSnapshot
 from app.modules.mcp.agent import McpToolSnapshot
+from app.modules.timeline.domain import TimelineSnapshot, checkpoint_timeline
 
 
 class RunRequest(BaseModel):

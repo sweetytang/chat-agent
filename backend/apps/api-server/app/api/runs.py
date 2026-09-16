@@ -247,10 +247,12 @@ async def resume_run(
     run_coordination.remove_pending_review(resume_request.request_id)
 
     return StreamingResponse(
-        run_service.stream_resume(
-            resume_request,
-            pending_review,
-            session=session,
+        (
+            await run_service.stream_resume(
+                resume_request,
+                pending_review,
+                session=session,
+            )
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},

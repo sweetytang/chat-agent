@@ -4,86 +4,76 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Run, RunStatus
+from app.common.utils.to_uuid import to_uuid
+from app.db.models import Checkpoint, Run, RunStatus
 from app.modules.timeline.recorder import TimelineRecorder
 from lui_agent_runtime.events import RuntimeEvent
-from app.common.utils.to_uuid import to_uuid
+
 from .repository import RunRepository
-from .schemas import RunRequest, RunContext
+from .schemas import RunRequest
 
 
 async def finalize_incomplete_stream(
     run_id: str,
     request: RunRequest,
-    session: AsyncSession | None,
-    run_context: RunContext | None,
     *,
+    session: AsyncSession | None = None,
+    current_checkpoint: Checkpoint | None = None,
     cancel_requested: bool,
     interrupted_is_terminal: bool,
-) -> None:
-    if session is None or run_context is None or run_context.checkpoint is None:
-        return
+):
+    if session is None:
+        raise ValueError("finalize_run need session")
 
     parsed_run_id = to_uuid(run_id)
-    run_instance = await session.get(Run, parsed_run_id) if parsed_run_id is not None else None
+    current_run = await session.get(Run, parsed_run_id) if parsed_run_id is not None else None
     terminal_statuses = {RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED}
     if interrupted_is_terminal:
         terminal_statuses.add(RunStatus.INTERRUPTED)
-    # 1. 如果任务已经走完了正常生命周期（COMPLETED/FAILED/INTERRUPED），直接放行
-    if run_instance is None or run_instance.status in terminal_statuses:
+    # 如果任务已经走完了正常生命周期（COMPLETED/FAILED/INTERRUPED），直接放行
+    if current_run is None or current_run.status in terminal_statuses:
         return
 
-    # 2.推送消息通知前端
-    timeline_recorder = TimelineRecorder(
-        checkpoint=run_context.checkpoint,
+    status = RunStatus.CANCELLED if cancel_requested else RunStatus.FAILED
+    error_message = None if cancel_requested else "网络连接中断，已保留部分生成内容"
+    await finalize_run(
+        run_id,
+        request.thread_id,
         session=session,
-    )
-    sequence = timeline_recorder.next_sequence
-    timeline_recorder.record(run_id, request.thread_id, sequence, "run.cancelled")
-    error_message = "连接已中断，已保留部分内容，请重试" if not cancel_requested else None
-    if error_message is not None:
-        timeline_recorder.record(
-            run_id,
-            request.thread_id,
-            sequence + 1,
-            "run.failed",
-            item_id=f"{run_id}:disconnected",
-            error=error_message,
-        )
-    # 3.运行状态置为CANCELLED
-    await RunRepository(session).update_status(
-        parsed_run_id,
-        RunStatus.CANCELLED,
+        current_checkpoint=current_checkpoint,
+        status=status,
         error_message=error_message,
     )
-    await timeline_recorder.flush()
 
 
-async def mark_run_failure(
+async def finalize_run(
     run_id: str,
     thread_id: str,
-    message: str,
-    session: AsyncSession | None,
-    run_context: RunContext | None,
+    *,
+    session: AsyncSession | None = None,
+    current_checkpoint: Checkpoint | None = None,
+    status: RunStatus = RunStatus.COMPLETED,
+    error_message: str | None = None,
+    sequence: int | None = None,
+    event_data: dict[str, any] | None = None,
 ) -> RuntimeEvent:
-    if session is None or run_context is None or run_context.checkpoint is None:
-        return RuntimeEvent(1, "run.failed", run_id, thread_id, 1, error=message)
+    """终结run至终态，并事件通知前端"""
+
+    if session is None or current_checkpoint is None:
+        raise ValueError("finalize_run need session and checkpoint")
 
     timeline_recorder = TimelineRecorder(
-        checkpoint=run_context.checkpoint,
+        checkpoint=current_checkpoint,
         session=session,
     )
-    sequence = timeline_recorder.next_sequence
-    event = timeline_recorder.record(
-        run_id,
-        thread_id,
-        sequence,
-        "run.failed",
-        item_id=f"{run_id}:resume-error:{sequence}",
-        error=message,
+    if sequence is None:
+        sequence = timeline_recorder.next_sequence
+    final_event = timeline_recorder.record(
+        run_id, thread_id, sequence, f"run.{status.lower()}", *(event_data or {})
     )
-    await RunRepository(session).update_status(
-        UUID(run_id), RunStatus.FAILED, error_message=message
-    )
-    await timeline_recorder.flush()
-    return event
+    if session is not None:
+        await RunRepository(session).update_status(
+            UUID(run_id), status, error_message=error_message
+        )
+        await timeline_recorder.flush()
+    return final_event

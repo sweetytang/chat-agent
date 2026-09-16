@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Awaitable, Callable
+from dataclasses import replace
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Thread
+from app.db.models import Checkpoint, Thread
 from app.modules.checkpoints.repository import CheckpointRepository
 from app.modules.mcp.agent import McpToolSnapshot
 from app.modules.timeline.domain import (
@@ -18,10 +19,11 @@ from app.modules.timeline.domain import (
 )
 
 from .dependencies import run_dependencies_manager
+from .driver import managed_run_stream
 from .repository import RunRepository
-from .resume import safe_generate_resumed_run_events
+from .resume import generate_resumed_run_events
 from .schemas import PendingReview, ResumeRequest, RunContext, RunRequest
-from .streaming import generate_run_events, managed_run_stream
+from .streaming import generate_run_events
 
 
 class RunService:
@@ -33,7 +35,7 @@ class RunService:
         run_id: UUID,
         request: RunRequest,
         thread: Thread,
-    ) -> RunContext | None:
+    ) -> RunContext:
         """加载上文的checkpoint，准备接下来的user、assistant的checkpoint"""
 
         # 1.加载上下文
@@ -116,15 +118,14 @@ class RunService:
     ) -> AsyncIterator[str]:
         """开启并执行一个完整的生命周期受控流（Managed Stream）。"""
 
-        inner_events = generate_run_events(
-            session,
-            run_id,
-            request,
-            run_context,
-            mcp_loader=mcp_loader,
-        )
         return managed_run_stream(
-            inner_events,
+            generate_run_events(
+                session,
+                run_id,
+                request,
+                run_context,
+                mcp_loader=mcp_loader,
+            ),
             session=session,
             run_id=run_id,
             request=request,
@@ -132,7 +133,7 @@ class RunService:
         )
 
     @staticmethod
-    def stream_resume(
+    async def stream_resume(
         resume_request: ResumeRequest,
         pending_review: PendingReview,
         *,
@@ -143,13 +144,23 @@ class RunService:
         if pending_review is None:
             raise ValueError("stream_resume: pending_review can not be None")
 
-        stream_events = safe_generate_resumed_run_events(
-            resume_request,
-            pending_review,
-            session=session,
-        )
+        # 上一轮的model实例都是游离态，想要更改同步数据库，必须Re-attach（checkpoint）；只读则不用重新获取（input_checkpoint）
+        run_context = pending_review.run_context
+        if session is not None and run_context is not None and run_context.checkpoint is not None:
+            db_checkpoint = await session.get(Checkpoint, run_context.checkpoint_id)
+            if db_checkpoint is not None:
+                run_context = RunContext(
+                    checkpoint=db_checkpoint,
+                    input_checkpoint=run_context.input_checkpoint,
+                )
+                pending_review = replace(pending_review, run_context=run_context)
+
         return managed_run_stream(
-            stream_events,
+            generate_resumed_run_events(
+                resume_request,
+                pending_review,
+                session=session,
+            ),
             run_id=pending_review.run_id,
             request=pending_review.request,  # 恢复时由分支快照恢复上下文
             session=session,
@@ -166,8 +177,3 @@ class RunService:
 
 
 run_service = RunService()
-
-
-__all__ = [
-    "run_service",
-]
