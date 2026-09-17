@@ -1,0 +1,299 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+  transition: all var(--motion-fast);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.titleGroup {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--warning);
+  background: var(--warning-soft);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-pill);
+}
+
+.titleText {
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--text-primary);
+}
+
+.controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 分体式批准操作组 (Split Button) */
+.splitGroup {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+  transition: all var(--motion-fast);
+}
+
+.splitGroup:hover:not(:has(:disabled)) {
+  background: var(--accent-hover);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.primaryAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 11px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent-contrast);
+  background: transparent;
+  border: 0;
+  border-top-left-radius: var(--radius-sm);
+  border-bottom-left-radius: var(--radius-sm);
+  cursor: pointer;
+  user-select: none;
+}
+
+.primaryAction:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.triggerAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 28px;
+  padding: 0;
+  color: var(--accent-contrast);
+  background: transparent;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--accent-contrast) 22%, transparent);
+  border-top-right-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
+  cursor: pointer;
+  user-select: none;
+}
+
+.triggerAction:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-contrast) 15%, transparent);
+}
+
+.triggerAction:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* 拒绝按钮 */
+.rejectAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  user-select: none;
+  transition: all var(--motion-fast);
+}
+
+.rejectAction:hover:not(:disabled) {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+}
+
+.rejectAction:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* 下拉菜单面板 (Modern Floating Menu) */
+.menuContent {
+  z-index: 100;
+  min-width: 200px;
+  padding: 5px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(12px);
+  animation: menuIn 120ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 30px;
+  padding: 0 9px;
+  font-size: 12px;
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  outline: none;
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--motion-fast), color var(--motion-fast);
+}
+
+.menuItem:hover,
+.menuItem[data-highlighted] {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+.menuItemIcon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-secondary);
+}
+
+.menuItem:hover .menuItemIcon,
+.menuItem[data-highlighted] .menuItemIcon {
+  color: var(--accent);
+}
+
+.menuSeparator {
+  height: 1px;
+  margin: 4px -1px;
+  background: var(--border);
+}
+
+/* 编辑参数区域 */
+.editArea {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  animation: expandIn 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.editLabel {
+  font-size: 11.5px;
+  font-weight: 550;
+  color: var(--text-secondary);
+}
+
+.jsonInput {
+  width: 100%;
+  min-height: 100px;
+  padding: 9px 12px;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--code-text);
+  background: var(--code-background);
+  border: 1px solid var(--code-border);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+  outline: none;
+  transition: border-color var(--motion-fast);
+}
+
+.jsonInput:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.errorTip {
+  font-size: 11px;
+  color: var(--danger);
+}
+
+.editFooter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cancelBtn {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--motion-fast);
+}
+
+.cancelBtn:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.submitBtn {
+  height: 26px;
+  padding: 0 12px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--motion-fast);
+}
+
+.submitBtn:hover {
+  background: var(--accent-hover);
+}
+
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes expandIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

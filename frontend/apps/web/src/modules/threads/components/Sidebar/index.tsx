@@ -177,7 +177,7 @@ export function Sidebar({ collapsed = false, onNavigate }: SidebarProps) {
         type="button"
       >
         <Blocks size={18} />
-        MCP 插件配置
+        MCP
       </button>
       {token ? (
         <>

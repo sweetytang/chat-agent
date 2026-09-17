@@ -50,7 +50,8 @@ export function ChatTimeline({
   onResolveApproval: (
     requestId: string,
     runId: string,
-    decision: 'approve' | 'edit' | 'reject',
+    decision: 'approve' | 'approve_always' | 'edit' | 'reject',
+    payload?: Record<string, unknown>,
   ) => void;
   resolvingApprovalId: string | null;
 }) {
@@ -85,7 +86,9 @@ export function ChatTimeline({
             approvalResolving={resolvingApprovalId === item.request_id}
             key={`${item.id}:${item.status}`}
             item={item}
-            onApproval={onResolveApproval}
+              onApproval={(requestId, runId, decision, payload) =>
+                onResolveApproval(requestId, runId, decision, payload)
+              }
           />
         );
       case 'structured_output':

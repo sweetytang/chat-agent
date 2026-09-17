@@ -199,14 +199,15 @@ export function Chat() {
   async function resolveApproval(
     requestId: string,
     runId: string,
-    decision: 'approve' | 'edit' | 'reject',
+    decision: 'approve' | 'approve_always' | 'edit' | 'reject',
+    payload?: Record<string, unknown>,
   ) {
     if (!useAuthStore.getState().token) return;
     const targetThreadId = threadId;
     setResolvingApprovalId(requestId);
     useRunStore.getState().prepareResume(targetThreadId);
     try {
-      await resolveInterrupt(requestId, decision);
+      await resolveInterrupt(requestId, decision, payload);
       const currentRun = selectThreadRun(useRunStore.getState(), targetThreadId);
       if (
         !useAuthStore.getState().token ||
@@ -217,7 +218,7 @@ export function Chat() {
       await consumeRunStream({
         threadId: targetThreadId,
         url: `${API_ROOT}/runs/${runId}/resume`,
-        body: { request_id: requestId, decision },
+        body: { request_id: requestId, decision, payload },
         onEvent: (event) => useRunStore.getState().applyEvent(event),
       });
     } catch (error) {
@@ -265,8 +266,8 @@ export function Chat() {
               }
               onEdit={editMessage}
               onRegenerate={regenerateMessage}
-              onResolveApproval={(requestId, runId, decision) =>
-                void resolveApproval(requestId, runId, decision)
+              onResolveApproval={(requestId, runId, decision, payload) =>
+                void resolveApproval(requestId, runId, decision, payload)
               }
               onRetry={() => {
                 if (lastRequest) void startRun(lastRequest);

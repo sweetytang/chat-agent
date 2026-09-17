@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import asyncio
-
-from app.modules.runs.schemas import PendingReview
 
 
 class RunCoordination:
@@ -19,7 +15,6 @@ class RunCoordination:
     def __init__(self) -> None:
         self._chat_locks: dict[str, asyncio.Lock] = {}
         self._cancel_events: dict[str, asyncio.Event] = {}
-        self._pending_reviews: dict[str, PendingReview] = {}
 
     # --- 线程锁 ---
     def setdefault_chat_lock(self, thread_id: str) -> asyncio.Lock:
@@ -48,20 +43,6 @@ class RunCoordination:
 
     def remove_cancel_event(self, run_id: str) -> None:
         self._cancel_events.pop(run_id, None)
-
-    # --- 待审批状态 ---
-    @property
-    def pending_reviews(self) -> dict[str, Any]:
-        return self._pending_reviews
-
-    def get_pending_review(self, request_id: str) -> PendingReview | None:
-        return self._pending_reviews.get(request_id, None)
-
-    def register_pending_review(self, request_id: str, review: PendingReview):
-        self._pending_reviews[request_id] = review
-
-    def remove_pending_review(self, request_id: str) -> PendingReview | None:
-        return self._pending_reviews.pop(request_id, None)
 
 
 # 进程内单例

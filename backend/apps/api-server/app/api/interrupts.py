@@ -5,13 +5,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .dependencies import current_user_uuid
+from app.core.security import current_user_uuid
 from app.db.models import InterruptStatus
 from app.db.session import get_db_session
+from app.modules.checkpoints.repository import CheckpointRepository
 from app.modules.interrupts.repository import InterruptRepository
 from app.modules.runs.repository import RunRepository
 from app.modules.threads.repository import ThreadRepository
-from app.modules.checkpoints.repository import CheckpointRepository
 
 router = APIRouter(prefix="/api/interrupts", tags=["interrupts"])
 thread_router = APIRouter(
@@ -29,7 +29,7 @@ class CreateInterruptRequest(BaseModel):
 
 
 class ResolveInterruptRequest(BaseModel):
-    decision: str = Field(pattern="^(approve|edit|reject)$")
+    decision: str = Field(pattern="^(approve|approve_always|edit|reject)$")
     payload: dict[str, Any] | None = None
 
 
@@ -79,6 +79,7 @@ async def resolve_interrupt(
 ) -> dict[str, Any]:
     status_by_decision = {
         "approve": InterruptStatus.APPROVED,
+        "approve_always": InterruptStatus.APPROVED,
         "edit": InterruptStatus.EDITED,
         "reject": InterruptStatus.REJECTED,
     }

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import json
 from typing import Any
+
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
 type TimelineItem = dict[str, Any]
 type TimelineSnapshot = dict[str, Any]
@@ -54,3 +57,86 @@ def get_latest_user_content(snapshot: TimelineSnapshot, fallback: str = "") -> s
         if message["role"] == "user":
             return message["content"]
     return fallback
+
+
+def timeline_to_model_messages(snapshot: TimelineSnapshot) -> list[BaseMessage]:
+    """将 Checkpoint 时间线完整还原为 LangChain/OpenAI 对话消息序列。
+
+    规则：
+    1. 连续的同角色流式消息自动合并；
+    2. 工具调用必须转化为带 tool_calls 的 AIMessage + 后续对应的 ToolMessage；
+    3. 过滤 reasoning、generative_ui 等纯前端渲染噪音；
+    4. 对历史长工具输出做适当截断，保护上下文窗口。
+    """
+    messages: list[BaseMessage] = []
+    items = validate_timeline(snapshot)["items"]
+
+    current_role: str | None = None
+    current_content: str = ""
+
+    def flush_message():
+        nonlocal current_role, current_content
+        if current_role and current_content:
+            if current_role == "user":
+                messages.append(HumanMessage(content=current_content))
+            elif current_role == "assistant":
+                messages.append(AIMessage(content=current_content))
+            elif current_role == "system":
+                messages.append(SystemMessage(content=current_content))
+        current_role = None
+        current_content = ""
+
+    for item in items:
+        kind = item.get("kind")
+
+        # 1. 普通对话消息
+        if kind == "message":
+            role = item.get("role")
+            if role in {"user", "assistant", "system"}:
+                if role != current_role:
+                    flush_message()
+                    current_role = role
+                current_content += item.get("content", "")
+
+        # 2. 完整的工具调用闭环
+        elif kind == "tool":
+            flush_message()
+            tool_name = item.get("tool", "")
+            tool_call_id = item.get("id", "")
+            arguments = item.get("arguments", {})
+            result = item.get("result")
+
+            # 必须先有 AIMessage 记录模型发起的工具调用
+            messages.append(
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": tool_name,
+                            "args": arguments,
+                            "id": tool_call_id,
+                        }
+                    ],
+                )
+            )
+
+            # 只要工具已有结果（不管是成功还是 error），就必须紧跟 ToolMessage
+            if result is not None:
+                text_content = (
+                    json.dumps(result, ensure_ascii=False)
+                    if isinstance(result, (dict, list))
+                    else str(result)
+                )
+                # 超过 4000 字符的历史输出进行安全截断，防止爆 Token
+                if len(text_content) > 4000:
+                    text_content = text_content[:4000] + "\n...[历史输出已截断]..."
+
+                messages.append(
+                    ToolMessage(
+                        content=text_content,
+                        tool_call_id=tool_call_id,
+                    )
+                )
+
+    flush_message()
+    return messages

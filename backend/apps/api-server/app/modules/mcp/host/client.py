@@ -6,14 +6,13 @@
 
 from __future__ import annotations
 
-from contextlib import suppress
 from dataclasses import dataclass
 import json
 import re
 from typing import Any
 from uuid import UUID
 
-from .ports import McpClientFactory, McpClientPort
+from .sdk import McpClientFactory
 from .state import McpConnectionState, McpStateMachine
 
 
@@ -83,12 +82,12 @@ def _find_agent_id(value: Any) -> str | None:
 
 
 class McpHost:
+    """管理MCP客户端"""
+
     def __init__(self, factory: McpClientFactory) -> None:
         self.factory = factory
-        self._clients: dict[str, McpClientPort] = {}
-        self._contexts: dict[str, Any] = {}
-        self._states: dict[str, McpStateMachine] = {}
-        self._catalog: dict[str, tuple[McpToolDescriptor, ...]] = {}
+        self._states: dict[str, McpStateMachine] = {}  # mcp状态
+        self._catalog: dict[str, tuple[McpToolDescriptor, ...]] = {}  # mcp工具列表
         self._agent_ids: dict[str, str] = {}
         self._configs: dict[str, dict[str, Any]] = {}
 
@@ -98,7 +97,7 @@ class McpHost:
     def catalog(self, server_id: UUID | str) -> tuple[McpToolDescriptor, ...]:
         return self._catalog.get(str(server_id), ())
 
-    async def connect(
+    async def get_tool_descriptors(
         self,
         server_id: UUID | str,
         *,
@@ -107,8 +106,8 @@ class McpHost:
         command: str | None = None,
         args: list[str] | None = None,
         env: dict[str, str] | None = None,
-    ) -> tuple[McpToolDescriptor, ...]:
-        key = str(server_id)
+    ) -> tuple[McpToolDescriptor]:
+        server_id = str(server_id)
         config = {
             "endpoint": endpoint,
             "headers": headers or {},
@@ -116,89 +115,76 @@ class McpHost:
             "args": args,
             "env": env,
         }
-        await self.disconnect(key)
-        machine = self._states.setdefault(key, McpStateMachine())
-        machine.transition(McpConnectionState.CONNECTING)
+        await self.disconnect(server_id)
+        machine = self._states.setdefault(server_id, McpStateMachine())
 
-        # 使用 try...finally 确保 context 在当前任务中安全进入并退出，不残留 AnyIO CancelScope
-        context = self.factory.connect(
-            endpoint=endpoint,
-            headers=headers,
-            command=command,
-            args=args,
-            env=env,
-        )
-        entered = False
         try:
-            client = await context.__aenter__()
-            entered = True
-            raw_tools = await client.list_tools()
+            machine.transition(McpConnectionState.CONNECTING)
+            async with self.factory.connect(
+                endpoint=endpoint,
+                headers=headers,
+                command=command,
+                args=args,
+                env=env,
+            ) as client:
+                raw_tools = (await client.list_tools()).tools
+                descriptors = tuple(
+                    McpToolDescriptor(
+                        server_id,
+                        tool.name,
+                        tool.description or "",
+                        tool.input_schema if isinstance(tool.input_schema, dict) else {},
+                        tool.annotations.model_dump() if tool.annotations else {},
+                    )
+                    for tool in raw_tools
+                    if tool.name
+                )
+                self._catalog[server_id] = descriptors
+                self._configs[server_id] = config
+                machine.transition(McpConnectionState.CONNECTED)
+                return descriptors
         except Exception as error:
             machine.transition(McpConnectionState.ERROR)
             raise McpHostError(_safe_error(error)) from error
-        finally:
-            if entered:
-                with suppress(Exception):
-                    await context.__aexit__(None, None, None)
-
-        descriptors = tuple(
-            McpToolDescriptor(
-                server_id,
-                str(tool.get("name", "")),
-                str(tool.get("description", "")),
-                dict(tool.get("inputSchema") or tool.get("input_schema") or {}),
-                dict(tool.get("annotations") or {}),
-            )
-            for tool in raw_tools
-            if tool.get("name")
-        )
-        self._catalog[key] = descriptors
-        self._configs[key] = config
-        machine.transition(McpConnectionState.CONNECTED)
-        return descriptors
 
     async def disconnect(self, server_id: UUID | str) -> None:
-        key = str(server_id)
-        context = self._contexts.pop(key, None)
-        self._clients.pop(key, None)
-        self._catalog.pop(key, None)
-        machine = self._states.setdefault(key, McpStateMachine())
-        if machine.state is not McpConnectionState.DISABLED:
-            machine.transition(McpConnectionState.DISABLED)
-        if context is not None:
-            # 停用必须幂等；远端连接关闭失败不能把用户的 DB 开关操作变成 500。
-            with suppress(Exception):
-                await context.__aexit__(None, None, None)
+        server_id = str(server_id)
+        self._catalog.pop(server_id, None)
+        machine = self._states.setdefault(server_id, McpStateMachine())
+        machine.transition(McpConnectionState.DISABLED)
 
     async def call(self, server_id: UUID | str, remote_name: str, arguments: dict[str, Any]) -> Any:
-        key = str(server_id)
-        if key not in self._configs:
+        server_id = str(server_id)
+        if server_id not in self._configs:
             raise McpHostError("MCP Server 未连接")
         call_arguments = dict(arguments)
-        if "agent_id" not in call_arguments and key in self._agent_ids:
-            call_arguments["agent_id"] = self._agent_ids[key]
-        # MCP SDK 的 AnyIO 上下文不能跨 StreamingResponse/审核请求复用。
-        # 每次工具调用建立并关闭独立会话，避免 cancel scope 跨任务清理。
-        if key in self._contexts:
-            await self.disconnect(key)
-        config = self._configs[key]
+        # 有些特殊的 MCP Server（比如多智能体代理服务、支持 Session 的代码解释器或带上下文的 MCP 服务）：
+        # 1.第一次调用工具（比如 create_agent 或 init_session）时，服务端会在返回的内容里夹带一个 agent_id: "agent-123456"；
+        # 2.服务端要求后续调用这个 Server 的其它工具时，入参必须带上这个 agent_id 才能定位到同一个会话；
+        # 3.但是前端大模型（LLM）在发起下一次 tool_call 时，不一定会每次都乖乖在 arguments 里把 agent_id 原样传回来。
+        # 4.所以代码在这里做了一层会话自动回填机制（Sticky Session / Context Injection）：
+        #       1）MCP Host 负责把这个 Server 产生的 agent_id 记住；
+        #       2）下次同一个 Server 的任何工具被调用时，如果参数里没传，自动把它补进去，保证多轮交互上下文不丢失。
+        if "agent_id" not in call_arguments and server_id in self._agent_ids:
+            call_arguments["agent_id"] = self._agent_ids[server_id]
+
         for attempt in range(2):
-            context = self.factory.connect(**config)
-            entered = False
             try:
-                client = await context.__aenter__()
-                entered = True
-                result = await client.call_tool(remote_name, call_arguments)
-                agent_id = _find_agent_id(result)
-                if agent_id:
-                    self._agent_ids[key] = agent_id
-                return result
+                # MCP SDK 的 AnyIO 上下文不能跨 StreamingResponse/审核请求复用。
+                # 每次工具调用建立并关闭独立会话，避免 cancel scope 跨任务清理
+                async with self.factory.connect(**self._configs[server_id]) as client:
+                    # 2. 调用工具后，从工具返回的结果里递归查找有没有返回 agent_id / agentId
+                    result = await client.call_tool(remote_name, call_arguments)
+                    agent_id = _find_agent_id(result)
+                    if agent_id:
+                        self._agent_ids[server_id] = agent_id
+                    # 核心修复：如果是 Pydantic 模型，转成可 JSON 序列化的 dict
+                    if hasattr(result, "model_dump"):
+                        return result.model_dump(by_alias=True, exclude_none=True)
+                    return result
             except Exception as error:
                 if attempt == 0 and "connection closed" in str(error).lower():
                     continue
                 raise McpHostError(_safe_error(error)) from error
-            finally:
-                if entered:
-                    with suppress(Exception):
-                        await context.__aexit__(None, None, None)
+
         raise McpHostError("MCP 工具调用失败")

@@ -3,12 +3,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .dependencies import current_user_uuid
+from app.core.security import current_user_uuid
 from app.db.session import get_db_session
-from app.modules.threads.service import get_owned_thread
 from app.modules.checkpoints.repository import CheckpointRepository
 from app.modules.checkpoints.schemas import CheckpointResponse
-
+from app.modules.threads.service import get_owned_thread
 
 router = APIRouter(prefix="/api/threads/{thread_id}/checkpoints", tags=["checkpoints"])
 

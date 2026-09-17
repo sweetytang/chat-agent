@@ -4,10 +4,14 @@ import { request } from '@/shared/http/client';
 export const getPendingInterrupt = (threadId: string) =>
   request<PendingInterruptResponse | null>(`/threads/${threadId}/interrupts/pending`);
 
-export const resolveInterrupt = (requestId: string, decision: 'approve' | 'edit' | 'reject') =>
+export const resolveInterrupt = (
+  requestId: string,
+  decision: 'approve' | 'approve_always' | 'edit' | 'reject',
+  payload?: Record<string, unknown>,
+) =>
   request(`/interrupts/${requestId}/resolve`, {
     method: 'POST',
-    body: JSON.stringify({ decision }),
+    body: JSON.stringify({ decision, payload }),
   });
 
 export const resumeInterrupt = (requestId: string) =>

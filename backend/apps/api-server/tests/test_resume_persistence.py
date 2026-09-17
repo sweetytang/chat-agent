@@ -142,7 +142,9 @@ async def test_resume_persists_tool_result_and_messages_to_db() -> None:
         assert reloaded_checkpoint is not None
         items = reloaded_checkpoint.state["timeline"]["items"]
         persisted_tool = next(item for item in items if item["id"] == tool_call_id)
-        assert persisted_tool["status"] == "completed", f"tool status in db is {persisted_tool['status']}"
+        assert persisted_tool["status"] == "completed", (
+            f"tool status in db is {persisted_tool['status']}"
+        )
         assert persisted_tool["result"] is not None
         assert any(
             item["kind"] == "message"
@@ -262,8 +264,8 @@ async def test_generate_resumed_run_events_directly_persists_detached_checkpoint
 @pytest.mark.asyncio
 async def test_resume_handles_consecutive_approval_interrupt() -> None:
     from app.integrations.llm.fake import FakeChatModel
-    from app.modules.mcp.naming import ToolIdentity
     from app.modules.mcp.agent import McpToolSnapshot
+    from app.modules.mcp.schemas import ToolIdentity
     from app.modules.runs.resume import generate_resumed_run_events
 
     engine = create_engine("sqlite://")
@@ -301,21 +303,25 @@ async def test_resume_handles_consecutive_approval_interrupt() -> None:
     }
 
     with Session(engine, expire_on_commit=False) as s:
-        s.add_all([
-            User(id=user_id, email="chain@test.com", password_hash="hash"),
-            Thread(id=thread_id, user_id=user_id, title="连续审批测试"),
-            Checkpoint(id=checkpoint_id, thread_id=thread_id, state={"timeline": deepcopy(timeline)}),
-            Run(id=run_id, thread_id=thread_id, status=RunStatus.INTERRUPTED),
-            Interrupt(
-                id=interrupt_id,
-                run_id=run_id,
-                checkpoint_id=checkpoint_id,
-                request_id=request_id,
-                kind="mcp_tool",
-                payload={"tool": "first_tool", "tool_call_id": tool_call_id},
-                status=InterruptStatus.PENDING,
-            ),
-        ])
+        s.add_all(
+            [
+                User(id=user_id, email="chain@test.com", password_hash="hash"),
+                Thread(id=thread_id, user_id=user_id, title="连续审批测试"),
+                Checkpoint(
+                    id=checkpoint_id, thread_id=thread_id, state={"timeline": deepcopy(timeline)}
+                ),
+                Run(id=run_id, thread_id=thread_id, status=RunStatus.INTERRUPTED),
+                Interrupt(
+                    id=interrupt_id,
+                    run_id=run_id,
+                    checkpoint_id=checkpoint_id,
+                    request_id=request_id,
+                    kind="mcp_tool",
+                    payload={"tool": "first_tool", "tool_call_id": tool_call_id},
+                    status=InterruptStatus.PENDING,
+                ),
+            ]
+        )
         s.commit()
         run_context = RunContext(checkpoint=s.get(Checkpoint, checkpoint_id))
 
@@ -338,6 +344,7 @@ async def test_resume_handles_consecutive_approval_interrupt() -> None:
         tool_calls=[{"name": "first_tool", "args": {"step": "next"}, "id": "second-call"}],
     )
     from dataclasses import replace
+
     run_dependencies_manager.configure_run_dependencies(
         replace(run_dependencies, fake_chat_model=lambda **_: fake_model)
     )
@@ -371,6 +378,6 @@ async def test_resume_handles_consecutive_approval_interrupt() -> None:
         db_run = verify_session.get(Run, run_id)
         assert db_run.status == RunStatus.INTERRUPTED
         items = verify_session.get(Checkpoint, checkpoint_id).state["timeline"]["items"]
-        assert any(item["id"] == "second-call" and item["status"] == "awaiting_approval" for item in items)
-
-
+        assert any(
+            item["id"] == "second-call" and item["status"] == "awaiting_approval" for item in items
+        )

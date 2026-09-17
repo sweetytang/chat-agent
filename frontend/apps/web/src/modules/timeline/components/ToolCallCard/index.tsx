@@ -11,6 +11,7 @@ import {
 import { useState } from 'react';
 
 import type { ToolItem } from '@/modules/timeline/types';
+import { ApprovalBar } from '@/shared/components/ApprovalBar';
 import { CodeBlock } from '@/shared/components/CodeBlock';
 
 import styles from './index.module.css';
@@ -159,7 +160,12 @@ export function ToolCallCard({
   item: ToolItem;
   approvalActive: boolean;
   approvalResolving: boolean;
-  onApproval: (requestId: string, runId: string, decision: 'approve' | 'edit' | 'reject') => void;
+  onApproval: (
+    requestId: string,
+    runId: string,
+    decision: 'approve' | 'approve_always' | 'edit' | 'reject',
+    payload?: Record<string, unknown>,
+  ) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const isActive = item.status === 'running' || item.status === 'awaiting_approval';
@@ -178,7 +184,7 @@ export function ToolCallCard({
       open={isActive || expanded}
       onOpenChange={setExpanded}
     >
-      <section aria-label={`工具：${item.tool}`}>
+      <section aria-label={`工具：${item.tool}`} className={styles.cardGroup}>
         <Collapsible.Trigger className={styles.header}>
           <span className={styles.titleGroup}>
             <span className={styles.toolIcon}>
@@ -230,27 +236,15 @@ export function ToolCallCard({
             )}
           </section>
           {item.status === 'awaiting_approval' && item.request_id && item.run_id && (
-            <div className={styles.approval} aria-label={`工具审核：${item.tool}`}>
-              <strong>
-                {approvalResolving
-                  ? '正在恢复运行…'
-                  : approvalActive
-                    ? `工具需要审核：${item.tool}`
-                    : `工具审核：${item.tool}`}
-              </strong>
-              <div className={styles.actions} aria-label="审核操作">
-                {(['approve', 'edit', 'reject'] as const).map((decision) => (
-                  <button
-                    disabled={!approvalActive || approvalResolving}
-                    key={decision}
-                    onClick={() => onApproval(item.request_id!, item.run_id!, decision)}
-                    type="button"
-                  >
-                    {{ approve: '批准', edit: '编辑', reject: '拒绝' }[decision]}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <ApprovalBar
+              disabled={!approvalActive || approvalResolving}
+              initialArguments={item.arguments}
+              onDecision={(decision, payload) =>
+                onApproval(item.request_id!, item.run_id!, decision, payload)
+              }
+              resolving={approvalResolving}
+              toolName={item.tool}
+            />
           )}
           {(Object.keys(item.arguments).length > 0 || item.result !== null) && (
             <details className={styles.raw}>

@@ -1,11 +1,8 @@
 import pytest
 
-from app.modules.mcp.agent.results import normalize_tool_result
-from app.modules.mcp.crypto import CredentialCrypto
+from app.modules.mcp.agent.domain import normalize_tool_result
 from app.modules.mcp.host import McpHost, McpHostError, project_input_schema
 from app.modules.mcp.host.state import McpConnectionState, McpStateMachine
-from app.modules.mcp.naming import TOOL_NAME_PATTERN, ToolNameMapper
-from app.modules.mcp.network import NetworkPolicyError, validate_public_http_url
 
 
 def test_tool_mapper_is_stable_and_bidirectional() -> None:

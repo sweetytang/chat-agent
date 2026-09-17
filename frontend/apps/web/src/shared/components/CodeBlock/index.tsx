@@ -115,7 +115,7 @@ export function CodeBlock({
       </div>
       <CodeMirror
         aria-label={ariaLabel ?? displayLabel}
-        basicSetup={{ foldGutter: folding, lineNumbers }}
+        basicSetup={{ foldGutter: folding, lineNumbers, highlightSelectionMatches: false }}
         className={styles.editor}
         editable={!readOnly}
         extensions={editorExtensions}

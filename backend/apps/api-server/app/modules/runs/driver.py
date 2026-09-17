@@ -10,9 +10,11 @@ import anyio
 from langchain_core.messages import BaseMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.common.utils.to_uuid import to_uuid
 from app.db.models import RunStatus, Thread
 from app.modules.mcp.agent import McpToolSnapshot, build_langchain_tools
 from app.modules.runs.interrupts import create_approval_interrupt
+from app.modules.threads.repository import ThreadRepository
 from app.modules.threads.title import set_title_after_first_round
 from app.modules.timeline.domain import extract_conversation_messages
 from app.modules.timeline.recorder import TimelineRecorder
@@ -57,6 +59,20 @@ async def invoke_agent_driver(
     mcp_tools = tuple(build_langchain_tools(mcp_snapshots))
     snapshots_by_name = {snapshot.identity.internal_name: snapshot for snapshot in mcp_snapshots}
 
+    # 读取当前会话已授权免审批的工具
+    thread_approved_tools: set[str] = set()
+    if session is not None:
+        thread_id = to_uuid(request.thread_id)
+        if thread_id is not None:
+            thread_approved_tools = await ThreadRepository(session).get_approved_tools(thread_id)
+
+    # 只有 require_approval 为 True 且未在当前对话中永久批准的工具才加入审批名单
+    approval_tool_names = frozenset(
+        name
+        for name, snapshot in snapshots_by_name.items()
+        if getattr(snapshot, "require_approval", True) and name not in thread_approved_tools
+    )
+
     async for graph_event in run_dependencies.agent_driver().stream(
         model,
         input_messages,
@@ -64,7 +80,7 @@ async def invoke_agent_driver(
         thread_id=request.thread_id,
         tools=[*run_dependencies.default_langchain_tools(), *mcp_tools],
         continue_after_tools=True,
-        approval_tool_names=frozenset(snapshots_by_name),
+        approval_tool_names=approval_tool_names,
     ):
         match graph_event.event:
             case "tool.approval_requested":
@@ -94,14 +110,11 @@ async def invoke_agent_driver(
                         "server_id": snapshot.identity.server_id,
                         "security_version": snapshot.security_version,
                     },
-                    mcp_snapshot=snapshot,
                     tool_call_id=tool_call_id,
                 )
 
-                # MCP SDK 的 AnyIO 上下文必须在建立它的 SSE 任务中关闭，
-                # 审核会切换到另一个请求任务，因此这里先释放连接，恢复时再懒加载。
-                mcp_host_getter = run_dependencies.mcp_host
-                mcp_host = mcp_host_getter() if callable(mcp_host_getter) else mcp_host_getter
+                # MCP SDK 的 AnyIO 上下文无法跨会话，而审核会切换到另一个请求任务，因此这里先释放连接，恢复时再懒加载。
+                mcp_host = run_dependencies.get_mcp_host()
                 if mcp_host is not None:
                     await mcp_host.disconnect(snapshot.identity.server_id)
                 yield tool_call_event.to_sse()
@@ -153,7 +166,7 @@ async def managed_run_stream(
     interrupted_is_terminal: bool = True,
 ) -> AsyncIterator[str]:
     try:
-        run_dependencies = run_dependencies_manager.configure_run_dependencies()
+        run_dependencies = run_dependencies_manager.get_run_dependencies()
         run_coordination = run_dependencies.run_coordination
         async for event in events:
             yield event

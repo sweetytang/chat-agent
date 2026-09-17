@@ -77,7 +77,7 @@
 
 .editor :global(.cm-activeLine),
 .editor :global(.cm-activeLineGutter) {
-  background: var(--surface-hover);
+  background: color-mix(in srgb, var(--code-text) 20%, transparent);
 }
 
 .editor :global(.cm-selectionBackground),

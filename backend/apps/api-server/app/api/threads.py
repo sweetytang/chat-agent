@@ -3,18 +3,17 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .dependencies import current_user_uuid
+from app.core.security import current_user_uuid
 from app.db.session import get_db_session
+from app.modules.checkpoints.repository import CheckpointRepository
 from app.modules.checkpoints.service import resolve_timeline_branch
 from app.modules.threads.repository import ThreadRepository
-from app.modules.checkpoints.repository import CheckpointRepository
 from app.modules.threads.schemas import (
     CreateThreadRequest,
     ThreadResponse,
     UpdateThreadRequest,
 )
 from app.modules.timeline.schemas import ThreadTimelineResponse, TimelineSnapshotResponse
-
 
 router = APIRouter(prefix="/api/threads", tags=["threads"])
 

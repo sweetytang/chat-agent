@@ -120,7 +120,9 @@ async def stream_graph_events(
     reasoning_segment = 0
     reasoning_item_id: str | None = None
     reasoning_started = False
-    async for item in graph.astream_events({"messages": list(messages)}, version="v2"):
+    async for item in graph.astream_events(
+        {"messages": list(messages)}, version="v2", config={"recursion_limit": 100}
+    ):
         kind = item.get("event", "")
         data = item.get("data") or {}
         chunk = data.get("chunk")

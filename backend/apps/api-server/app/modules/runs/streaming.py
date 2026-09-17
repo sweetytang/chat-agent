@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import RunStatus
 from app.modules.mcp.agent import McpToolSnapshot
-from app.modules.timeline.domain import extract_conversation_messages, get_latest_user_content
+from app.modules.timeline.domain import get_latest_user_content, timeline_to_model_messages
 from app.modules.timeline.recorder import TimelineRecorder
 
 from .dependencies import run_dependencies_manager
@@ -22,12 +22,11 @@ async def generate_run_events(
     request: RunRequest,
     run_context: RunContext | None,
     mcp_snapshots: tuple[McpToolSnapshot, ...] = (),
-    mcp_load_error: str | None = None,
     mcp_loader: Callable[[], Awaitable[tuple[McpToolSnapshot, ...]]] | None = None,
 ) -> AsyncIterator[str]:
     """先提供稳定的业务事件协议，再把模型节点接入同一事件出口。"""
 
-    run_dependencies = run_dependencies_manager.configure_run_dependencies()
+    run_dependencies = run_dependencies_manager.get_run_dependencies()
     run_coordination = run_dependencies.run_coordination
     timeline_recorder = TimelineRecorder(
         checkpoint=run_context.checkpoint if run_context is not None else None,
@@ -52,18 +51,18 @@ async def generate_run_events(
                 if session is not None:
                     await session.rollback()
                 mcp_load_error = "MCP 工具加载失败，请检查 Server 状态并刷新"
-        if mcp_load_error:
-            sequence += 1
-            yield (
-                timeline_recorder.record(
-                    run_id,
-                    request.thread_id,
-                    sequence,
-                    "mcp.error",
-                    item_id=f"{run_id}:mcp-error:{sequence}",
-                    error=mcp_load_error,
-                ).to_sse()
-            )
+                sequence += 1
+                yield (
+                    timeline_recorder.record(
+                        run_id,
+                        request.thread_id,
+                        sequence,
+                        "mcp.error",
+                        item_id=f"{run_id}:mcp-error:{sequence}",
+                        error=mcp_load_error,
+                    ).to_sse()
+                )
+
         run_repository = RunRepository(session) if session is not None else None
         if run_repository is not None:
             await run_repository.update_status(UUID(run_id), RunStatus.RUNNING)
@@ -84,7 +83,7 @@ async def generate_run_events(
                     "terminal_segment": True,
                 }
             )
-        input_messages = extract_conversation_messages(timeline)
+        input_messages = timeline_to_model_messages(timeline)
         prompt_content = get_latest_user_content(timeline, request.content)
 
         async for event in invoke_agent_driver(

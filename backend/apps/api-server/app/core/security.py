@@ -1,12 +1,17 @@
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 import jwt
 from pwdlib import PasswordHash
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.db.models import User
+from app.db.session import get_db_session
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token", auto_error=False)
@@ -52,3 +57,23 @@ def get_optional_subject(
     if token is None:
         return None
     return get_subject(token)
+
+
+def current_user_uuid(subject: str = Depends(get_subject)) -> UUID:
+    """提取当前登录用户的 UUID。"""
+
+    if subject is None:
+        raise HTTPException(status_code=401, detail="需要登录后访问该资源")
+    try:
+        return UUID(subject)
+    except ValueError as error:
+        raise HTTPException(status_code=401, detail="无效用户身份") from error
+
+
+async def current_user(
+    user_id: UUID = Depends(current_user_uuid), session: AsyncSession = Depends(get_db_session)
+) -> User:
+    user = await session.scalar(select(User).where(User.id == user_id))
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户不存在")
+    return user

@@ -1,5 +1,4 @@
-from app.modules.mcp.host import McpHost
-
+from app.modules.mcp.host.client import McpHost
 
 # 内部持有 mcp_host 实例
 _mcp_host: McpHost | None = None

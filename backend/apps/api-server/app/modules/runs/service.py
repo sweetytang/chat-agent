@@ -3,26 +3,28 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Awaitable, Callable
-from dataclasses import replace
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Checkpoint, Thread
+from app.common.utils.to_uuid import to_uuid
+from app.db.models import Thread, UserMcpServer
 from app.modules.checkpoints.repository import CheckpointRepository
-from app.modules.mcp.agent import McpToolSnapshot
+from app.modules.interrupts.repository import InterruptRepository
+from app.modules.mcp.agent import McpToolSnapshot, load_server_snapshots
 from app.modules.timeline.domain import (
     checkpoint_timeline,
     empty_timeline,
     extract_conversation_messages,
+    get_latest_user_content,
 )
 
 from .dependencies import run_dependencies_manager
 from .driver import managed_run_stream
 from .repository import RunRepository
 from .resume import generate_resumed_run_events
-from .schemas import PendingReview, ResumeRequest, RunContext, RunRequest
+from .schemas import ResumeRequest, RunContext, RunRequest
 from .streaming import generate_run_events
 
 
@@ -109,11 +111,11 @@ class RunService:
 
     @staticmethod
     def stream_run(
-        session: AsyncSession | None,
         run_id: str,
         request: RunRequest,
         run_context: RunContext | None,
         *,
+        session: AsyncSession | None = None,
         mcp_loader: Callable[[], Awaitable[tuple[McpToolSnapshot, ...]]] | None = None,
     ) -> AsyncIterator[str]:
         """开启并执行一个完整的生命周期受控流（Managed Stream）。"""
@@ -134,38 +136,103 @@ class RunService:
 
     @staticmethod
     async def stream_resume(
+        run_id: str,
         resume_request: ResumeRequest,
-        pending_review: PendingReview,
+        user_id: UUID,
         *,
-        session: AsyncSession,
+        session: AsyncSession | None = None,
     ) -> AsyncIterator[str]:
         """恢复已被人工审批中断的运行，并接入受控生命周期管理。"""
 
-        if pending_review is None:
-            raise ValueError("stream_resume: pending_review can not be None")
+        # 唯一事实来源：从数据库加载 interrupt 记录并校验状态
+        run_dependencies = run_dependencies_manager.get_run_dependencies()
+        persisted_run = await RunRepository(session).get_owned(to_uuid(run_id), user_id)
+        if persisted_run is None:
+            raise HTTPException(status_code=404, detail="运行不存在")
 
-        # 上一轮的model实例都是游离态，想要更改同步数据库，必须Re-attach（checkpoint）；只读则不用重新获取（input_checkpoint）
-        run_context = pending_review.run_context
-        if session is not None and run_context is not None and run_context.checkpoint is not None:
-            db_checkpoint = await session.get(Checkpoint, run_context.checkpoint_id)
-            if db_checkpoint is not None:
-                run_context = RunContext(
-                    checkpoint=db_checkpoint,
-                    input_checkpoint=run_context.input_checkpoint,
+        interrupt = await InterruptRepository(session).get_by_request_id(resume_request.request_id)
+        if interrupt is None:
+            raise HTTPException(status=404, detail="恢复记录不存在")
+        if str(interrupt.run_id) != run_id:
+            raise HTTPException(status=409, detail="审核请求不存在或已过期")
+
+        # 1. 重建 Checkpoint 上下文 (包含 input_checkpoint)
+        checkpoint = None
+        input_checkpoint = None
+        if interrupt.checkpoint_id is not None:
+            checkpoint = await CheckpointRepository(session).get(
+                persisted_run.thread_id,
+                interrupt.checkpoint_id,
+            )
+            if checkpoint is not None and checkpoint.parent_id is not None:
+                input_checkpoint = await CheckpointRepository(session).get(
+                    persisted_run.thread_id,
+                    checkpoint.parent_id,
                 )
-                pending_review = replace(pending_review, run_context=run_context)
+        run_context = (
+            RunContext(checkpoint=checkpoint, input_checkpoint=input_checkpoint)
+            if checkpoint is not None
+            else None
+        )
+
+        # 2. 从真实的 checkpoint timeline 中提取用户当时的真实提问文本，绝不伪造
+        original_user_content = (
+            get_latest_user_content(run_context.timeline) if run_context is not None else ""
+        )
+        request = RunRequest(
+            thread_id=str(persisted_run.thread_id),
+            content=original_user_content,
+        )
+        tool_call_id = interrupt.payload.get("tool_call_id")
+        arguments = interrupt.payload.get("arguments")
+        if not isinstance(arguments, dict):
+            arguments = {}
+
+        # 3. 处理 MCP 工具快照恢复
+        mcp_snapshot = None
+        if interrupt.kind == "mcp_tool":
+            server_id = interrupt.payload.get("server_id")
+            tool_name = interrupt.payload.get("tool")
+            try:
+                server = await session.get(UserMcpServer, UUID(str(server_id)))
+            except ValueError, TypeError:
+                server = None
+
+            mcp_host = run_dependencies.get_mcp_host()
+            if server is None or not server.enabled or mcp_host is None or user_id is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="MCP 服务已停用或失效，审核请求不可用",
+                )
+            server_tools = await load_server_snapshots(
+                server,
+                mcp_host,
+            )
+            mcp_snapshot = next(
+                snapshot
+                for snapshot in server_tools
+                if snapshot.identity.internal_name == tool_name
+            )
+            if mcp_snapshot is None:
+                raise HTTPException(status_code=409, detail="MCP 工具已不可用")
 
         return managed_run_stream(
             generate_resumed_run_events(
+                run_id,
                 resume_request,
-                pending_review,
+                request,
+                run_context,
+                tool_call_id,
+                arguments,
+                user_id=user_id,
+                snapshot=mcp_snapshot,
                 session=session,
             ),
-            run_id=pending_review.run_id,
-            request=pending_review.request,  # 恢复时由分支快照恢复上下文
+            run_id=run_id,
+            request=request,  # 恢复时由分支快照恢复上下文
             session=session,
-            run_context=pending_review.run_context,
-            interrupted_is_terminal=False,
+            run_context=run_context,
+            interrupted_is_terminal=True,
         )
 
     @staticmethod

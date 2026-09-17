@@ -1,9 +1,9 @@
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Interrupt, InterruptStatus, Run
+from app.db.models import Interrupt, InterruptStatus, Run, RunStatus
 from app.modules.runs.repository import RunRepository
 
 
@@ -20,7 +20,6 @@ class InterruptRepository:
         checkpoint_id: UUID | None = None,
     ) -> Interrupt:
         interrupt = Interrupt(
-            id=uuid4(),
             run_id=run_id,
             checkpoint_id=checkpoint_id,
             request_id=request_id,
@@ -50,12 +49,17 @@ class InterruptRepository:
         return interrupt if run is not None else None
 
     async def get_pending_for_thread(self, thread_id: UUID) -> Interrupt | None:
+        """获取指定线程中当前真正处于活跃中断（所属 Run 必须为 INTERRUPTED）的待审批记录。
+
+        对于已结束（COMPLETED / FAILED / CANCELLED）的历史 Run 中的遗留中断，直接忽略。
+        """
         result = await self.session.execute(
             select(Interrupt)
             .join(Run, Run.id == Interrupt.run_id)
             .where(
                 Run.thread_id == thread_id,
-                Interrupt.status != InterruptStatus.RESUMED,
+                Run.status == RunStatus.INTERRUPTED,
+                Interrupt.status == InterruptStatus.PENDING,
             )
             .order_by(Interrupt.created_at.desc())
             .limit(1)

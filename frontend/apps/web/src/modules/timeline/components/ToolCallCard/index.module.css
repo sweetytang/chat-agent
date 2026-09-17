@@ -21,6 +21,10 @@
   align-items: center;
 }
 
+.cardGroup:hover {
+  background: var(--surface-hover);
+}
+
 .header {
   justify-content: space-between;
   gap: 16px;
@@ -31,10 +35,6 @@
   background: transparent;
   border: 0;
   cursor: pointer;
-}
-
-.header:hover {
-  background: var(--surface-hover);
 }
 
 .titleGroup {
@@ -120,7 +120,7 @@
 .content {
   display: grid;
   gap: 12px;
-  padding: 0 15px 15px;
+  padding: 0 15px;
 }
 
 .section {

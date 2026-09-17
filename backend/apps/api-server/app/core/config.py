@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me-in-development"
     mcp_encryption_key: str = ""
     mcp_stdio_commands: str = "npx"
+    enable_local_mcp: bool = True
+    allowed_local_commands: list[str] = ["npx", "uvx", "node", "python", "python3"]
 
     @field_validator("database_url", mode="after")
     @classmethod

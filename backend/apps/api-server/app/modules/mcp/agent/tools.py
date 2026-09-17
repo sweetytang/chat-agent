@@ -12,7 +12,7 @@ from typing import Any, Protocol
 
 from langchain_core.tools import StructuredTool
 
-from app.modules.mcp.naming import ToolIdentity
+from app.modules.mcp.schemas import ToolIdentity
 
 
 class McpToolCaller(Protocol):
@@ -28,6 +28,7 @@ class McpToolSnapshot:
     input_schema: Mapping[str, Any]
     caller: McpToolCaller
     enabled: bool = True
+    require_approval: bool = True
     security_version: int = 1
     server_name: str = "MCP Server"
 

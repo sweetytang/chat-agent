@@ -1,27 +1,27 @@
-export interface McpTool {
-  id: string;
-  remote_name: string;
-  internal_name: string;
-  description?: string | null;
-  compatibility: string;
-  risk?: string;
-  is_present: boolean;
+export interface McpToolRule {
+  enabled?: boolean;
+  require_approval?: boolean;
+}
+
+export interface LiveMcpTool {
+  name: string;
+  description: string;
   enabled: boolean;
+  require_approval: boolean;
 }
 
 export interface McpServer {
   id: string;
   name: string;
-  scope: 'PRIVATE' | 'SHARED';
-  transport: 'STREAMABLE_HTTP' | 'STDIO';
+  transport: 'sse' | 'streamable_http' | 'stdio' | string;
   endpoint?: string | null;
   command?: string | null;
   args?: string[];
-  env?: Record<string, string>;
-  status: string;
+  process_env?: Record<string, string>;
+  request_headers?: Record<string, string>;
   enabled: boolean;
+  tool_rules?: {
+    tools?: Record<string, McpToolRule>;
+  };
   last_error?: string | null;
-  credential_configured: boolean;
-  security_version: number;
-  tools?: McpTool[];
 }

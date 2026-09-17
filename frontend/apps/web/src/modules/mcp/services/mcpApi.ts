@@ -1,59 +1,23 @@
 import { request } from '@/shared/http/client';
 
-import type { McpServer } from '../types';
+import type { McpServer, LiveMcpTool } from '../types';
 
 export function listMcpServers() {
   return request<McpServer[]>('/mcp/servers');
 }
 
-export function listMcpTools(serverId: string) {
-  return request<NonNullable<McpServer['tools']>>(`/mcp/servers/${serverId}/tools`);
+export function listServerLiveTools(serverId: string) {
+  return request<LiveMcpTool[]>(`/mcp/servers/${serverId}/tools`);
 }
 
-export function setServerEnabled(serverId: string, enabled: boolean) {
-  return request<{ enabled: boolean }>(`/mcp/servers/${serverId}/enabled`, {
-    method: 'POST',
-    body: JSON.stringify({ enabled }),
+export function syncMcpConfig(mcpServers: Record<string, unknown>) {
+  return request<McpServer[]>('/mcp/config', {
+    method: 'PUT',
+    body: JSON.stringify({ mcpServers }),
   });
 }
 
-export function setToolEnabled(toolId: string, enabled: boolean) {
-  return request<{ enabled: boolean }>(`/mcp/tools/${toolId}/enabled`, {
-    method: 'POST',
-    body: JSON.stringify({ enabled }),
-  });
-}
-
-export function createMcpServer(payload: {
-  name: string;
-  scope: 'PRIVATE' | 'SHARED';
-  transport: 'STREAMABLE_HTTP' | 'STDIO';
-  endpoint?: string;
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-  bearer_token?: string;
-  headers?: Record<string, string>;
-}) {
-  return request<McpServer>('/mcp/servers', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
-
-export function updateMcpServer(
-  serverId: string,
-  payload: {
-    name?: string;
-    transport?: 'STREAMABLE_HTTP' | 'STDIO';
-    endpoint?: string;
-    bearer_token?: string;
-    headers?: Record<string, string>;
-    command?: string;
-    args?: string[];
-    env?: Record<string, string>;
-  },
-) {
+export function updateMcpServer(serverId: string, payload: Partial<McpServer>) {
   return request<McpServer>(`/mcp/servers/${serverId}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
@@ -62,9 +26,4 @@ export function updateMcpServer(
 
 export function deleteMcpServer(serverId: string) {
   return request<void>(`/mcp/servers/${serverId}`, { method: 'DELETE' });
-}
-
-/** Refresh is intentionally a separate action so a failed discovery can be retried. */
-export function refreshMcpServer(serverId: string) {
-  return request<McpServer>(`/mcp/servers/${serverId}/refresh`, { method: 'POST' });
 }

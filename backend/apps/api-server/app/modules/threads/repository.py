@@ -2,6 +2,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.db.models import Checkpoint, Thread
 
@@ -46,3 +47,20 @@ class ThreadRepository:
             thread.is_pinned = is_pinned
         await self.session.flush()
         return thread
+
+    async def add_approved_tool(self, thread_id: UUID, tool_name: str) -> None:
+        thread = await self.session.get(Thread, thread_id)
+        if thread is None:
+            return
+        tools = list(thread.approved_tools or [])
+        if tool_name not in tools:
+            tools.append(tool_name)
+            thread.approved_tools = tools
+            flag_modified(thread, "approved_tools")
+            await self.session.flush()
+
+    async def get_approved_tools(self, thread_id: UUID) -> set[str]:
+        thread = await self.session.get(Thread, thread_id)
+        if thread is None or not thread.approved_tools:
+            return set()
+        return set(thread.approved_tools)
