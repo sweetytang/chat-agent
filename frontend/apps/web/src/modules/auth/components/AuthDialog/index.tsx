@@ -13,6 +13,7 @@ export function AuthDialog() {
   const setOpen = useUiStore((state) => state.setAuthDialogOpen);
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,12 +23,14 @@ export function AuthDialog() {
     event.preventDefault();
     if (mode === 'register' && password !== confirmPassword) return;
     setIsSubmitting(true);
-    const action =
-      mode === 'register' ? useAuthStore.getState().register : useAuthStore.getState().login;
-    const success = await action(email, password);
+    const success =
+      mode === 'register'
+        ? await useAuthStore.getState().register(email, password, name.trim() || undefined)
+        : await useAuthStore.getState().login(email, password);
     setIsSubmitting(false);
     if (success) {
       setEmail('');
+      setName('');
       setPassword('');
       setConfirmPassword('');
       setOpen(false);
@@ -52,6 +55,17 @@ export function AuthDialog() {
             {mode === 'login' ? '登录后继续你的 Agent 会话' : '注册后即可保存和管理会话'}
           </Dialog.Description>
           <form className={styles.form} onSubmit={(event) => void submit(event)}>
+            {mode === 'register' && (
+              <label>
+                姓名
+                <input
+                  type="text"
+                  placeholder="例如：张三"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </label>
+            )}
             <label>
               邮箱
               <input

@@ -231,7 +231,6 @@
 .account {
   margin-top: auto;
   padding-top: 10px;
-  border-top: 1px solid var(--border);
 }
 
 .login {

@@ -14,6 +14,7 @@ class RunRequest(BaseModel):
     content: str = Field(min_length=1)
     checkpoint_id: UUID | None = None
     mode: str = Field(default="send", pattern="^(send|edit|regenerate)$")
+    model: str | None = None
 
 
 class ResumeRequest(BaseModel):

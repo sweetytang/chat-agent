@@ -45,6 +45,8 @@ async def invoke_agent_driver(
     """
     run_dependencies = run_dependencies_manager.get_run_dependencies()
     provider = run_dependencies.get_provider_config()
+    if request.model and hasattr(provider, "model_copy"):
+        provider = provider.model_copy(update={"model_name": request.model})
     model = (
         (
             run_dependencies.fake_chat_model(chunks=fake_model_chunks)

@@ -122,7 +122,7 @@ export function Sidebar({ collapsed = false, onNavigate }: SidebarProps) {
       <div className={styles.header}>
         <div className={styles.brand}>
           <BrandMark size={27} />
-          <strong>LUI Agent</strong>
+          <strong>OpenAgent</strong>
         </div>
         <Tooltip.Provider delayDuration={300}>
           <div className={styles.headerActions}>

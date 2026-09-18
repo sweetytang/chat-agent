@@ -42,6 +42,16 @@ export function Chat() {
   const threadId = useThreadStore((state) => state.threadId);
   const isRefreshing = useThreadStore((state) => Boolean(state.refreshingThreads[threadId]));
   const token = useAuthStore((state) => state.token);
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    return typeof window !== 'undefined'
+      ? window.localStorage.getItem('lui-agent:selected-model') ?? ''
+      : '';
+  });
+
+  function handleSelectModel(modelId: string) {
+    setSelectedModel(modelId);
+    window.localStorage.setItem('lui-agent:selected-model', modelId);
+  }
   const { timeline, status, pendingApproval, lastRequest } = useRunStore((state) =>
     selectThreadRun(state, threadId),
   );
@@ -63,6 +73,7 @@ export function Chat() {
       content: options.content,
       checkpoint_id: options.checkpointId,
       mode: options.mode,
+      model: selectedModel,
     };
     const runStore = useRunStore.getState();
     runStore.setLastRequest(options.threadId, options);
@@ -289,6 +300,8 @@ export function Chat() {
             value={input}
             disabled={isRefreshing}
             running={active}
+            selectedModel={selectedModel}
+            onSelectModel={handleSelectModel}
             onChange={setInput}
             onSubmit={() => void submit()}
             onStop={() => void stop()}

@@ -2,17 +2,20 @@
   position: relative;
   width: min(800px, calc(100% - 32px));
   margin: 0 auto 16px;
-  padding: 14px 54px 28px 17px;
+  padding: 14px 16px 12px 17px;
   background: var(--surface-raised);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-composer);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .composer textarea {
   display: block;
   width: 100%;
-  min-height: 25px;
+  min-height: 28px;
   max-height: 180px;
   resize: none;
   color: var(--text-primary);
@@ -20,6 +23,7 @@
   border: 0;
   outline: 0;
   line-height: 1.55;
+  font-size: 14px;
 }
 
 .composer textarea::placeholder {
@@ -31,20 +35,42 @@
   opacity: 0.8;
 }
 
+.bottomBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: 11px;
+  user-select: none;
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .send,
 .stop {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   place-items: center;
   color: var(--accent-contrast);
   background: var(--accent);
   border: 0;
   border-radius: 50%;
   cursor: pointer;
+  transition: all var(--motion-fast);
+  flex-shrink: 0;
+}
+
+.send:hover:not(:disabled) {
+  background: var(--accent-hover);
 }
 
 .stop {
@@ -59,19 +85,12 @@
   cursor: not-allowed;
 }
 
-.hint {
-  position: absolute;
-  bottom: 9px;
-  left: 17px;
-  color: var(--text-muted);
-  font-size: 10px;
-}
-
 @media (width <= 560px) {
   .composer {
     width: calc(100% - 20px);
     margin-bottom: max(10px, env(safe-area-inset-bottom));
     border-radius: var(--radius-lg);
+    padding: 12px 14px 10px 14px;
   }
 
   .hint {

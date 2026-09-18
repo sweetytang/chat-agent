@@ -1,6 +1,7 @@
 import { ArrowUp, LockKeyhole, Square } from 'lucide-react';
 import { forwardRef, useEffect, useRef, type KeyboardEvent, type Ref } from 'react';
 
+import { ModelSelector } from '@/modules/chat/components/ModelSelector';
 import { shouldSubmitComposer } from '@/modules/chat/domain/composer';
 
 import styles from './index.module.css';
@@ -9,13 +10,24 @@ interface ChatComposerProps {
   value: string;
   disabled: boolean;
   running: boolean;
+  selectedModel: string;
+  onSelectModel: (model: string) => void;
   onChange: (value: string) => void;
   onSubmit: () => void;
   onStop: () => void;
 }
 
 export const ChatComposer = forwardRef(function ChatComposer(
-  { value, disabled, running, onChange, onSubmit, onStop }: ChatComposerProps,
+  {
+    value,
+    disabled,
+    running,
+    selectedModel,
+    onSelectModel,
+    onChange,
+    onSubmit,
+    onStop,
+  }: ChatComposerProps,
   forwardedRef: Ref<HTMLTextAreaElement>,
 ) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
@@ -57,26 +69,36 @@ export const ChatComposer = forwardRef(function ChatComposer(
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={keyDown}
         aria-label="消息"
-        placeholder={disabled ? '登录后开始对话' : '向 LUI Agent 发送消息'}
+        placeholder={disabled ? '登录后开始对话' : '发送消息'}
       />
-      <button
-        className={running ? styles.stop : styles.send}
-        disabled={!running && (disabled || !value.trim())}
-        onClick={running ? onStop : onSubmit}
-        type="button"
-        aria-label={running ? '停止运行' : '发送消息'}
-      >
-        {running ? (
-          <Square size={15} fill="currentColor" />
-        ) : disabled ? (
-          <LockKeyhole size={16} />
-        ) : (
-          <ArrowUp size={19} />
-        )}
-      </button>
-      <span className={styles.hint}>
-        {disabled ? '需要先登录' : 'Enter 发送 · Shift + Enter 换行'}
-      </span>
+      <div className={styles.bottomBar}>
+        <span className={styles.hint}>
+          {disabled ? '需要先登录' : 'Enter 发送 · Shift + Enter 换行'}
+        </span>
+
+        <div className={styles.actions}>
+          <ModelSelector
+            disabled={disabled || running}
+            onSelectModel={onSelectModel}
+            selectedModel={selectedModel}
+          />
+          <button
+            className={running ? styles.stop : styles.send}
+            disabled={!running && (disabled || !value.trim())}
+            onClick={running ? onStop : onSubmit}
+            type="button"
+            aria-label={running ? '停止运行' : '发送消息'}
+          >
+            {running ? (
+              <Square size={15} fill="currentColor" />
+            ) : disabled ? (
+              <LockKeyhole size={16} />
+            ) : (
+              <ArrowUp size={19} />
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 });

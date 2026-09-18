@@ -18,7 +18,7 @@ export function WelcomePanel({
 }) {
   return (
     <section className={styles.welcome}>
-      <h1>{authenticated ? '今天想一起完成什么？' : '欢迎使用 LUI Agent'}</h1>
+      <h1>{authenticated ? '今天想一起完成什么？' : '欢迎使用 OpenAgent'}</h1>
       <p>
         {authenticated
           ? '从一个问题开始，我会协助你思考、组织并执行。'

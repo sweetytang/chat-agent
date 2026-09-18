@@ -1,10 +1,11 @@
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import create_access_token, get_subject
+from app.core.security import create_access_token, current_user
+from app.db.models import User
 from app.db.session import get_db_session
 from app.modules.auth.refresh_tokens import (
     RefreshTokenError,
@@ -17,9 +18,10 @@ from app.modules.auth.service import authenticate_user, register_user
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-class AuthRequest(BaseModel):
+class RegisterRequest(BaseModel):
     email: str
     password: str = Field(min_length=8)
+    name: str | None = Field(default=None, max_length=100)
 
     @field_validator("email")
     @classmethod
@@ -28,6 +30,10 @@ class AuthRequest(BaseModel):
         if "@" not in value or value.startswith("@") or value.endswith("@"):
             raise ValueError("请输入有效邮箱")
         return value
+
+
+class UpdateProfileRequest(BaseModel):
+    name: str = Field(max_length=100)
 
 
 class AuthResponse(BaseModel):
@@ -42,23 +48,33 @@ class RefreshRequest(BaseModel):
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 async def register(
-    payload: AuthRequest, session: Annotated[AsyncSession, Depends(get_db_session)]
+    payload: RegisterRequest, session: Annotated[AsyncSession, Depends(get_db_session)]
 ) -> AuthResponse:
     try:
-        user = await register_user(session, payload.email, payload.password)
+        user = await register_user(session, payload.email, payload.password, name=payload.name)
         refresh_token, _ = await create_refresh_token(session, user.id)
         await session.commit()
         return AuthResponse(
             access_token=create_access_token(str(user.id)), refresh_token=refresh_token
         )
-    except ValueError as error:
+    except Exception as error:
         await session.rollback()
-        raise HTTPException(status_code=409, detail=str(error)) from error
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return value.strip().lower()
 
 
 @router.post("/token", response_model=AuthResponse)
 async def login(
-    payload: AuthRequest, session: Annotated[AsyncSession, Depends(get_db_session)]
+    payload: LoginRequest, session: Annotated[AsyncSession, Depends(get_db_session)]
 ) -> AuthResponse:
     try:
         user = await authenticate_user(
@@ -75,8 +91,31 @@ async def login(
 
 
 @router.get("/me")
-async def me(subject: str = Depends(get_subject)) -> dict[str, str]:
-    return {"user_id": subject}
+async def me(
+    user: User = Depends(current_user),
+) -> dict[str, Any]:
+    return {
+        "user_id": str(user.id),
+        "email": user.email,
+        "name": user.name,
+        "role": user.role.value if hasattr(user.role, "value") else str(user.role),
+    }
+
+
+@router.patch("/me")
+async def update_profile(
+    payload: UpdateProfileRequest,
+    user: User = Depends(current_user),
+) -> dict[str, Any]:
+    if payload.name is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="姓名不能传空值")
+    name = payload.name.strip()
+    return {
+        "user_id": str(user.id),
+        "email": user.email,
+        "name": name,
+        "role": user.role.value if hasattr(user.role, "value") else str(user.role),
+    }
 
 
 @router.post("/refresh", response_model=AuthResponse)

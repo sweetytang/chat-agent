@@ -1,3 +1,4 @@
+import { useUiStore } from '@/app/store/ui';
 import { BranchSwitcher } from '@/modules/checkpoints/components/BranchSwitcher';
 import type { TimelineItem } from '@/modules/timeline/types';
 
@@ -12,8 +13,9 @@ export function TimelineBranchControls({
   item: TimelineItem;
   onSwitch: (checkpointId: string) => void;
 }) {
+  const branchChatEnabled = useUiStore((state) => state.branchChatEnabled);
   const branchOptions = item.branch_options ?? [];
-  if (branchOptions.length <= 1) return null;
+  if (!branchChatEnabled || branchOptions.length <= 1) return null;
 
   const currentIndex =
     typeof item.branch_index === 'number'

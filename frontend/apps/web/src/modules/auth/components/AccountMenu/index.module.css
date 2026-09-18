@@ -3,13 +3,14 @@
   width: 100%;
   align-items: center;
   gap: 10px;
-  padding: 9px;
+  padding: 5px;
   color: var(--text-primary);
   text-align: left;
   background: transparent;
   border: 0;
   border-radius: var(--radius-md);
   cursor: pointer;
+  transition: background var(--motion-fast);
 }
 
 .trigger:hover {
@@ -25,71 +26,189 @@
 
 .avatar {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   flex: 0 0 auto;
   place-items: center;
+  font-size: 13px;
+  font-weight: 700;
   color: var(--avatar-text);
   background: var(--avatar-soft);
   border: 1px solid var(--avatar-border);
   border-radius: 50%;
-  font-weight: 700;
 }
 
 .compact .avatar {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
 }
 
 .identity {
   min-width: 0;
-  display: grid;
-  gap: 5px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 35px;
+  gap: 2px;
+  flex: 1;
 }
 
-.identity strong {
+.identityName {
   overflow: hidden;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.identity small {
+.identityRole {
+  overflow: hidden;
+  font-size: 12px;
   color: var(--text-muted);
-  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+/* 下拉菜单面板 */
 .menu {
   z-index: 100;
-  min-width: 190px;
+  width: 240px;
   padding: 6px;
-  background: var(--surface-raised);
+  background: var(--surface, #fcfcfb);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
+  animation: menuIn 120ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 顶部账户展示项 */
+.accountHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 10px 10px;
+}
+
+.avatarMini {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--avatar-text);
+  background: var(--avatar-soft);
+  border: 1px solid var(--avatar-border);
+  border-radius: 50%;
+}
+
+.accountInfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 3px;
+}
+
+.accountName {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accountRole {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.separator {
+  height: 1px;
+  margin: 4px -2px;
+  background: var(--border);
+}
+
+/* 菜单操作项 */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .item {
   display: flex;
-  gap: 9px;
   align-items: center;
-  padding: 10px;
-  color: var(--danger);
+  gap: 10px;
+  height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: var(--text-primary);
   border-radius: var(--radius-sm);
   outline: none;
   cursor: pointer;
+  user-select: none;
+  transition: all var(--motion-fast);
 }
 
+.item:hover,
 .item[data-highlighted] {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.itemIcon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-secondary);
+}
+
+.item:hover .itemIcon,
+.item[data-highlighted] .itemIcon {
+  color: var(--accent);
+}
+
+.logoutItem {
+  color: var(--danger);
+}
+
+.logoutItem .itemIcon {
+  color: var(--danger);
+}
+
+.logoutItem:hover,
+.logoutItem[data-highlighted] {
+  color: var(--danger);
   background: var(--danger-soft);
+}
+
+.logoutItem:hover .itemIcon,
+.logoutItem[data-highlighted] .itemIcon {
+  color: var(--danger);
 }
 
 .tooltip {
   z-index: 100;
-  padding: 7px 9px;
+  padding: 6px 10px;
   color: var(--tooltip-text);
   background: var(--tooltip);
   border-radius: var(--radius-sm);
   font-size: 12px;
   box-shadow: var(--shadow-sm);
+}
+
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }

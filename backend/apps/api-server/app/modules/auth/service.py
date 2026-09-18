@@ -7,11 +7,18 @@ from app.core.security import hash_password, verify_password
 from app.db.models import User
 
 
-async def register_user(session: AsyncSession, email: str, password: str) -> User:
+async def register_user(
+    session: AsyncSession, email: str, password: str, name: str | None = None
+) -> User:
     existing = await session.scalar(select(User).where(User.email == email))
     if existing:
         raise ValueError("用户已存在")
-    user = User(id=uuid4(), email=email, password_hash=hash_password(password))
+    user = User(
+        id=uuid4(),
+        email=email,
+        name=name.strip() if name else None,
+        password_hash=hash_password(password),
+    )
     session.add(user)
     await session.flush()
     return user
