@@ -23,15 +23,14 @@ from .schemas import ResumeRequest, RunContext, RunRequest
 
 
 async def generate_resumed_run_events(
+    session: AsyncSession,
+    user_id: UUID,
     run_id: str,
     resume_request: ResumeRequest,
     request: RunRequest,
     run_context: RunContext,
     tool_call_id: str,
     arguments: dict,
-    *,
-    user_id: UUID,
-    session: AsyncSession,
     snapshot: McpToolSnapshot,
 ) -> AsyncIterator[str]:
     request_id = resume_request.request_id
@@ -108,13 +107,13 @@ async def generate_resumed_run_events(
     assistant_content = "工具执行完成。" if decision != "reject" else "已按要求拒绝工具执行。"
 
     async for event in invoke_agent_driver(
-        session=session,
-        run_id=run_id,
-        request=request,
-        run_context=run_context,
-        timeline_recorder=timeline_recorder,
-        sequence=sequence,
-        input_messages=input_messages,
+        session,
+        run_id,
+        request,
+        run_context,
+        timeline_recorder,
+        sequence,
+        input_messages,
         mcp_snapshots=mcp_snapshots,
         prompt_content=request.content,
         default_assistant_content=assistant_content,

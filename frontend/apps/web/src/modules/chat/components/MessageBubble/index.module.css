@@ -1,7 +1,7 @@
 .row {
   display: flex;
   width: 100%;
-  margin: 11px 0;
+  margin: 14px 0;
   animation: message-in var(--motion-normal) ease-out;
 }
 
@@ -13,72 +13,209 @@
   justify-content: flex-start;
 }
 
+/* 外层卡片包装区 */
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  transition: width var(--motion-fast);
+}
+
+.userWrapper {
+  align-items: flex-end;
+  max-width: min(680px, 85%);
+}
+
+/* 编辑状态下：宽度拉伸到最大 100% 充满父容器 */
+.editingWrapper {
+  width: 100% !important;
+  max-width: 100% !important;
+  align-items: stretch !important;
+}
+
+.assistantWrapper {
+  align-items: flex-start;
+  width: min(760px, 100%);
+}
+
 .bubble {
   min-width: 0;
 }
 
+/* 用户气泡：未编辑状态下展示 */
 .userBubble {
-  max-width: min(680px, 85%);
-  padding: 11px 15px;
+  position: relative;
+  width: 100%;
+  padding: 12px 16px;
   color: var(--user-message-text);
   background: var(--user-message);
   border: 1px solid var(--user-message-border);
   border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg);
 }
 
+/* 未编辑状态下：收起时限制展示 4 行高度，超出遮罩截断 */
+.collapsedBubble {
+  max-height: 114px; /* 4 行文本高度约 114px */
+  overflow: hidden;
+  padding-bottom: 28px; /* 底部留出空间给右下角角标 */
+  mask-image: linear-gradient(to bottom, black calc(100% - 32px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 32px), transparent 100%);
+}
+
+/* 仅在未编辑状态下展示的右下角展开/收起箭头角标 */
+.bubbleExpandBtn {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--user-message-text);
+  background: color-mix(in srgb, var(--user-message) 88%, black);
+  border: 1px solid var(--user-message-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  z-index: 2;
+  transition: all var(--motion-fast);
+  opacity: 0.85;
+}
+
+.bubbleExpandBtn:hover {
+  opacity: 1;
+  background: var(--user-message);
+  border-color: var(--accent-border);
+}
+
 .assistantBubble {
-  width: min(760px, 100%);
+  width: 100%;
   color: var(--text-primary);
 }
 
+/* 操作区块容器：位于气泡背景色之外 */
 .actions {
-  display: flex;
-  min-height: 25px;
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 3px;
   margin-top: 6px;
-  opacity: 0;
   transition: opacity var(--motion-fast);
 }
 
-.actions:focus-within,
-.row:hover .actions {
+/* 用户卡片操作区：平时隐藏，hover 或 focus 整个行时展示 */
+.userActions {
+  opacity: 0;
+  justify-content: flex-end;
+}
+
+.userRow:hover .userActions,
+.userActions:focus-within {
   opacity: 1;
 }
 
-.actions button,
-.editActions button {
-  padding: 5px 8px;
+/* Assistant 卡片操作区：常驻展示在内容下方外部 */
+.assistantActions {
+  opacity: 1;
+}
+
+/* 现代化图标按钮 */
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
   color: var(--text-muted);
   background: transparent;
   border: 0;
   border-radius: var(--radius-sm);
-  font-size: 12px;
   cursor: pointer;
+  transition: color var(--motion-fast), background var(--motion-fast);
 }
 
-.actions button:hover,
-.editActions button:hover {
+.iconBtn:hover:not(:disabled) {
   color: var(--text-primary);
-  background: var(--surface-muted);
+  background: var(--surface-hover);
+}
+
+.iconBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.copied {
+  color: var(--success) !important;
+}
+
+/* 编辑模式：占满整行宽度 (100%)，没有任何角标 */
+.editor {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .editor textarea {
   width: 100%;
-  padding: 12px;
-  resize: vertical;
+  max-height: 248px; /* 最大 10 行高度 (24px padding + 10 * 22.4px = 248px)，超过内部滚动 */
+  padding: 12px 16px;
+  resize: none;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
   color: var(--text-primary);
   background: var(--surface-raised);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   outline: none;
+  box-shadow: var(--shadow-sm);
+  box-sizing: border-box;
+  transition: border-color var(--motion-fast);
+}
+
+.editor textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
 .editActions {
   display: flex;
   justify-content: flex-end;
-  gap: 6px;
-  margin-top: 7px;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.submitBtn {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--motion-fast);
+}
+
+.submitBtn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.cancelBtn {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--motion-fast);
+}
+
+.cancelBtn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-primary);
 }
 
 @keyframes message-in {

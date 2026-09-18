@@ -2,23 +2,25 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
+from langchain_core.messages import HumanMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.utils.to_uuid import to_uuid
 from app.db.models import Thread, UserMcpServer
 from app.modules.checkpoints.repository import CheckpointRepository
 from app.modules.interrupts.repository import InterruptRepository
-from app.modules.mcp.agent import McpToolSnapshot, load_server_snapshots
+from app.modules.mcp.agent import load_server_snapshots
 from app.modules.timeline.domain import (
     checkpoint_timeline,
     empty_timeline,
     extract_conversation_messages,
     get_latest_user_content,
 )
+from lui_agent_runtime.events import RuntimeEvent
 
 from .dependencies import run_dependencies_manager
 from .driver import managed_run_stream
@@ -111,22 +113,21 @@ class RunService:
 
     @staticmethod
     def stream_run(
+        session: AsyncSession,
+        user_id: UUID,
         run_id: str,
         request: RunRequest,
-        run_context: RunContext | None,
-        *,
-        session: AsyncSession | None = None,
-        mcp_loader: Callable[[], Awaitable[tuple[McpToolSnapshot, ...]]] | None = None,
+        run_context: RunContext,
     ) -> AsyncIterator[str]:
         """开启并执行一个完整的生命周期受控流（Managed Stream）。"""
 
         return managed_run_stream(
             generate_run_events(
                 session,
+                user_id,
                 run_id,
                 request,
                 run_context,
-                mcp_loader=mcp_loader,
             ),
             session=session,
             run_id=run_id,
@@ -136,11 +137,10 @@ class RunService:
 
     @staticmethod
     async def stream_resume(
+        session: AsyncSession,
         run_id: str,
         resume_request: ResumeRequest,
         user_id: UUID,
-        *,
-        session: AsyncSession | None = None,
     ) -> AsyncIterator[str]:
         """恢复已被人工审批中断的运行，并接入受控生命周期管理。"""
 
@@ -218,15 +218,15 @@ class RunService:
 
         return managed_run_stream(
             generate_resumed_run_events(
+                session,
+                user_id,
                 run_id,
                 resume_request,
                 request,
                 run_context,
                 tool_call_id,
                 arguments,
-                user_id=user_id,
-                snapshot=mcp_snapshot,
-                session=session,
+                mcp_snapshot,
             ),
             run_id=run_id,
             request=request,  # 恢复时由分支快照恢复上下文
@@ -234,6 +234,33 @@ class RunService:
             run_context=run_context,
             interrupted_is_terminal=True,
         )
+
+    @staticmethod
+    async def stream_anonymous_run(run_id: str, request: RunRequest):
+        """匿名游客访问模式"""
+        run_dependencies = run_dependencies_manager.get_run_dependencies()
+        thread_id = request.thread_id
+        sequence = 0
+        yield RuntimeEvent(1, "run.started", run_id, thread_id, sequence, {}).to_sse()
+
+        # 2. 匿名用户直接使用基础模型与默认工具（无私有 MCP，无持久化审批）
+        provider = run_dependencies.get_provider_config()
+        model = run_dependencies.create_chat_model(provider)
+
+        async for graph_event in run_dependencies.agent_driver().stream(
+            model,
+            [HumanMessage(content=request.content)],
+            run_id=run_id,
+            thread_id=thread_id,
+            tools=run_dependencies.default_langchain_tools(),
+        ):
+            sequence += 1
+            yield RuntimeEvent(
+                1, graph_event.event, run_id, thread_id, sequence, graph_event.data
+            ).to_sse()
+
+        sequence += 1
+        yield RuntimeEvent(1, "run.completed", run_id, request.thread_id, sequence, {}).to_sse()
 
     @staticmethod
     def cancel_run(run_id: str) -> bool:
