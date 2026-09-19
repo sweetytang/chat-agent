@@ -1,18 +1,21 @@
 .trigger {
   display: grid;
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   place-items: center;
   color: var(--text-secondary);
-  background: transparent;
+  background: var(--surface-raised);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-xs);
   cursor: pointer;
+  transition: all var(--motion-fast);
 }
 
 .trigger:hover {
   color: var(--text-primary);
-  background: var(--surface-muted);
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
 }
 
 .moon {
@@ -29,8 +32,8 @@
 
 .menu {
   z-index: 100;
-  min-width: 152px;
-  padding: 6px;
+  min-width: 148px;
+  padding: 5px;
   background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -39,26 +42,31 @@
 }
 
 .label {
-  padding: 7px 9px;
+  padding: 6px 8px;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 11.5px;
+  font-weight: 550;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 9px;
-  border-radius: var(--radius-sm);
+  padding: 8px 10px;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 13.5px;
+  border-radius: var(--radius-sm);
   outline: none;
   cursor: pointer;
+  transition: background var(--motion-fast);
 }
 
+.item:hover,
 .item[data-highlighted] {
-  background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--text-primary);
+  background: var(--surface-hover);
 }
 
 @keyframes menu-in {

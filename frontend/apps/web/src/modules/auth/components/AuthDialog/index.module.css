@@ -3,6 +3,7 @@
   z-index: 80;
   inset: 0;
   background: var(--overlay);
+  backdrop-filter: blur(4px);
   animation: fade-in var(--motion-normal) ease;
 }
 
@@ -11,8 +12,8 @@
   z-index: 81;
   top: 50%;
   left: 50%;
-  width: min(420px, calc(100vw - 32px));
-  padding: 34px;
+  width: min(400px, calc(100vw - 32px));
+  padding: 32px 28px;
   background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
@@ -26,76 +27,83 @@
   top: 14px;
   right: 14px;
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   place-items: center;
   color: var(--text-muted);
   background: transparent;
   border: 0;
   border-radius: 50%;
   cursor: pointer;
+  transition: all var(--motion-fast);
 }
 
 .close:hover {
-  background: var(--surface-muted);
   color: var(--text-primary);
+  background: var(--surface-hover);
 }
 
 .brand {
   display: flex;
   justify-content: center;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 
 .title {
   margin: 0;
+  color: var(--text-primary);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
   text-align: center;
-  font-size: 25px;
-  letter-spacing: -0.03em;
 }
 
 .description {
-  margin: 8px 0 25px;
+  margin: 6px 0 22px;
   color: var(--text-secondary);
+  font-size: 13.5px;
   text-align: center;
-  font-size: 14px;
 }
 
 .form {
   display: grid;
-  gap: 15px;
+  gap: 14px;
 }
 
 .form label {
   display: grid;
-  gap: 7px;
+  gap: 6px;
   color: var(--text-secondary);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 550;
 }
 
 .form input {
   width: 100%;
-  padding: 12px 13px;
+  padding: 10px 12px;
   color: var(--text-primary);
+  font-size: 14px;
   background: var(--surface);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   outline: none;
+  transition: border-color var(--motion-fast);
+}
+
+.form input:focus {
+  border-color: var(--accent);
 }
 
 .submit {
-  padding: 13px;
+  padding: 11px;
   color: var(--accent-contrast);
+  font-size: 14px;
+  font-weight: 550;
   background: var(--accent);
   border: 0;
-  border-radius: var(--radius-md);
-  font-weight: 650;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-}
-
-.submit:hover {
-  background: var(--accent-hover);
+  transition: background var(--motion-fast);
 }
 
 .submit:disabled {
@@ -103,19 +111,28 @@
   cursor: not-allowed;
 }
 
+.submit:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
 .switch {
   display: block;
-  margin: 17px auto 0;
+  margin: 16px auto 0;
   color: var(--accent);
+  font-size: 13px;
   background: none;
   border: 0;
   cursor: pointer;
 }
 
+.switch:hover {
+  text-decoration: underline;
+}
+
 .error {
   margin: 0;
   color: var(--danger);
-  font-size: 13px;
+  font-size: 12.5px;
 }
 
 @keyframes fade-in {
@@ -127,6 +144,6 @@
 @keyframes dialog-in {
   from {
     opacity: 0;
-    transform: translate(-50%, -47%) scale(0.98);
+    transform: translate(-50%, -48%) scale(0.97);
   }
 }

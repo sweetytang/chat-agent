@@ -1,7 +1,7 @@
 .row {
   display: flex;
   width: 100%;
-  margin: 14px 0;
+  margin: 22px 0;
   animation: message-in var(--motion-normal) ease-out;
 }
 
@@ -16,14 +16,14 @@
 /* 外层卡片包装区 */
 .wrapper {
   display: flex;
-  flex-direction: column;
   min-width: 0;
+  flex-direction: column;
   transition: width var(--motion-fast);
 }
 
 .userWrapper {
   align-items: flex-end;
-  max-width: min(680px, 85%);
+  max-width: min(660px, 86%);
 }
 
 /* 编辑状态下：宽度拉伸到最大 100% 充满父容器 */
@@ -42,24 +42,26 @@
   min-width: 0;
 }
 
-/* 用户气泡：未编辑状态下展示 */
+/* 用户气泡：借鉴 ChatGPT/Claude，采用平滑圆角与极度舒适的微灰底 */
 .userBubble {
   position: relative;
   width: 100%;
-  padding: 12px 16px;
+  padding: 10px 16px;
   color: var(--user-message-text);
+  font-size: 15px;
+  line-height: 1.65;
   background: var(--user-message);
   border: 1px solid var(--user-message-border);
-  border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg);
+  border-radius: 18px 18px 4px;
+  box-shadow: var(--shadow-xs);
 }
 
 /* 未编辑状态下：收起时限制展示 4 行高度，超出遮罩截断 */
 .collapsedBubble {
-  max-height: 114px; /* 4 行文本高度约 114px */
+  max-height: 114px;
+  padding-bottom: 28px;
   overflow: hidden;
-  padding-bottom: 28px; /* 底部留出空间给右下角角标 */
   mask-image: linear-gradient(to bottom, black calc(100% - 32px), transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 32px), transparent 100%);
 }
 
 /* 仅在未编辑状态下展示的右下角展开/收起箭头角标 */
@@ -67,26 +69,28 @@
   position: absolute;
   right: 8px;
   bottom: 6px;
+  z-index: 2;
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 22px;
   height: 22px;
+  align-items: center;
+  justify-content: center;
   padding: 0;
-  color: var(--user-message-text);
-  background: color-mix(in srgb, var(--user-message) 88%, black);
-  border: 1px solid var(--user-message-border);
-  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  box-shadow: var(--shadow-xs);
   cursor: pointer;
-  z-index: 2;
+  opacity: 0.9;
   transition: all var(--motion-fast);
-  opacity: 0.85;
 }
 
 .bubbleExpandBtn:hover {
+  color: var(--text-primary);
+  background: var(--surface);
+  border-color: var(--border-strong);
   opacity: 1;
-  background: var(--user-message);
-  border-color: var(--accent-border);
 }
 
 .assistantBubble {
@@ -98,7 +102,7 @@
 .actions {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
   margin-top: 6px;
   transition: opacity var(--motion-fast);
 }
@@ -109,8 +113,8 @@
   justify-content: flex-end;
 }
 
-.userRow:hover .userActions,
-.userActions:focus-within {
+.userActions:focus-within,
+.userRow:hover .userActions {
   opacity: 1;
 }
 
@@ -122,10 +126,10 @@
 /* 现代化图标按钮 */
 .iconBtn {
   display: inline-flex;
+  width: 28px;
+  height: 28px;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
   padding: 0;
   color: var(--text-muted);
   background: transparent;
@@ -135,14 +139,14 @@
   transition: color var(--motion-fast), background var(--motion-fast);
 }
 
+.iconBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .iconBtn:hover:not(:disabled) {
   color: var(--text-primary);
   background: var(--surface-hover);
-}
-
-.iconBtn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .copied {
@@ -151,26 +155,25 @@
 
 /* 编辑模式：占满整行宽度 (100%)，没有任何角标 */
 .editor {
-  width: 100%;
   display: flex;
+  width: 100%;
   flex-direction: column;
 }
 
 .editor textarea {
   width: 100%;
-  max-height: 248px; /* 最大 10 行高度 (24px padding + 10 * 22.4px = 248px)，超过内部滚动 */
+  max-height: 248px;
   padding: 12px 16px;
-  resize: none;
-  font-family: inherit;
-  font-size: 14px;
-  line-height: 1.6;
   color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14.5px;
+  line-height: 1.6;
   background: var(--surface-raised);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
-  outline: none;
   box-shadow: var(--shadow-sm);
-  box-sizing: border-box;
+  outline: none;
+  resize: none;
   transition: border-color var(--motion-fast);
 }
 
@@ -188,9 +191,9 @@
 
 .submitBtn {
   padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 500;
   color: var(--accent-contrast);
+  font-size: 12.5px;
+  font-weight: 500;
   background: var(--accent);
   border: 0;
   border-radius: var(--radius-sm);
@@ -204,8 +207,8 @@
 
 .cancelBtn {
   padding: 6px 12px;
-  font-size: 12px;
   color: var(--text-secondary);
+  font-size: 12.5px;
   background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -214,13 +217,13 @@
 }
 
 .cancelBtn:hover:not(:disabled) {
-  background: var(--surface-hover);
   color: var(--text-primary);
+  background: var(--surface-hover);
 }
 
 @keyframes message-in {
   from {
     opacity: 0;
-    transform: translateY(5px);
+    transform: translateY(4px);
   }
 }

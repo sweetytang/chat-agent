@@ -12,14 +12,15 @@ interface AccountMenuProps {
 }
 
 export function AccountMenu({ compact = false }: AccountMenuProps) {
+  const email = useAuthStore((state) => state.email);
   const name = useAuthStore((state) => state.name);
   const role = useAuthStore((state) => state.role);
   const setProfileDialogOpen = useUiStore((state) => state.setProfileDialogOpen);
   const setSettingsDialogOpen = useUiStore((state) => state.setSettingsDialogOpen);
 
-  const shownName = name || '';
+  const shownName = name || (email ?? '已登录账户');
   const roleLabel = !role ? '' : (role === 'ADMIN' ? '管理员' : '普通用户');
-  const initial = shownName.charAt(0).toUpperCase();
+  const initial = (name ? name.charAt(0).toUpperCase() : (email?.charAt(0).toUpperCase() ?? 'U'));
 
   const trigger = (
     <DropdownMenu.Trigger

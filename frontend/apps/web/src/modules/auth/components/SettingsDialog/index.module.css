@@ -1,29 +1,29 @@
 .overlay {
   position: fixed;
-  inset: 0;
-  background: var(--overlay, rgba(0, 0, 0, 0.45));
-  backdrop-filter: blur(4px);
   z-index: 1000;
+  inset: 0;
+  background: var(--overlay);
+  backdrop-filter: blur(4px);
 }
 
 .dialog {
   position: fixed;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  z-index: 1001;
+  display: flex;
   width: 90vw;
   max-width: 640px;
   height: 480px;
-  background: var(--surface-raised, #ffffff);
-  color: var(--text-primary, #1c1d21);
-  border-radius: var(--radius-lg, 16px);
-  box-shadow: var(--shadow-lg, 0 18px 48px rgba(0, 0, 0, 0.14));
-  border: 1px solid var(--border, #e2e2de);
-  z-index: 1001;
-  display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: scaleIn 140ms cubic-bezier(0.16, 1, 0.3, 1);
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  transform: translate(-50%, -50%);
+  animation: scale-in 140ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .header {
@@ -31,8 +31,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border, #e2e2de);
-  background: var(--surface, #fcfcfb);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
 }
 
 .titleGroup {
@@ -42,22 +42,22 @@
 }
 
 .titleIcon {
-  color: var(--accent, #5b5bd6);
+  color: var(--accent);
 }
 
 .title {
   margin: 0;
+  color: var(--text-primary);
   font-size: 15px;
   font-weight: 600;
-  color: var(--text-primary);
 }
 
 .closeBtn {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 28px;
   height: 28px;
+  align-items: center;
+  justify-content: center;
   color: var(--text-secondary);
   background: transparent;
   border: 0;
@@ -78,13 +78,13 @@
 }
 
 .nav {
+  display: flex;
   width: 170px;
+  flex-direction: column;
+  gap: 4px;
   padding: 12px 8px;
   background: var(--surface);
   border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 
 .navItem {
@@ -92,9 +92,9 @@
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-secondary);
   background: transparent;
   border: 0;
   border-radius: var(--radius-sm);
@@ -109,8 +109,8 @@
 
 .navItemActive {
   color: var(--accent);
-  background: var(--accent-soft);
   font-weight: 600;
+  background: var(--accent-soft);
 }
 
 .content {
@@ -127,23 +127,23 @@
 }
 
 .sectionHeader h3 {
-  margin: 0 0 4px 0;
+  margin: 0 0 4px;
+  color: var(--text-primary);
   font-size: 15px;
   font-weight: 600;
-  color: var(--text-primary);
 }
 
 .sectionHeader p {
   margin: 0;
-  font-size: 12px;
   color: var(--text-muted);
+  font-size: 12px;
 }
 
 .settingCard {
+  padding: 16px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 16px;
 }
 
 .settingRow {
@@ -166,14 +166,14 @@
 }
 
 .settingLabel {
+  color: var(--text-primary);
   font-size: 13.5px;
   font-weight: 550;
-  color: var(--text-primary);
 }
 
 .settingDesc {
-  font-size: 12px;
   color: var(--text-secondary);
+  font-size: 12px;
   line-height: 1.4;
 }
 
@@ -188,9 +188,9 @@
   align-items: center;
   gap: 5px;
   padding: 6px 12px;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-secondary);
   background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -199,15 +199,15 @@
 }
 
 .themeBtn:hover {
-  background: var(--surface-hover);
   color: var(--text-primary);
+  background: var(--surface-hover);
 }
 
 .themeBtnActive {
   color: var(--accent);
+  font-weight: 600;
   background: var(--accent-soft);
   border-color: var(--accent-border);
-  font-weight: 600;
 }
 
 /* 开关组件 Switch */
@@ -220,31 +220,31 @@
 }
 
 .switch input {
-  opacity: 0;
   width: 0;
   height: 0;
+  opacity: 0;
 }
 
 .slider {
   position: absolute;
-  cursor: pointer;
   inset: 0;
+  cursor: pointer;
   background-color: var(--border-strong);
-  transition: 0.2s;
   border-radius: 22px;
+  transition: 0.2s;
 }
 
 .slider::before {
   position: absolute;
-  content: "";
-  height: 16px;
-  width: 16px;
-  left: 3px;
   bottom: 3px;
-  background-color: white;
-  transition: 0.2s;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  background-color: var(--surface-raised);
   border-radius: 50%;
   box-shadow: var(--shadow-xs);
+  content: '';
+  transition: 0.2s;
 }
 
 .switch input:checked + .slider {
@@ -265,8 +265,8 @@
   flex: 1;
   height: 32px;
   padding: 0 10px;
-  font-size: 13px;
   color: var(--text-primary);
+  font-size: 13px;
   background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -281,9 +281,9 @@
 .saveBtn {
   height: 32px;
   padding: 0 14px;
+  color: var(--accent-contrast);
   font-size: 12.5px;
   font-weight: 500;
-  color: var(--accent-contrast);
   background: var(--accent);
   border: 0;
   border-radius: var(--radius-sm);
@@ -295,11 +295,12 @@
   background: var(--accent-hover);
 }
 
-@keyframes scaleIn {
+@keyframes scale-in {
   from {
     opacity: 0;
     transform: translate(-50%, -48%) scale(0.96);
   }
+
   to {
     opacity: 1;
     transform: translate(-50%, -50%) scale(1);

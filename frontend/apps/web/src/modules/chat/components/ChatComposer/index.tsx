@@ -69,13 +69,9 @@ export const ChatComposer = forwardRef(function ChatComposer(
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={keyDown}
         aria-label="消息"
-        placeholder={disabled ? '登录后开始对话' : '发送消息'}
+        placeholder={disabled ? '登录后开始对话' : '有事尽管提'}
       />
       <div className={styles.bottomBar}>
-        <span className={styles.hint}>
-          {disabled ? '需要先登录' : 'Enter 发送 · Shift + Enter 换行'}
-        </span>
-
         <div className={styles.actions}>
           <ModelSelector
             disabled={disabled || running}

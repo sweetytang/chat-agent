@@ -1,15 +1,23 @@
 .composer {
   position: relative;
-  width: min(800px, calc(100% - 32px));
-  margin: 0 auto 16px;
-  padding: 14px 16px 12px 17px;
+  display: flex;
+  width: min(780px, calc(100% - 36px));
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto;
+  padding: 12px 16px;
   background: var(--surface-raised);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-composer);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  transition:
+    border-color var(--motion-fast),
+    box-shadow var(--motion-fast);
+}
+
+.composer:focus-within {
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow-composer-focus);
 }
 
 .composer textarea {
@@ -17,13 +25,15 @@
   width: 100%;
   min-height: 28px;
   max-height: 180px;
-  resize: none;
+  padding: 2px 2px 4px;
   color: var(--text-primary);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.6;
   background: transparent;
   border: 0;
   outline: 0;
-  line-height: 1.55;
-  font-size: 14px;
+  resize: none;
 }
 
 .composer textarea::placeholder {
@@ -32,7 +42,7 @@
 
 .disabled {
   background: var(--surface-muted);
-  opacity: 0.8;
+  opacity: 0.75;
 }
 
 .bottomBar {
@@ -40,11 +50,12 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding-top: 2px;
 }
 
 .hint {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 11.5px;
   user-select: none;
 }
 
@@ -59,18 +70,33 @@
   display: grid;
   width: 32px;
   height: 32px;
+  flex-shrink: 0;
   place-items: center;
-  color: var(--accent-contrast);
-  background: var(--accent);
   border: 0;
   border-radius: 50%;
   cursor: pointer;
   transition: all var(--motion-fast);
-  flex-shrink: 0;
+}
+
+.send {
+  color: var(--accent-contrast);
+  background: var(--accent);
+}
+
+.send:disabled {
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .send:hover:not(:disabled) {
   background: var(--accent-hover);
+  transform: scale(1.04);
+}
+
+.send:active:not(:disabled) {
+  transform: scale(0.96);
 }
 
 .stop {
@@ -79,18 +105,16 @@
   border: 1px solid var(--border-strong);
 }
 
-.send:disabled {
-  color: var(--text-muted);
-  background: var(--surface-muted);
-  cursor: not-allowed;
+.stop:hover {
+  background: var(--surface-hover);
 }
 
-@media (width <= 560px) {
+@media (width <= 640px) {
   .composer {
     width: calc(100% - 20px);
     margin-bottom: max(10px, env(safe-area-inset-bottom));
+    padding: 12px 14px 10px;
     border-radius: var(--radius-lg);
-    padding: 12px 14px 10px 14px;
   }
 
   .hint {

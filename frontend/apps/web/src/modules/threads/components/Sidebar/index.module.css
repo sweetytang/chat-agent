@@ -3,7 +3,7 @@
   height: 100%;
   min-width: 0;
   flex-direction: column;
-  padding: 14px 12px 10px;
+  padding: 12px 10px 10px;
   color: var(--text-primary);
   background: var(--sidebar);
   border-right: 1px solid var(--border);
@@ -13,27 +13,28 @@
   display: flex;
   width: 62px;
   height: 100%;
-  align-items: center;
-  gap: 14px;
   flex-direction: column;
-  padding: 16px 10px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 8px;
   background: var(--sidebar);
   border-right: 1px solid var(--border);
 }
 
 .header {
   display: flex;
+  min-height: 36px;
   align-items: center;
   justify-content: space-between;
-  min-height: 38px;
-  margin-bottom: 8px;
-  padding: 0 4px 0 7px;
+  margin-bottom: 6px;
+  padding: 0 4px 0 6px;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  font-weight: 600;
   letter-spacing: -0.02em;
 }
 
@@ -45,38 +46,42 @@
 
 .collapseButton {
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   place-items: center;
   color: var(--text-secondary);
   background: transparent;
   border: 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  transition: all var(--motion-fast);
 }
 
 .collapseButton:hover {
   color: var(--text-primary);
-  background: var(--surface-muted);
+  background: var(--surface-hover);
 }
 
 .newButton {
   display: flex;
+  width: 100%;
+  min-height: 36px;
   align-items: center;
   justify-content: flex-start;
   gap: 8px;
-  width: 100%;
-  min-height: 40px;
-  padding: 9px 11px;
+  padding: 8px 10px;
   color: var(--text-primary);
+  font-size: 13.5px;
+  font-weight: 500;
   background: transparent;
   border: 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  transition: all var(--motion-fast);
 }
 
 .newButton:hover {
-  background: var(--surface-muted);
+  background: var(--surface-hover);
 }
 
 .newButton:disabled {
@@ -86,22 +91,24 @@
 
 .mcpButton {
   display: flex;
+  width: 100%;
+  min-height: 34px;
   align-items: center;
   justify-content: flex-start;
   gap: 8px;
-  width: 100%;
-  min-height: 38px;
-  padding: 8px 11px;
+  padding: 7px 10px;
   color: var(--text-secondary);
+  font-size: 13px;
   background: transparent;
   border: 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  transition: all var(--motion-fast);
 }
 
 .mcpButton:hover {
   color: var(--text-primary);
-  background: var(--surface-muted);
+  background: var(--surface-hover);
 }
 
 .mcpButton:disabled {
@@ -120,30 +127,32 @@
   padding: 3px 1px;
 
   & > div {
-    width: 100%;
     display: block !important;
+    width: 100%;
   }
 }
 
 .item {
   display: flex;
+  width: 100%;
   flex-wrap: nowrap;
   align-items: center;
-  width: 100%;
-  padding: 3px 5px 3px 0;
+  padding: 2px 4px 2px 0;
   overflow: hidden;
   color: var(--text-secondary);
+  font-size: 13.5px;
   background: transparent;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
+  transition: background var(--motion-fast);
 }
 
 .itemLink {
   display: flex;
+  flex: auto;
   flex-wrap: nowrap;
   align-items: center;
-  flex: auto;
   gap: 6px;
-  padding: 7px 5px 7px 11px;
+  padding: 6px 4px 6px 8px;
   overflow: hidden;
   color: inherit;
   text-align: left;
@@ -167,15 +176,15 @@
 
 .item:hover [data-thread-actions-trigger],
 .item:focus-within [data-thread-actions-trigger] {
-  opacity: 1;
   visibility: visible;
+  opacity: 1;
   pointer-events: auto;
 }
 
 .item.active {
   color: var(--text-primary);
-  background: var(--accent-soft);
-  font-weight: 600;
+  font-weight: 550;
+  background: var(--surface-hover);
 }
 
 .pin {
@@ -188,9 +197,9 @@
   flex: 1;
   padding: 28px 12px;
   color: var(--text-muted);
-  text-align: center;
   font-size: 13px;
   line-height: 1.55;
+  text-align: center;
 }
 
 .empty button {
@@ -203,13 +212,13 @@
 .threadListLoading {
   display: grid;
   gap: 8px;
-  padding: 8px 5px;
+  padding: 8px 4px;
 }
 
 .threadListLoading span {
-  height: 34px;
+  height: 32px;
   background: var(--surface-muted);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   animation: skeleton-pulse 1.2s ease-in-out infinite alternate;
 }
 
@@ -230,20 +239,24 @@
 
 .account {
   margin-top: auto;
-  padding-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
 }
 
 .login {
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 9px;
-  padding: 11px;
+  gap: 8px;
+  padding: 8px 10px;
   color: var(--text-primary);
+  font-size: 13.5px;
+  font-weight: 500;
   background: transparent;
   border: 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  transition: background var(--motion-fast);
 }
 
 .login:hover {
@@ -252,14 +265,15 @@
 
 .iconButton {
   display: grid;
-  width: 39px;
-  height: 39px;
+  width: 36px;
+  height: 36px;
   place-items: center;
   color: var(--text-secondary);
   background: transparent;
   border: 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  transition: all var(--motion-fast);
 }
 
 .iconButton:disabled {
@@ -269,11 +283,13 @@
 
 .iconButton:not(:disabled):hover {
   color: var(--text-primary);
-  background: var(--surface-muted);
+  background: var(--surface-hover);
 }
 
 .railAccount {
   margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
 }
 
 .railLogin {
@@ -286,6 +302,7 @@
   border: 1px solid var(--border);
   border-radius: 50%;
   cursor: pointer;
+  transition: all var(--motion-fast);
 }
 
 .railLogin:hover {
@@ -296,22 +313,22 @@
 
 .tooltip {
   z-index: 100;
-  padding: 7px 9px;
+  padding: 6px 10px;
   color: var(--tooltip-text);
-  background: var(--tooltip);
-  border-radius: var(--radius-sm);
   font-size: 12px;
+  background: var(--tooltip);
+  border-radius: var(--radius-xs);
   box-shadow: var(--shadow-sm);
 }
 
 .scrollbar {
-  width: 7px;
-  padding: 2px;
+  width: 6px;
+  padding: 1px;
 }
 
 .thumb {
   background: var(--border-strong);
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
 @media (width <= 800px) {

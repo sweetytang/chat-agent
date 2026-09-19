@@ -1,118 +1,167 @@
 :root {
   color-scheme: light;
 
-  --background: #f9f9f7;
-  --sidebar: #f2f2ef;
-  --surface: #fcfcfb;
+  /* 背景与表面层级 - 借鉴 Claude 极度温润舒适的纸张质感底色 */
+  --background: #fbfbfa;
+  --sidebar: #f5f5f3;
+  --surface: #fff;
   --surface-raised: #fff;
   --surface-muted: #f0f0ed;
   --surface-hover: #e8e8e4;
-  --text-primary: #1c1d21;
-  --text-secondary: #5c606b;
-  --text-muted: #8b8e97;
-  --border: #e2e2de;
-  --border-strong: #d1d2ce;
-  --accent: #5b5bd6;
-  --accent-hover: #4d4dc4;
-  --accent-soft: #eef;
-  --accent-border: #b9b9ed;
+
+  /* 文字层级 - 深度炭灰，对比舒适不刺眼 */
+  --text-primary: #18181b;
+  --text-secondary: #52525b;
+  --text-muted: #8c8c96;
+
+  /* 边框层级 */
+  --border: #e6e6e2;
+  --border-strong: #d5d5cf;
+
+  /* 强调色 - 优化为优雅柔和、低饱和的暮紫灰 (Soft Slate Iris)，彻底告别刺眼电光紫 */
+  --accent: #5e5a96;
+  --accent-hover: #4f4b85;
+  --accent-soft: #f2f1f8;
+  --accent-border: #d6d4e8;
   --accent-contrast: #fff;
-  --brand-primary: #4b4d52;
-  --brand-secondary: #b8babd;
-  --brand-glow: 0 6px 16px rgb(75 77 82 / 13%);
-  --avatar-soft: #ececea;
-  --avatar-text: #505257;
-  --avatar-border: #d1d2ce;
-  --danger: #c23b4a;
-  --danger-soft: #fff0f1;
-  --danger-border: #efb8bf;
-  --warning: #a66b17;
-  --warning-soft: #fff7df;
-  --warning-border: #dfbd73;
-  --success: #287d55;
-  --success-soft: #edf8f2;
-  --success-border: #a9d8bf;
-  --user-message: #e8e9ff;
-  --user-message-border: #d6d7fb;
-  --user-message-text: #24254a;
-  --ambient-glow: rgb(106 112 224 / 9%);
-  --overlay: rgb(20 22 29 / 42%);
-  --tooltip: #25262c;
+
+  /* 品牌中性标志 */
+  --brand-primary: #3f3f46;
+  --brand-secondary: #a1a1aa;
+  --brand-glow: 0 4px 16px rgb(63 63 70 / 8%);
+
+  /* 头像 */
+  --avatar-soft: #ecece9;
+  --avatar-text: #4a4a50;
+  --avatar-border: #d4d4ce;
+
+  /* 状态色 - 柔和低饱和 */
+  --danger: #d03d4c;
+  --danger-soft: #fef2f3;
+  --danger-border: #f8c9ce;
+  --warning: #ad6d14;
+  --warning-soft: #fff9ea;
+  --warning-border: #f4d498;
+  --success: #2e7d58;
+  --success-soft: #f0f9f4;
+  --success-border: #b8e4cd;
+
+  /* 用户消息气泡 - 借鉴 ChatGPT/Claude，采用极度柔和舒适的中性微暖灰底，搭配沉稳深炭字，不再是刺眼的紫色大色块 */
+  --user-message: #f1f1ee;
+  --user-message-border: #e3e3de;
+  --user-message-text: #18181b;
+
+  /* 环境光晕 - 极微弱通透，提供微妙的质感层级 */
+  --ambient-glow: rgb(94 90 150 / 3%);
+  --overlay: rgb(18 18 22 / 40%);
+  --tooltip: #1f2024;
   --tooltip-text: #fff;
-  --code-background: #24262d;
-  --code-toolbar: #2d3038;
-  --code-border: #3b3e48;
-  --code-text: #ebedf3;
-  --code-muted: #aeb2bd;
-  --code-inline: #ececf2;
-  --code-inline-text: #4b4d78;
-  --shadow-xs: 0 1px 2px rgb(20 21 26 / 4%);
-  --shadow-sm: 0 3px 10px rgb(20 21 26 / 6%);
-  --shadow-md: 0 10px 26px rgb(20 21 26 / 9%);
-  --shadow-lg: 0 18px 48px rgb(20 21 26 / 14%);
-  --shadow-composer: 0 6px 22px rgb(30 31 38 / 6%);
-  --radius-sm: 7px;
-  --radius-md: 11px;
+
+  /* 代码块颜色 */
+  --code-background: #1e1f24;
+  --code-toolbar: #27282f;
+  --code-border: #353640;
+  --code-text: #e7e9ef;
+  --code-muted: #9aa0af;
+  --code-inline: #f0f0ec;
+  --code-inline-text: #4e4d6a;
+
+  /* 投影系统 - 更轻盈、更通透 */
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 3%);
+  --shadow-sm: 0 2px 8px rgb(0 0 0 / 4%), 0 1px 2px rgb(0 0 0 / 2%);
+  --shadow-md: 0 8px 24px rgb(0 0 0 / 6%), 0 2px 6px rgb(0 0 0 / 3%);
+  --shadow-lg: 0 16px 40px rgb(0 0 0 / 10%), 0 4px 12px rgb(0 0 0 / 4%);
+  --shadow-composer: 0 4px 20px rgb(0 0 0 / 5%), 0 1px 3px rgb(0 0 0 / 3%);
+  --shadow-composer-focus: 0 6px 24px rgb(94 90 150 / 8%), 0 2px 6px rgb(0 0 0 / 4%);
+
+  /* 几何圆角 - 现代平滑圆角 */
+  --radius-xs: 5px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
   --radius-lg: 16px;
-  --radius-xl: 22px;
-  --radius-pill: 999px;
-  --motion-fast: 140ms;
-  --motion-normal: 220ms;
+  --radius-xl: 32px;
+  --radius-pill: 9999px;
+
+  /* 动效过渡 */
+  --motion-fast: 150ms;
+  --motion-normal: 240ms;
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --background: #191a1d;
-  --sidebar: #1d1e22;
-  --surface: #222329;
-  --surface-raised: #282a30;
-  --surface-muted: #303238;
-  --surface-hover: #393b42;
-  --text-primary: #f1f1f4;
-  --text-secondary: #b0b0bb;
-  --text-muted: #777984;
-  --border: #383a42;
-  --border-strong: #484a54;
-  --accent: #8988ff;
-  --accent-hover: #9d9cff;
-  --accent-soft: #292844;
-  --accent-border: #55548e;
-  --accent-contrast: #111117;
-  --brand-primary: #ededee;
-  --brand-secondary: #85878c;
-  --brand-glow: 0 6px 20px rgb(237 237 238 / 12%);
-  --avatar-soft: #303136;
-  --avatar-text: #d7d8da;
-  --avatar-border: #4b4d53;
-  --danger: #ff858f;
-  --danger-soft: #3b2228;
-  --danger-border: #67353d;
-  --warning: #e7b05d;
-  --warning-soft: #382e1d;
-  --warning-border: #6f5730;
-  --success: #6dd7a0;
-  --success-soft: #1e3329;
-  --success-border: #355e49;
-  --user-message: #2d3150;
-  --user-message-border: #41466f;
-  --user-message-text: #f0f0ff;
-  --ambient-glow: rgb(103 91 228 / 13%);
-  --overlay: rgb(0 0 0 / 48%);
-  --tooltip: #ededf1;
-  --tooltip-text: #18181c;
-  --code-background: #101115;
-  --code-toolbar: #191a20;
-  --code-border: #30323b;
-  --code-text: #e5e7ed;
-  --code-muted: #9397a2;
-  --code-inline: #292a34;
-  --code-inline-text: #c8c6ff;
-  --shadow-xs: 0 1px 2px rgb(0 0 0 / 18%);
-  --shadow-sm: 0 4px 14px rgb(0 0 0 / 16%);
-  --shadow-md: 0 12px 32px rgb(0 0 0 / 24%);
-  --shadow-lg: 0 20px 58px rgb(0 0 0 / 32%);
-  --shadow-composer: 0 8px 28px rgb(0 0 0 / 22%);
+  /* 深色背景与表面层级 - 借鉴 ChatGPT/Claude 深色模式的 Zinc 高级深炭黑 */
+  --background: #18181b;
+  --sidebar: #131315;
+  --surface: #1f1f23;
+  --surface-raised: #27272c;
+  --surface-muted: #2f2f35;
+  --surface-hover: #383842;
+
+  /* 深色文字层级 */
+  --text-primary: #f4f4f6;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+
+  /* 深色边框层级 */
+  --border: #2e2e36;
+  --border-strong: #3f3f4c;
+
+  /* 深色强调色 - 优雅低饱和薰衣草暮灰，明朗而不刺目 */
+  --accent: #9793d4;
+  --accent-hover: #aca8e6;
+  --accent-soft: #27253a;
+  --accent-border: #444265;
+  --accent-contrast: #101015;
+
+  /* 品牌中性标志 */
+  --brand-primary: #f4f4f6;
+  --brand-secondary: #71717a;
+  --brand-glow: 0 4px 20px rgb(244 244 246 / 10%);
+
+  /* 头像 */
+  --avatar-soft: #2c2c32;
+  --avatar-text: #d4d4d8;
+  --avatar-border: #42424b;
+
+  /* 状态色 */
+  --danger: #ff7582;
+  --danger-soft: #381f24;
+  --danger-border: #633038;
+  --warning: #f1b764;
+  --warning-soft: #382c19;
+  --warning-border: #695128;
+  --success: #5cd094;
+  --success-soft: #193325;
+  --success-border: #2e5f43;
+
+  /* 深色用户消息气泡 - 柔和深炭灰底 */
+  --user-message: #28282e;
+  --user-message-border: #383842;
+  --user-message-text: #f4f4f6;
+
+  /* 环境微光与遮罩 */
+  --ambient-glow: rgb(151 147 212 / 4.5%);
+  --overlay: rgb(0 0 0 / 55%);
+  --tooltip: #f4f4f6;
+  --tooltip-text: #141417;
+
+  /* 代码块颜色 */
+  --code-background: #111114;
+  --code-toolbar: #1a1a1f;
+  --code-border: #2a2b33;
+  --code-text: #e2e4ec;
+  --code-muted: #848897;
+  --code-inline: #272731;
+  --code-inline-text: #c5c3e8;
+
+  /* 投影系统 */
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 25%);
+  --shadow-sm: 0 3px 10px rgb(0 0 0 / 22%);
+  --shadow-md: 0 10px 28px rgb(0 0 0 / 30%);
+  --shadow-lg: 0 18px 48px rgb(0 0 0 / 40%);
+  --shadow-composer: 0 6px 24px rgb(0 0 0 / 24%);
+  --shadow-composer-focus: 0 6px 28px rgb(151 147 212 / 10%), 0 2px 8px rgb(0 0 0 / 30%);
 }
 
 * {
@@ -131,16 +180,23 @@ body {
   color: var(--text-primary);
   background: var(--background);
   font-family:
-    Inter,
-    ui-sans-serif,
     -apple-system,
     BlinkMacSystemFont,
     'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
     'PingFang SC',
+    'Hiragino Sans GB',
     'Microsoft YaHei',
+    'WenQuanYi Micro Hei',
     sans-serif;
   font-size: 14px;
+  line-height: 1.6;
+  letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizelegibility;
 }
 
 button,
@@ -149,6 +205,7 @@ textarea {
   font: inherit;
 }
 
+/* 全局按钮和菜单项聚焦时不显示多余边框或阴影，符合无障碍与设计契约 */
 button:focus,
 button:focus-visible,
 [role='menuitem']:focus,

@@ -1,24 +1,27 @@
 .welcome {
   display: flex;
-  width: min(760px, 100%);
-  margin: auto;
-  align-items: center;
+  width: min(720px, 100%);
   flex-direction: column;
-  padding: 42px 20px 26px;
+  align-items: center;
+  margin: auto;
+  padding: 48px 20px 28px;
   text-align: center;
 }
 
 .welcome h1 {
-  margin: 22px 0 8px;
-  font-size: clamp(28px, 4vw, 40px);
-  line-height: 1.15;
-  letter-spacing: -0.045em;
+  margin: 20px 0 8px;
+  color: var(--text-primary);
+  font-size: clamp(26px, 3.5vw, 34px);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
 }
 
 .welcome > p {
-  max-width: 520px;
+  max-width: 480px;
   margin: 0;
   color: var(--text-secondary);
+  font-size: 14.5px;
   line-height: 1.6;
 }
 
@@ -26,40 +29,51 @@
   display: grid;
   width: 100%;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 30px;
+  gap: 12px;
+  margin-top: 32px;
 }
 
 .prompts button {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   padding: 14px 16px;
   color: var(--text-secondary);
+  font-size: 13.5px;
+  line-height: 1.5;
   text-align: left;
   background: var(--surface-raised);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
   cursor: pointer;
   transition:
+    color var(--motion-fast),
     border-color var(--motion-fast),
+    box-shadow var(--motion-fast),
     transform var(--motion-fast),
     background var(--motion-fast);
 }
 
 .prompts button:hover {
   color: var(--text-primary);
-  background: var(--accent-soft);
-  border-color: var(--accent-border);
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
   transform: translateY(-1px);
 }
 
-@media (width <= 560px) {
+@media (width <= 600px) {
   .prompts {
     grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .welcome {
-    padding-top: 28px;
+    padding-top: 32px;
+  }
+
+  .welcome h1 {
+    font-size: 24px;
   }
 }
