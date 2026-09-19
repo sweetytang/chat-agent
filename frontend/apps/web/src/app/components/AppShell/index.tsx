@@ -7,6 +7,7 @@ import { AuthDialog } from '@/modules/auth/components/AuthDialog';
 import { ProfileDialog } from '@/modules/auth/components/ProfileDialog';
 import { SettingsDialog } from '@/modules/auth/components/SettingsDialog';
 import { McpSettings } from '@/modules/mcp/components/McpSettings';
+import { SkillsDialog } from '@/modules/skills/components/SkillsDialog';
 import { Sidebar } from '@/modules/threads/components/Sidebar';
 import { ThreadSearchDialog } from '@/modules/threads/components/ThreadSearchDialog';
 
@@ -39,6 +40,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <SettingsDialog />
       <ThreadSearchDialog />
       <McpSettings />
+      <SkillsDialog />
     </div>
   );
 }

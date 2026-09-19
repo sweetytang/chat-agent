@@ -12,6 +12,7 @@ from app.modules.mcp.agent import McpToolSnapshot
 from app.modules.mcp.agent.domain import normalize_tool_result
 from app.modules.mcp.agent.runtime import load_mcp_snapshots
 from app.modules.mcp.host.client import McpHostError
+from app.modules.skills.context import inject_system_message, prepare_skill_context
 from app.modules.threads.repository import ThreadRepository
 from app.modules.timeline.domain import timeline_to_model_messages
 from app.modules.timeline.recorder import TimelineRecorder
@@ -103,7 +104,11 @@ async def generate_resumed_run_events(
         except Exception:
             # 重新拉取失败时，至少保留当前快照保底
             mcp_snapshots = (snapshot,) if snapshot is not None else ()
-    input_messages = timeline_to_model_messages(timeline_recorder.snapshot)
+    skill_prompt, skill_tools = await prepare_skill_context(
+        session, user_id, request.effective_skill_ids
+    )
+    raw_model_messages = timeline_to_model_messages(timeline_recorder.snapshot)
+    input_messages = inject_system_message(raw_model_messages, skill_prompt)
     assistant_content = "工具执行完成。" if decision != "reject" else "已按要求拒绝工具执行。"
 
     async for event in invoke_agent_driver(
@@ -115,6 +120,7 @@ async def generate_resumed_run_events(
         sequence,
         input_messages,
         mcp_snapshots=mcp_snapshots,
+        skill_tools=skill_tools,
         prompt_content=request.content,
         default_assistant_content=assistant_content,
         fake_model_chunks=("收到工具结果：",),

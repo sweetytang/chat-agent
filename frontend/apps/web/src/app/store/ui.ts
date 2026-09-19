@@ -15,6 +15,7 @@ interface UiState {
   authDialogOpen: boolean;
   threadSearchOpen: boolean;
   mcpSettingsOpen: boolean;
+  skillsDialogOpen: boolean;
   profileDialogOpen: boolean;
   settingsDialogOpen: boolean;
   branchChatEnabled: boolean;
@@ -24,13 +25,14 @@ interface UiState {
   setAuthDialogOpen: (open: boolean) => void;
   setThreadSearchOpen: (open: boolean) => void;
   setMcpSettingsOpen: (open: boolean) => void;
+  setSkillsDialogOpen: (open: boolean) => void;
   setProfileDialogOpen: (open: boolean) => void;
   setSettingsDialogOpen: (open: boolean) => void;
   setBranchChatEnabled: (enabled: boolean) => void;
 }
 
-const SIDEBAR_KEY = 'lui-agent:sidebar-collapsed';
-const BRANCH_CHAT_KEY = 'lui-agent:branch-chat-enabled';
+const SIDEBAR_KEY = 'open-agent:sidebar-collapsed';
+const BRANCH_CHAT_KEY = 'open-agent:branch-chat-enabled';
 
 function initialBranchChat(): boolean {
   if (typeof window === 'undefined') return true;
@@ -45,7 +47,10 @@ function initialCollapsed() {
 function initialThemePreference(): ThemePreferenceType {
   return typeof window === 'undefined'
     ? ThemePreference.System
-    : storedThemePreference(window.localStorage.getItem('lui-agent:theme'));
+    : storedThemePreference(
+        window.localStorage.getItem('open-agent:theme') ??
+          window.localStorage.getItem('lui-agent:theme'),
+      );
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -55,6 +60,7 @@ export const useUiStore = create<UiState>((set) => ({
   authDialogOpen: false,
   threadSearchOpen: false,
   mcpSettingsOpen: false,
+  skillsDialogOpen: false,
   profileDialogOpen: false,
   settingsDialogOpen: false,
   branchChatEnabled: initialBranchChat(),
@@ -69,6 +75,7 @@ export const useUiStore = create<UiState>((set) => ({
   setAuthDialogOpen: (authDialogOpen) => set({ authDialogOpen }),
   setThreadSearchOpen: (threadSearchOpen) => set({ threadSearchOpen }),
   setMcpSettingsOpen: (mcpSettingsOpen) => set({ mcpSettingsOpen }),
+  setSkillsDialogOpen: (skillsDialogOpen) => set({ skillsDialogOpen }),
   setProfileDialogOpen: (profileDialogOpen) => set({ profileDialogOpen }),
   setSettingsDialogOpen: (settingsDialogOpen) => set({ settingsDialogOpen }),
   setBranchChatEnabled: (branchChatEnabled) => {

@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { resolveTheme } from '@/app/domain/theme';
 import { useUiStore } from '@/app/store/ui';
 
-export const THEME_STORAGE_KEY = 'lui-agent:theme';
+export const THEME_STORAGE_KEY = 'open-agent:theme';
 
 export function useTheme() {
   const preference = useUiStore((state) => state.themePreference);

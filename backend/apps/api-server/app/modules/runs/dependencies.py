@@ -18,8 +18,7 @@ from app.modules.mcp.host.client import McpHost
 from lui_agent_runtime.driver import AgentDriver, LangGraphAgentDriver
 from lui_agent_runtime.events import RuntimeEvent
 from lui_agent_runtime.graph.runtime import stream_graph_events
-from lui_agent_runtime.tools.langchain import default_langchain_tools
-from lui_agent_runtime.tools.registry import calculate
+from lui_agent_runtime.tools import default_langchain_tools
 
 from .coordination import RunCoordination, run_coordination
 from .domain import build_event
@@ -32,7 +31,6 @@ class RunDependencies:
     run_coordination: RunCoordination
     event_factory: Callable[..., RuntimeEvent]
     get_mcp_host: Callable[..., McpHost]
-    calculate: Callable[[str], float]
     get_provider_config: Callable[[], Any]
     create_chat_model: Callable[[Any], Any]
     fake_chat_model: Callable[..., Any]
@@ -47,7 +45,6 @@ def build_run_dependencies() -> RunDependencies:
         run_coordination=run_coordination,
         event_factory=build_event,
         get_mcp_host=get_mcp_host,
-        calculate=calculate,
         get_provider_config=get_provider_config,
         create_chat_model=create_chat_model,
         fake_chat_model=FakeChatModel,

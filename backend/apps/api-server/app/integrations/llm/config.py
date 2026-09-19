@@ -1,6 +1,8 @@
+import os
 from functools import lru_cache
+from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,7 +18,7 @@ class ProviderConfig(BaseModel):
 class ProviderSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(".env", "apps/api-server/.env"),
-        env_prefix="LUI_AGENT_",
+        env_prefix="OPEN_AGENT_",
         extra="ignore",
     )
 
@@ -26,6 +28,24 @@ class ProviderSettings(BaseSettings):
     thinking_enabled: bool = False
     reasoning_effort: str | None = None
     provider: str = "fake"
+
+    @model_validator(mode="before")
+    @classmethod
+    def fallback_legacy_env(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            for field in [
+                "api_key",
+                "base_url",
+                "model_name",
+                "thinking_enabled",
+                "reasoning_effort",
+                "provider",
+            ]:
+                if field not in data or data[field] is None:
+                    legacy_val = os.getenv(f"LUI_AGENT_{field.upper()}")
+                    if legacy_val is not None:
+                        data[field] = legacy_val
+        return data
 
     def to_config(self) -> ProviderConfig:
         return ProviderConfig(**self.model_dump())

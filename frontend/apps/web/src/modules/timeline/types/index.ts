@@ -80,6 +80,8 @@ export interface RunStreamRequest {
   checkpoint_id: string | null;
   mode: RunMode;
   model?: string;
+  skill_id?: string | null;
+  skill_ids?: string[];
 }
 
 export const EMPTY_TIMELINE: TimelineSnapshot = { version: 1, items: [] };

@@ -1,12 +1,6 @@
 from langchain_core.tools import tool
 
-from lui_agent_runtime.tools.registry import calculate, weather
-
-
-@tool
-def calculator(expression: str) -> str:
-    """计算安全的数字四则运算表达式。"""
-    return str(calculate(expression))
+from lui_agent_runtime.tools.registry import weather
 
 
 @tool
@@ -17,4 +11,4 @@ async def get_weather(city: str) -> dict:
 
 def default_langchain_tools() -> list:
     """返回可直接绑定到 LangChain ChatModel 的无副作用工具。"""
-    return [calculator, get_weather]
+    return []

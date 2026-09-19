@@ -1,6 +1,6 @@
 import * as ScrollArea from '@radix-ui/react-scroll-area';
 import * as Tooltip from '@radix-ui/react-tooltip';
-import { Blocks, LogIn, PanelLeftClose, PanelLeftOpen, Pin, Search, SquarePen } from 'lucide-react';
+import { Blocks, LogIn, PanelLeftClose, PanelLeftOpen, Pin, Search, Sparkles, SquarePen } from 'lucide-react';
 import { useEffect } from 'react';
 
 import { BrandMark } from '@/app/components/BrandMark';
@@ -90,6 +90,24 @@ export function Sidebar({ collapsed = false, onNavigate }: SidebarProps) {
               </Tooltip.Content>
             </Tooltip.Portal>
           </Tooltip.Root>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <button
+                className={styles.iconButton}
+                disabled={!token}
+                onClick={() => useUiStore.getState().setSkillsDialogOpen(true)}
+                type="button"
+                aria-label="技能管理"
+              >
+                <Sparkles size={19} />
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Portal>
+              <Tooltip.Content className={styles.tooltip} side="right">
+                技能管理
+              </Tooltip.Content>
+            </Tooltip.Portal>
+          </Tooltip.Root>
           <div className={styles.railAccount}>
             {token ? (
               <AccountMenu compact />
@@ -163,24 +181,39 @@ export function Sidebar({ collapsed = false, onNavigate }: SidebarProps) {
           </div>
         </Tooltip.Provider>
       </div>
-      <button className={styles.newButton} disabled={!token} onClick={startNewThread} type="button">
-        <SquarePen size={18} />
-        新建会话
-      </button>
-      <button
-        className={styles.mcpButton}
-        disabled={!token}
-        onClick={() => {
-          useUiStore.getState().setMcpSettingsOpen(true);
-          onNavigate?.();
-        }}
-        type="button"
-      >
-        <Blocks size={18} />
-        MCP
-      </button>
+      <div className={styles.navSection}>
+        <button className={styles.newButton} disabled={!token} onClick={startNewThread} type="button">
+          <SquarePen size={18} />
+          新建会话
+        </button>
+        <button
+          className={styles.newButton}
+          disabled={!token}
+          onClick={() => {
+            useUiStore.getState().setMcpSettingsOpen(true);
+            onNavigate?.();
+          }}
+          type="button"
+        >
+          <Blocks size={18} />
+          工具管理
+        </button>
+        <button
+          className={styles.newButton}
+          disabled={!token}
+          onClick={() => {
+            useUiStore.getState().setSkillsDialogOpen(true);
+            onNavigate?.();
+          }}
+          type="button"
+        >
+          <Sparkles size={18} />
+          技能管理
+        </button>
+      </div>
       {token ? (
         <>
+          <div className={styles.historyHeader}>最近</div>
           <ScrollArea.Root className={styles.scroll}>
             <ScrollArea.Viewport className={styles.viewport}>
               {isLoadingThreads ? (

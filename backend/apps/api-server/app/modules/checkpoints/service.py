@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from copy import deepcopy
 
 from app.db.models import Checkpoint
-from app.modules.timeline.domain import empty_timeline, checkpoint_timeline, TimelineSnapshot
+from app.modules.timeline.domain import TimelineSnapshot, checkpoint_timeline, empty_timeline
 
 
 def _get_latest_descendant_id(

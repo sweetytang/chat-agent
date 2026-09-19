@@ -14,7 +14,10 @@ const MODELS_API_URL = 'https://airouter.tenasourcing.com/v1/models';
 
 export async function fetchAvailableModels(): Promise<ModelItem[]> {
   try {
-    const apiKey = import.meta.env.LUI_AGENT_API_KEY ?? "sk-lMuMOGX8ogD6AIFoaKARFVMqnPRiop3mAnh2gDeS2LDIVLNjzdpGKZzBykEfzwu1";
+    const apiKey =
+      import.meta.env.OPEN_AGENT_API_KEY ??
+      import.meta.env.LUI_AGENT_API_KEY ??
+      "sk-lMuMOGX8ogD6AIFoaKARFVMqnPRiop3mAnh2gDeS2LDIVLNjzdpGKZzBykEfzwu1";
     const response = await fetch(MODELS_API_URL, {
       headers: {
         Authorization: `Bearer ${apiKey}`

@@ -1,6 +1,6 @@
-export const ACCESS_TOKEN_KEY = 'lui-agent.access-token';
-export const REFRESH_TOKEN_KEY = 'lui-agent.refresh-token';
-export const AUTH_EMAIL_KEY = 'lui-agent.auth-email';
+export const ACCESS_TOKEN_KEY = 'open-agent.access-token';
+export const REFRESH_TOKEN_KEY = 'open-agent.refresh-token';
+export const AUTH_EMAIL_KEY = 'open-agent.auth-email';
 
 type SessionListener = (accessToken: string | null) => void;
 
@@ -11,15 +11,27 @@ function storage(): Storage | null {
 }
 
 export function getAccessToken(): string | null {
-  return storage()?.getItem(ACCESS_TOKEN_KEY) ?? null;
+  return (
+    storage()?.getItem(ACCESS_TOKEN_KEY) ??
+    storage()?.getItem('lui-agent.access-token') ??
+    null
+  );
 }
 
 export function getRefreshToken(): string | null {
-  return storage()?.getItem(REFRESH_TOKEN_KEY) ?? null;
+  return (
+    storage()?.getItem(REFRESH_TOKEN_KEY) ??
+    storage()?.getItem('lui-agent.refresh-token') ??
+    null
+  );
 }
 
 export function getAuthEmail(): string | null {
-  return storage()?.getItem(AUTH_EMAIL_KEY) ?? null;
+  return (
+    storage()?.getItem(AUTH_EMAIL_KEY) ??
+    storage()?.getItem('lui-agent.auth-email') ??
+    null
+  );
 }
 
 export function saveAuthSession(
@@ -42,7 +54,10 @@ export function clearAuthSession(): void {
 }
 
 export function notifyAuthExpired(): void {
-  if (typeof window !== 'undefined') window.dispatchEvent(new Event('lui-agent:auth-expired'));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('open-agent:auth-expired'));
+    window.dispatchEvent(new Event('lui-agent:auth-expired'));
+  }
 }
 
 export function subscribeAuthSession(listener: SessionListener): () => void {

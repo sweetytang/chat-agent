@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import RunStatus
 from app.modules.mcp.agent import load_mcp_snapshots
+from app.modules.skills.context import inject_system_message, prepare_skill_context
 from app.modules.timeline.domain import get_latest_user_content, timeline_to_model_messages
 from app.modules.timeline.recorder import TimelineRecorder
 
@@ -67,8 +68,12 @@ async def generate_run_events(
         await RunRepository(session).update_status(UUID(run_id), RunStatus.RUNNING)
         await session.commit()
 
+        skill_prompt, skill_tools = await prepare_skill_context(
+            session, user_id, request.effective_skill_ids
+        )
         timeline = run_context.timeline
-        input_messages = timeline_to_model_messages(timeline)
+        raw_model_messages = timeline_to_model_messages(timeline)
+        input_messages = inject_system_message(raw_model_messages, skill_prompt)
         prompt_content = get_latest_user_content(timeline, request.content)
 
         async for event in invoke_agent_driver(
@@ -80,6 +85,7 @@ async def generate_run_events(
             sequence,
             input_messages,
             mcp_snapshots=mcp_snapshots,
+            skill_tools=skill_tools,
             prompt_content=prompt_content,
         ):
             yield event

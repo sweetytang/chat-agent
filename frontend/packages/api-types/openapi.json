@@ -191,7 +191,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AuthRequest"
+                "$ref": "#/components/schemas/RegisterRequest"
               }
             }
           },
@@ -232,7 +232,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AuthRequest"
+                "$ref": "#/components/schemas/LoginRequest"
               }
             }
           },
@@ -275,11 +275,55 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
+                  "additionalProperties": true,
                   "type": "object",
                   "title": "Response Me Api Auth Me Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Update Profile",
+        "operationId": "update_profile_api_auth_me_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Update Profile Api Auth Me Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -447,6 +491,7 @@
           "threads"
         ],
         "summary": "Get Thread",
+        "description": "前端未用到，保留满足RESTful 资源模型的完整性",
         "operationId": "get_thread_api_threads__thread_id__get",
         "security": [
           {
@@ -584,13 +629,13 @@
         }
       }
     },
-    "/api/threads/{thread_id}/messages": {
+    "/api/threads/{thread_id}/timeline": {
       "get": {
         "tags": [
           "threads"
         ],
-        "summary": "List Messages",
-        "operationId": "list_messages_api_threads__thread_id__messages_get",
+        "summary": "Get Thread Timeline",
+        "operationId": "get_thread_timeline_api_threads__thread_id__timeline_get",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -614,59 +659,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/MessageResponse"
-                  },
-                  "title": "Response List Messages Api Threads  Thread Id  Messages Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/threads/{thread_id}/history": {
-      "get": {
-        "tags": [
-          "threads"
-        ],
-        "summary": "Get Thread History",
-        "operationId": "get_thread_history_api_threads__thread_id__history_get",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "thread_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Thread Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ThreadHistoryResponse"
+                  "$ref": "#/components/schemas/ThreadTimelineResponse"
                 }
               }
             }
@@ -897,62 +890,6 @@
       }
     },
     "/api/threads/{thread_id}/checkpoints": {
-      "post": {
-        "tags": [
-          "checkpoints"
-        ],
-        "summary": "Create Checkpoint",
-        "operationId": "create_checkpoint_api_threads__thread_id__checkpoints_post",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "thread_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Thread Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateCheckpointRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CheckpointResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
       "get": {
         "tags": [
           "checkpoints"
@@ -1062,47 +999,13 @@
         }
       }
     },
-    "/api/mcp/stdio/definitions": {
-      "get": {
-        "tags": [
-          "mcp"
-        ],
-        "summary": "List Stdio Definitions",
-        "description": "返回部署时批准的 stdio 命令；命令不会来自用户输入。",
-        "operationId": "list_stdio_definitions_api_mcp_stdio_definitions_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "additionalProperties": {
-                      "type": "string"
-                    },
-                    "type": "object"
-                  },
-                  "type": "array",
-                  "title": "Response List Stdio Definitions Api Mcp Stdio Definitions Get"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
-      }
-    },
     "/api/mcp/servers": {
       "get": {
         "tags": [
           "mcp"
         ],
-        "summary": "List Servers",
-        "operationId": "list_servers_api_mcp_servers_get",
+        "summary": "List User Mcp Servers",
+        "operationId": "list_user_mcp_servers_api_mcp_servers_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1110,10 +1013,10 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/McpServerResponse"
+                    "$ref": "#/components/schemas/UserMcpServerResponse"
                   },
                   "type": "array",
-                  "title": "Response List Servers Api Mcp Servers Get"
+                  "title": "Response List User Mcp Servers Api Mcp Servers Get"
                 }
               }
             }
@@ -1129,13 +1032,13 @@
         "tags": [
           "mcp"
         ],
-        "summary": "Create Server",
-        "operationId": "create_server_api_mcp_servers_post",
+        "summary": "Create User Mcp Server",
+        "operationId": "create_user_mcp_server_api_mcp_servers_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/McpServerCreate"
+                "$ref": "#/components/schemas/UserMcpServerCreate"
               }
             }
           },
@@ -1147,7 +1050,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/McpServerResponse"
+                  "$ref": "#/components/schemas/UserMcpServerResponse"
                 }
               }
             }
@@ -1170,13 +1073,67 @@
         ]
       }
     },
+    "/api/mcp/servers/{server_id}/tools": {
+      "get": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "List Server Live Tools",
+        "description": "实时探测并返回该 MCP Server 提供的真实工具列表及当前配置的开关规则。",
+        "operationId": "list_server_live_tools_api_mcp_servers__server_id__tools_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Server Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response List Server Live Tools Api Mcp Servers  Server Id  Tools Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/mcp/servers/{server_id}": {
       "patch": {
         "tags": [
           "mcp"
         ],
-        "summary": "Update Server",
-        "operationId": "update_server_api_mcp_servers__server_id__patch",
+        "summary": "Update User Mcp Server",
+        "operationId": "update_user_mcp_server_api_mcp_servers__server_id__patch",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -1199,7 +1156,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/McpServerUpdate"
+                "$ref": "#/components/schemas/UserMcpServerUpdate"
               }
             }
           }
@@ -1210,7 +1167,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/McpServerResponse"
+                  "$ref": "#/components/schemas/UserMcpServerResponse"
                 }
               }
             }
@@ -1231,8 +1188,8 @@
         "tags": [
           "mcp"
         ],
-        "summary": "Delete Server",
-        "operationId": "delete_server_api_mcp_servers__server_id__delete",
+        "summary": "Delete User Mcp Server",
+        "operationId": "delete_user_mcp_server_api_mcp_servers__server_id__delete",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -1267,13 +1224,24 @@
         }
       }
     },
-    "/api/mcp/admin/servers": {
-      "get": {
+    "/api/mcp/config": {
+      "put": {
         "tags": [
           "mcp"
         ],
-        "summary": "List Admin Servers",
-        "operationId": "list_admin_servers_api_mcp_admin_servers_get",
+        "summary": "Sync Mcp Json Config",
+        "description": "从前端标准 mcpServers JSON 配置一键全量同步（保留已有 tool_rules 并支持增删改）。",
+        "operationId": "sync_mcp_json_config_api_mcp_config_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpConfigSyncRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1281,10 +1249,20 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/McpServerResponse"
+                    "$ref": "#/components/schemas/UserMcpServerResponse"
                   },
                   "type": "array",
-                  "title": "Response List Admin Servers Api Mcp Admin Servers Get"
+                  "title": "Response Sync Mcp Json Config Api Mcp Config Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1297,41 +1275,157 @@
         ]
       }
     },
-    "/api/mcp/servers/{server_id}/tools": {
+    "/api/skills": {
       "get": {
         "tags": [
-          "mcp"
+          "skills"
         ],
-        "summary": "List Server Tools",
-        "operationId": "list_server_tools_api_mcp_servers__server_id__tools_get",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "server_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Server Id"
-            }
-          }
-        ],
+        "summary": "List Skills",
+        "operationId": "list_skills_api_skills_get",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/McpToolResponse"
+                    "$ref": "#/components/schemas/SkillResponse"
                   },
-                  "title": "Response List Server Tools Api Mcp Servers  Server Id  Tools Get"
+                  "type": "array",
+                  "title": "Response List Skills Api Skills Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "skills"
+        ],
+        "summary": "Create Skill",
+        "operationId": "create_skill_api_skills_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/skills/import": {
+      "post": {
+        "tags": [
+          "skills"
+        ],
+        "summary": "Import Skill File",
+        "operationId": "import_skill_file_api_skills_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/skills/{skill_id}": {
+      "get": {
+        "tags": [
+          "skills"
+        ],
+        "summary": "Get Skill",
+        "operationId": "get_skill_api_skills__skill_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "skill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Skill Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillResponse"
                 }
               }
             }
@@ -1347,15 +1441,13 @@
             }
           }
         }
-      }
-    },
-    "/api/mcp/servers/{server_id}/enabled": {
-      "post": {
+      },
+      "patch": {
         "tags": [
-          "mcp"
+          "skills"
         ],
-        "summary": "Set Server Enabled",
-        "operationId": "set_server_enabled_api_mcp_servers__server_id__enabled_post",
+        "summary": "Patch Skill",
+        "operationId": "patch_skill_api_skills__skill_id__patch",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -1363,13 +1455,13 @@
         ],
         "parameters": [
           {
-            "name": "server_id",
+            "name": "skill_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "format": "uuid",
-              "title": "Server Id"
+              "title": "Skill Id"
             }
           }
         ],
@@ -1378,7 +1470,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TogglePayload"
+                "$ref": "#/components/schemas/SkillUpdate"
               }
             }
           }
@@ -1389,11 +1481,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "boolean"
-                  },
-                  "title": "Response Set Server Enabled Api Mcp Servers  Server Id  Enabled Post"
+                  "$ref": "#/components/schemas/SkillResponse"
                 }
               }
             }
@@ -1409,15 +1497,13 @@
             }
           }
         }
-      }
-    },
-    "/api/mcp/servers/{server_id}/refresh": {
-      "post": {
+      },
+      "delete": {
         "tags": [
-          "mcp"
+          "skills"
         ],
-        "summary": "Refresh Server",
-        "operationId": "refresh_server_api_mcp_servers__server_id__refresh_post",
+        "summary": "Remove Skill",
+        "operationId": "remove_skill_api_skills__skill_id__delete",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -1425,88 +1511,19 @@
         ],
         "parameters": [
           {
-            "name": "server_id",
+            "name": "skill_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "format": "uuid",
-              "title": "Server Id"
+              "title": "Skill Id"
             }
           }
         ],
         "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/McpServerResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/mcp/tools/{tool_id}/enabled": {
-      "post": {
-        "tags": [
-          "mcp"
-        ],
-        "summary": "Set Tool Enabled",
-        "operationId": "set_tool_enabled_api_mcp_tools__tool_id__enabled_post",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "tool_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Tool Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TogglePayload"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "boolean"
-                  },
-                  "title": "Response Set Tool Enabled Api Mcp Tools  Tool Id  Enabled Post"
-                }
-              }
-            }
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -1524,25 +1541,6 @@
   },
   "components": {
     "schemas": {
-      "AuthRequest": {
-        "properties": {
-          "email": {
-            "type": "string",
-            "title": "Email"
-          },
-          "password": {
-            "type": "string",
-            "minLength": 8,
-            "title": "Password"
-          }
-        },
-        "type": "object",
-        "required": [
-          "email",
-          "password"
-        ],
-        "title": "AuthRequest"
-      },
       "AuthResponse": {
         "properties": {
           "access_token": {
@@ -1631,41 +1629,6 @@
         ],
         "title": "CheckpointResponse"
       },
-      "CreateCheckpointRequest": {
-        "properties": {
-          "state": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "State"
-          },
-          "parent_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Parent Id"
-          },
-          "branch_name": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 255
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Branch Name"
-          }
-        },
-        "type": "object",
-        "title": "CreateCheckpointRequest"
-      },
       "CreateInterruptRequest": {
         "properties": {
           "run_id": {
@@ -1729,33 +1692,31 @@
         "type": "object",
         "title": "CreateThreadRequest"
       },
-      "HTTPValidationError": {
-        "properties": {
-          "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
-            "type": "array",
-            "title": "Detail"
-          }
-        },
-        "type": "object",
-        "title": "HTTPValidationError"
-      },
-      "HistoryMessageResponse": {
+      "ErrorItemResponse": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid",
             "title": "Id"
           },
-          "role": {
+          "kind": {
             "type": "string",
-            "title": "Role"
+            "const": "error",
+            "title": "Kind"
           },
-          "content": {
-            "type": "string",
-            "title": "Content"
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "sequence": {
+            "type": "integer",
+            "title": "Sequence"
           },
           "checkpoint_id": {
             "anyOf": [
@@ -1798,386 +1759,53 @@
               }
             ],
             "title": "Branch Index"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "role",
-          "content",
-          "checkpoint_id",
-          "parent_checkpoint_id"
-        ],
-        "title": "HistoryMessageResponse"
-      },
-      "McpScope": {
-        "type": "string",
-        "enum": [
-          "PRIVATE",
-          "SHARED"
-        ],
-        "title": "McpScope"
-      },
-      "McpServerCreate": {
-        "properties": {
-          "name": {
+          },
+          "message": {
             "type": "string",
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Name"
-          },
-          "scope": {
-            "$ref": "#/components/schemas/McpScope",
-            "default": "PRIVATE"
-          },
-          "transport": {
-            "$ref": "#/components/schemas/McpTransport",
-            "default": "STREAMABLE_HTTP"
-          },
-          "endpoint": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Endpoint"
-          },
-          "headers": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Headers"
-          },
-          "bearer_token": {
-            "anyOf": [
-              {
-                "type": "string",
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bearer Token"
-          },
-          "command": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Command"
-          },
-          "args": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Args"
-          },
-          "env": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Env"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "title": "McpServerCreate"
-      },
-      "McpServerResponse": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "scope": {
-            "$ref": "#/components/schemas/McpScope"
-          },
-          "transport": {
-            "$ref": "#/components/schemas/McpTransport"
-          },
-          "endpoint": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Endpoint"
+            "title": "Message"
           },
           "status": {
             "type": "string",
+            "const": "failed",
             "title": "Status"
-          },
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled",
-            "default": false
-          },
-          "last_error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Error"
-          },
-          "credential_configured": {
-            "type": "boolean",
-            "title": "Credential Configured"
-          },
-          "security_version": {
-            "type": "integer",
-            "title": "Security Version"
-          },
-          "command": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Command"
-          },
-          "args": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Args"
-          },
-          "env": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Env"
           }
         },
         "type": "object",
         "required": [
           "id",
-          "name",
-          "scope",
-          "transport",
-          "endpoint",
-          "status",
-          "credential_configured",
-          "security_version"
+          "kind",
+          "run_id",
+          "sequence",
+          "message",
+          "status"
         ],
-        "title": "McpServerResponse"
+        "title": "ErrorItemResponse"
       },
-      "McpServerUpdate": {
-        "properties": {
-          "name": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 255,
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
-          "transport": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/McpTransport"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "endpoint": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Endpoint"
-          },
-          "headers": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "type": "string"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Headers"
-          },
-          "bearer_token": {
-            "anyOf": [
-              {
-                "type": "string",
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bearer Token"
-          },
-          "command": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Command"
-          },
-          "args": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Args"
-          },
-          "env": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "type": "string"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Env"
-          }
-        },
-        "type": "object",
-        "title": "McpServerUpdate"
-      },
-      "McpToolResponse": {
+      "GenerativeUiItemResponse": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid",
             "title": "Id"
           },
-          "remote_name": {
+          "kind": {
             "type": "string",
-            "title": "Remote Name"
-          },
-          "internal_name": {
-            "type": "string",
-            "title": "Internal Name"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
-          "compatibility": {
-            "type": "string",
-            "title": "Compatibility"
-          },
-          "is_present": {
-            "type": "boolean",
-            "title": "Is Present"
-          },
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "remote_name",
-          "internal_name",
-          "description",
-          "compatibility",
-          "is_present"
-        ],
-        "title": "McpToolResponse"
-      },
-      "McpTransport": {
-        "type": "string",
-        "enum": [
-          "STREAMABLE_HTTP",
-          "STDIO"
-        ],
-        "title": "McpTransport"
-      },
-      "MessageResponse": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "thread_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Thread Id"
+            "const": "generative_ui",
+            "title": "Kind"
           },
           "run_id": {
             "anyOf": [
               {
-                "type": "string",
-                "format": "uuid"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
             "title": "Run Id"
+          },
+          "sequence": {
+            "type": "integer",
+            "title": "Sequence"
           },
           "checkpoint_id": {
             "anyOf": [
@@ -2191,26 +1819,222 @@
             ],
             "title": "Checkpoint Id"
           },
-          "role": {
-            "type": "string",
-            "title": "Role"
+          "parent_checkpoint_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Checkpoint Id"
           },
-          "content": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Content"
+          "branch_options": {
+            "items": {
+              "$ref": "#/components/schemas/BranchOptionResponse"
+            },
+            "type": "array",
+            "title": "Branch Options"
+          },
+          "branch_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Index"
+          },
+          "value": {
+            "title": "Value"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "streaming",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status"
           }
         },
         "type": "object",
         "required": [
           "id",
-          "thread_id",
+          "kind",
           "run_id",
-          "checkpoint_id",
-          "role",
-          "content"
+          "sequence",
+          "value",
+          "status"
         ],
-        "title": "MessageResponse"
+        "title": "GenerativeUiItemResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "LoginRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginRequest"
+      },
+      "McpConfigSyncRequest": {
+        "properties": {
+          "mcpServers": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Mcpservers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mcpServers"
+        ],
+        "title": "McpConfigSyncRequest",
+        "description": "用于从前端 JSON 编辑器全量同步 mcpServers。"
+      },
+      "MessageItemResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "const": "message",
+            "title": "Kind"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "sequence": {
+            "type": "integer",
+            "title": "Sequence"
+          },
+          "checkpoint_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkpoint Id"
+          },
+          "parent_checkpoint_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Checkpoint Id"
+          },
+          "branch_options": {
+            "items": {
+              "$ref": "#/components/schemas/BranchOptionResponse"
+            },
+            "type": "array",
+            "title": "Branch Options"
+          },
+          "branch_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Index"
+          },
+          "logical_message_id": {
+            "type": "string",
+            "title": "Logical Message Id"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "streaming",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status"
+          },
+          "terminal_segment": {
+            "type": "boolean",
+            "title": "Terminal Segment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "run_id",
+          "sequence",
+          "logical_message_id",
+          "role",
+          "content",
+          "status",
+          "terminal_segment"
+        ],
+        "title": "MessageItemResponse"
       },
       "PendingInterruptResponse": {
         "properties": {
@@ -2254,6 +2078,100 @@
         ],
         "title": "PendingInterruptResponse"
       },
+      "ReasoningItemResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "const": "reasoning",
+            "title": "Kind"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "sequence": {
+            "type": "integer",
+            "title": "Sequence"
+          },
+          "checkpoint_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkpoint Id"
+          },
+          "parent_checkpoint_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Checkpoint Id"
+          },
+          "branch_options": {
+            "items": {
+              "$ref": "#/components/schemas/BranchOptionResponse"
+            },
+            "type": "array",
+            "title": "Branch Options"
+          },
+          "branch_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Index"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "streaming",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "run_id",
+          "sequence",
+          "content",
+          "status"
+        ],
+        "title": "ReasoningItemResponse"
+      },
       "RefreshRequest": {
         "properties": {
           "refresh_token": {
@@ -2268,11 +2186,42 @@
         ],
         "title": "RefreshRequest"
       },
+      "RegisterRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "title": "Password"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "RegisterRequest"
+      },
       "ResolveInterruptRequest": {
         "properties": {
           "decision": {
             "type": "string",
-            "pattern": "^(approve|edit|reject)$",
+            "pattern": "^(approve|approve_always|edit|reject)$",
             "title": "Decision"
           },
           "payload": {
@@ -2303,7 +2252,7 @@
           },
           "decision": {
             "type": "string",
-            "pattern": "^(approve|edit|reject)$",
+            "pattern": "^(approve|approve_always|edit|reject)$",
             "title": "Decision"
           },
           "payload": {
@@ -2355,6 +2304,35 @@
             "pattern": "^(send|edit|regenerate)$",
             "title": "Mode",
             "default": "send"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "skill_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Id"
+          },
+          "skill_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skill Ids"
           }
         },
         "type": "object",
@@ -2364,14 +2342,219 @@
         ],
         "title": "RunRequest"
       },
-      "ThreadHistoryResponse": {
+      "SkillCreate": {
         "properties": {
-          "thread_id": {
+          "name": {
+            "type": "string",
+            "maxLength": 128,
+            "title": "Name",
+            "description": "技能唯一标识，如 react-expert"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "技能描述及触发时机，供模型决策使用"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content",
+            "description": "SKILL.md 正文 Markdown 内容"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "是否启用",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "content"
+        ],
+        "title": "SkillCreate"
+      },
+      "SkillImportRequest": {
+        "properties": {
+          "raw_content": {
+            "type": "string",
+            "title": "Raw Content",
+            "description": "SKILL.md 文件原始文本内容"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "覆盖技能名（可选）"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "覆盖描述（可选）"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "是否启用",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "raw_content"
+        ],
+        "title": "SkillImportRequest"
+      },
+      "SkillResponse": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 128,
+            "title": "Name",
+            "description": "技能唯一标识，如 react-expert"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "技能描述及触发时机，供模型决策使用"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content",
+            "description": "SKILL.md 正文 Markdown 内容"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "是否启用",
+            "default": true
+          },
+          "id": {
             "type": "string",
             "format": "uuid",
-            "title": "Thread Id"
+            "title": "Id"
           },
-          "current_checkpoint_id": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "content",
+          "id",
+          "user_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SkillResponse"
+      },
+      "SkillUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          }
+        },
+        "type": "object",
+        "title": "SkillUpdate"
+      },
+      "StructuredOutputItemResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "const": "structured_output",
+            "title": "Kind"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "sequence": {
+            "type": "integer",
+            "title": "Sequence"
+          },
+          "checkpoint_id": {
             "anyOf": [
               {
                 "type": "string",
@@ -2381,22 +2564,62 @@
                 "type": "null"
               }
             ],
-            "title": "Current Checkpoint Id"
+            "title": "Checkpoint Id"
           },
-          "messages": {
+          "parent_checkpoint_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Checkpoint Id"
+          },
+          "branch_options": {
             "items": {
-              "$ref": "#/components/schemas/HistoryMessageResponse"
+              "$ref": "#/components/schemas/BranchOptionResponse"
             },
             "type": "array",
-            "title": "Messages"
+            "title": "Branch Options"
+          },
+          "branch_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Index"
+          },
+          "value": {
+            "title": "Value"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "streaming",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status"
           }
         },
         "type": "object",
         "required": [
-          "thread_id",
-          "current_checkpoint_id"
+          "id",
+          "kind",
+          "run_id",
+          "sequence",
+          "value",
+          "status"
         ],
-        "title": "ThreadHistoryResponse"
+        "title": "StructuredOutputItemResponse"
       },
       "ThreadResponse": {
         "properties": {
@@ -2442,18 +2665,215 @@
         ],
         "title": "ThreadResponse"
       },
-      "TogglePayload": {
+      "ThreadTimelineResponse": {
         "properties": {
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled"
+          "thread_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Thread Id"
+          },
+          "current_checkpoint_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Checkpoint Id"
+          },
+          "timeline": {
+            "$ref": "#/components/schemas/TimelineSnapshotResponse"
           }
         },
         "type": "object",
         "required": [
-          "enabled"
+          "thread_id",
+          "current_checkpoint_id",
+          "timeline"
         ],
-        "title": "TogglePayload"
+        "title": "ThreadTimelineResponse"
+      },
+      "TimelineSnapshotResponse": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Version"
+          },
+          "items": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/MessageItemResponse"
+                },
+                {
+                  "$ref": "#/components/schemas/ReasoningItemResponse"
+                },
+                {
+                  "$ref": "#/components/schemas/ToolItemResponse"
+                },
+                {
+                  "$ref": "#/components/schemas/StructuredOutputItemResponse"
+                },
+                {
+                  "$ref": "#/components/schemas/GenerativeUiItemResponse"
+                },
+                {
+                  "$ref": "#/components/schemas/ErrorItemResponse"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "kind",
+                "mapping": {
+                  "error": "#/components/schemas/ErrorItemResponse",
+                  "generative_ui": "#/components/schemas/GenerativeUiItemResponse",
+                  "message": "#/components/schemas/MessageItemResponse",
+                  "reasoning": "#/components/schemas/ReasoningItemResponse",
+                  "structured_output": "#/components/schemas/StructuredOutputItemResponse",
+                  "tool": "#/components/schemas/ToolItemResponse"
+                }
+              }
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "TimelineSnapshotResponse"
+      },
+      "ToolItemResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "const": "tool",
+            "title": "Kind"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "sequence": {
+            "type": "integer",
+            "title": "Sequence"
+          },
+          "checkpoint_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkpoint Id"
+          },
+          "parent_checkpoint_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Checkpoint Id"
+          },
+          "branch_options": {
+            "items": {
+              "$ref": "#/components/schemas/BranchOptionResponse"
+            },
+            "type": "array",
+            "title": "Branch Options"
+          },
+          "branch_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Index"
+          },
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          },
+          "arguments": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Arguments"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
+          "result": {
+            "title": "Result"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "awaiting_approval",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "run_id",
+          "sequence",
+          "tool",
+          "status"
+        ],
+        "title": "ToolItemResponse"
+      },
+      "UpdateProfileRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "UpdateProfileRequest"
       },
       "UpdateThreadRequest": {
         "properties": {
@@ -2483,6 +2903,286 @@
         },
         "type": "object",
         "title": "UpdateThreadRequest"
+      },
+      "UserMcpServerCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "transport": {
+            "type": "string",
+            "pattern": "^(streamable_http|sse|stdio)$",
+            "title": "Transport",
+            "default": "streamable_http"
+          },
+          "endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint"
+          },
+          "command": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command"
+          },
+          "args": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Args"
+          },
+          "process_env": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Process Env"
+          },
+          "request_headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Request Headers"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "tool_rules": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Tool Rules"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "UserMcpServerCreate"
+      },
+      "UserMcpServerResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "transport": {
+            "type": "string",
+            "title": "Transport"
+          },
+          "endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint"
+          },
+          "command": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command"
+          },
+          "args": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Args"
+          },
+          "process_env": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Process Env"
+          },
+          "request_headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Request Headers"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "tool_rules": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Tool Rules"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "transport",
+          "enabled"
+        ],
+        "title": "UserMcpServerResponse"
+      },
+      "UserMcpServerUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "transport": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(streamable_http|sse|stdio)$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transport"
+          },
+          "endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint"
+          },
+          "command": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command"
+          },
+          "args": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Args"
+          },
+          "process_env": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Process Env"
+          },
+          "request_headers": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Headers"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "tool_rules": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Rules"
+          }
+        },
+        "type": "object",
+        "title": "UserMcpServerUpdate"
       },
       "ValidationError": {
         "properties": {

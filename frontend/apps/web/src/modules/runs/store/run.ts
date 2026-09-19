@@ -18,6 +18,8 @@ export interface RunRequestContext {
   showUserMessage?: boolean;
   baseTimeline?: TimelineSnapshot;
   threadId: string;
+  skillId?: string | null;
+  skillIds?: string[];
 }
 
 export interface ThreadRunState {

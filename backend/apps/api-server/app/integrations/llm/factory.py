@@ -12,7 +12,7 @@ def create_chat_model(config: ProviderConfig | None = None) -> BaseChatModel:
     if selected.provider == "fake":
         return FakeChatModel()
     if not selected.model_name:
-        raise ValueError("LUI_AGENT_MODEL_NAME is required for a real provider")
+        raise ValueError("OPEN_AGENT_MODEL_NAME is required for a real provider")
     # 延迟导入避免仅使用 fake model 的测试环境初始化 TLS/OpenAI 客户端。
     from langchain_openai import ChatOpenAI
 

@@ -19,7 +19,7 @@ class FakeChatModel(BaseChatModel):
 
     @property
     def _llm_type(self) -> str:
-        return "lui-agent-fake-chat-model"
+        return "open-agent-fake-chat-model"
 
     def bind_tools(self, tools: Sequence[Any], **kwargs: Any) -> FakeChatModel:
         """Fake 模型不需要修改请求，只需满足真实模型的绑定接口。"""

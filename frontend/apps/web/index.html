@@ -9,7 +9,7 @@
   <title>OpenAgent</title>
   <script>
     (() => {
-      const stored = localStorage.getItem('lui-agent:theme');
+      const stored = localStorage.getItem('open-agent:theme') || localStorage.getItem('lui-agent:theme');
       const preference = ['light', 'dark', 'system'].includes(stored) ? stored : 'system';
       document.documentElement.dataset.theme =
         preference === 'system'

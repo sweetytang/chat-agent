@@ -69,33 +69,6 @@
   align-items: center;
   justify-content: flex-start;
   gap: 8px;
-  padding: 8px 10px;
-  color: var(--text-primary);
-  font-size: 13.5px;
-  font-weight: 500;
-  background: transparent;
-  border: 0;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all var(--motion-fast);
-}
-
-.newButton:hover {
-  background: var(--surface-hover);
-}
-
-.newButton:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.mcpButton {
-  display: flex;
-  width: 100%;
-  min-height: 34px;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
   padding: 7px 10px;
   color: var(--text-secondary);
   font-size: 13px;
@@ -106,14 +79,32 @@
   transition: all var(--motion-fast);
 }
 
-.mcpButton:hover {
+.newButton:hover {
   color: var(--text-primary);
   background: var(--surface-hover);
 }
 
-.mcpButton:disabled {
+.newButton:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.navSection {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+.historyHeader {
+  display: flex;
+  align-items: center;
+  padding: 12px 8px 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  user-select: none;
 }
 
 .scroll {

@@ -49,23 +49,6 @@ _OPERATORS: dict[type[ast.operator], Callable[[float, float], float]] = {
 }
 
 
-def calculate(expression: str) -> float:
-    """仅允许数字和四则运算，避免旧实现中的 eval 风险。"""
-
-    def evaluate(node: ast.AST) -> float:
-        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
-            return float(node.value)
-        if isinstance(node, ast.BinOp) and type(node.op) in _OPERATORS:
-            return _OPERATORS[type(node.op)](evaluate(node.left), evaluate(node.right))
-        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
-            value = evaluate(node.operand)
-            return value if isinstance(node.op, ast.UAdd) else -value
-        raise ValueError("只支持数字和四则运算")
-
-    tree = ast.parse(expression, mode="eval")
-    return evaluate(tree.body)
-
-
 async def weather(args: dict[str, Any]) -> dict[str, Any]:
     """默认 fake weather，真实 provider 可在应用启动时替换同名 handler。"""
     city = str(args.get("city", "未知城市"))

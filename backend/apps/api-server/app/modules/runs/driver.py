@@ -33,6 +33,7 @@ async def invoke_agent_driver(
     input_messages: Sequence[BaseMessage | dict[str, Any]],
     *,
     mcp_snapshots: tuple[McpToolSnapshot, ...] = (),
+    skill_tools: Sequence[Any] = (),
     prompt_content: str = "",
     default_assistant_content: str = "收到你的消息。",
     fake_model_chunks: tuple[str, ...] | None = None,
@@ -71,7 +72,7 @@ async def invoke_agent_driver(
         input_messages,
         run_id=run_id,
         thread_id=request.thread_id,
-        tools=[*run_dependencies.default_langchain_tools(), *mcp_tools],
+        tools=[*run_dependencies.default_langchain_tools(), *mcp_tools, *skill_tools],
         continue_after_tools=True,
         approval_tool_names=approval_tool_names,
     ):

@@ -15,6 +15,15 @@ class RunRequest(BaseModel):
     checkpoint_id: UUID | None = None
     mode: str = Field(default="send", pattern="^(send|edit|regenerate)$")
     model: str | None = None
+    skill_id: str | None = None
+    skill_ids: list[str] = Field(default_factory=list)
+
+    @property
+    def effective_skill_ids(self) -> list[str]:
+        ids = [s for s in self.skill_ids if s]
+        if self.skill_id and self.skill_id not in ids:
+            ids.append(self.skill_id)
+        return ids
 
 
 class ResumeRequest(BaseModel):

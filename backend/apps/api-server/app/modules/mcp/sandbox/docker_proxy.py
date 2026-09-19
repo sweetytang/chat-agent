@@ -13,7 +13,7 @@ from app.modules.mcp.sandbox.port import SandboxHandle
 
 class DockerSandboxProxy:
     def __init__(
-        self, client: Any, *, approved_images: set[str], label_prefix: str = "lui-agent.mcp"
+        self, client: Any, *, approved_images: set[str], label_prefix: str = "open-agent.mcp"
     ) -> None:
         self.client = client
         self.approved_images = approved_images

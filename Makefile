@@ -1,10 +1,19 @@
 BACKEND_DIR := backend
 FRONTEND_DIR := frontend
 
-.PHONY: help install db-up db-down db-migrate generate-api-types check-api-types check backend frontend dev test test-backend test-frontend build build-backend build-frontend
+.PHONY: help install db-up db-down db-migrate generate-api-types check-api-types check backend frontend dev test test-backend test-frontend build build-backend build-frontend prod-up prod-down publish-frontend
 
-help:
-	@awk 'BEGIN {FS = ":.*## "; printf "可用任务:\n"} /^[a-zA-Z_-]+:.*## / {printf "  %-16s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+help: ## 可用命令列表
+	@awk 'BEGIN {FS = ":.*## "; printf "可用任务:\n"} /^[a-zA-Z_-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+prod-up: ## 在生产环境启动 Docker 容器组 (后台 + PostgreSQL)
+	docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+
+prod-down: ## 停止生产环境 Docker 容器组
+	docker compose --env-file .env.production -f docker-compose.prod.yml down
+
+publish-frontend: build-frontend ## 构建并发布前端至 npm
+	cd $(FRONTEND_DIR)/apps/web && npm publish
 
 install: ## 安装前后端依赖
 	$(MAKE) -j2 install-frontend install-backend

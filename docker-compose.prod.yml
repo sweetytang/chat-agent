@@ -1,0 +1,53 @@
+name: open-agent-prod
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-open_agent}
+      POSTGRES_USER: ${POSTGRES_USER:-open_agent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 .env.production 中设置 POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-open_agent} -d ${POSTGRES_DB:-open_agent}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - open-network
+
+  api-server:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      OPEN_AGENT_ENVIRONMENT: production
+      OPEN_AGENT_DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-open_agent}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-open_agent}"
+      OPEN_AGENT_JWT_SECRET: ${OPEN_AGENT_JWT_SECRET:?请在 .env.production 中设置 OPEN_AGENT_JWT_SECRET}
+      OPEN_AGENT_MCP_ENCRYPTION_KEY: ${OPEN_AGENT_MCP_ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
+      OPEN_AGENT_PROVIDER: ${OPEN_AGENT_PROVIDER:-openai-compatible}
+      OPEN_AGENT_API_KEY: ${OPEN_AGENT_API_KEY}
+      OPEN_AGENT_BASE_URL: ${OPEN_AGENT_BASE_URL:-https://airouter.tenasourcing.com/v1}
+      OPEN_AGENT_MODEL_NAME: ${OPEN_AGENT_MODEL_NAME:-gemini-3.8-flash-high}
+      OPEN_AGENT_THINKING_ENABLED: ${OPEN_AGENT_THINKING_ENABLED:-true}
+      OPEN_AGENT_CORS_ALLOW_ALL: ${OPEN_AGENT_CORS_ALLOW_ALL:-true}
+      OPEN_AGENT_CORS_ORIGINS: ${OPEN_AGENT_CORS_ORIGINS:-}
+      OPEN_AGENT_WORKERS: ${OPEN_AGENT_WORKERS:-2}
+    networks:
+      - open-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  open-network:
+    driver: bridge

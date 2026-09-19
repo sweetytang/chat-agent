@@ -90,6 +90,21 @@
   border-radius: var(--radius-xs);
 }
 
+/* Codex 风格内联技能标记：自然流式高亮文字 */
+.skillTokenHighlight {
+  display: inline-block;
+  margin-right: 4px;
+  color: var(--accent);
+  font-family:
+    ui-monospace,
+    'SF Mono',
+    Menlo,
+    monospace;
+  font-size: 0.95em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
 .tableWrap {
   max-width: 100%;
   margin: 16px 0;

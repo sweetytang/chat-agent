@@ -21,7 +21,8 @@ import {
 import { useSmartScroll } from '@/modules/timeline/domain/useSmartScroll';
 import type { MessageItem, RunStreamRequest } from '@/modules/timeline/types';
 import { useThreadStore } from '@/modules/threads/store/thread';
-import { API_ROOT } from '@/shared/http/client';
+import { useSkillsStore } from '@/modules/skills/store/skills';
+import { getApiRoot } from '@/shared/http/client';
 
 import styles from './index.module.css';
 
@@ -44,13 +45,15 @@ export function Chat() {
   const token = useAuthStore((state) => state.token);
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     return typeof window !== 'undefined'
-      ? window.localStorage.getItem('lui-agent:selected-model') ?? ''
+      ? window.localStorage.getItem('open-agent:selected-model') ??
+        window.localStorage.getItem('lui-agent:selected-model') ??
+        ''
       : '';
   });
 
   function handleSelectModel(modelId: string) {
     setSelectedModel(modelId);
-    window.localStorage.setItem('lui-agent:selected-model', modelId);
+    window.localStorage.setItem('open-agent:selected-model', modelId);
   }
   const { timeline, status, pendingApproval, lastRequest } = useRunStore((state) =>
     selectThreadRun(state, threadId),
@@ -74,6 +77,7 @@ export function Chat() {
       checkpoint_id: options.checkpointId,
       mode: options.mode,
       model: selectedModel,
+      skill_ids: options.skillIds !== undefined ? options.skillIds : useSkillsStore.getState().selectedSkillIds,
     };
     const runStore = useRunStore.getState();
     runStore.setLastRequest(options.threadId, options);
@@ -108,12 +112,25 @@ export function Chat() {
   }
 
   async function submit() {
-    const content = input.trim();
-    if (!content || controlsDisabled || submitLockRef.current) return;
+    const rawContent = input.trim();
+    if (!rawContent || controlsDisabled || submitLockRef.current) return;
     submitLockRef.current = true;
 
     const selectedThread = useThreadStore.getState();
     const isNewThread = selectedThread.threadId === 'demo-thread';
+    const currentSkillIds = [...useSkillsStore.getState().selectedSkillIds];
+    const allSkills = useSkillsStore.getState().skills;
+
+    // 如果选了技能，组装自然文字前缀 /skill-name，与输入文本融为一体显示在用户气泡中
+    const skillPrefixes = currentSkillIds
+      .map((id) => allSkills.find((s) => s.id === id)?.name)
+      .filter((name): name is string => Boolean(name))
+      .map((name) => `/${name}`)
+      .join(' ');
+
+    const content = skillPrefixes ? `${skillPrefixes} ${rawContent}` : rawContent;
+
+    useSkillsStore.getState().clearSelectedSkills();
     setInput('');
 
     try {
@@ -125,6 +142,7 @@ export function Chat() {
           mode: 'send',
           showUserMessage: true,
           threadId: 'demo-thread',
+          skillIds: currentSkillIds,
         });
         return;
       }
@@ -145,6 +163,7 @@ export function Chat() {
           checkpointId: thread.current_checkpoint_id,
           mode: 'send',
           threadId: thread.id,
+          skillIds: currentSkillIds,
         });
         return;
       }
@@ -155,6 +174,7 @@ export function Chat() {
         mode: 'send',
         showUserMessage: true,
         threadId: selectedThread.threadId,
+        skillIds: currentSkillIds,
       });
     } finally {
       submitLockRef.current = false;
@@ -228,7 +248,7 @@ export function Chat() {
         return;
       await consumeRunStream({
         threadId: targetThreadId,
-        url: `${API_ROOT}/runs/${runId}/resume`,
+        url: `${getApiRoot()}/runs/${runId}/resume`,
         body: { request_id: requestId, decision, payload },
         onEvent: (event) => useRunStore.getState().applyEvent(event),
       });

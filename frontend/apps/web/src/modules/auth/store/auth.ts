@@ -99,6 +99,10 @@ subscribeAuthSession((token) => {
 });
 if (typeof window !== 'undefined') {
   if (getAccessToken()) void useAuthStore.getState().fetchMe();
+  window.addEventListener('open-agent:auth-expired', () => {
+    clearActiveRuns();
+    useAuthStore.setState({ token: null, name: null, role: null, error: '登录已过期，请重新登录' });
+  });
   window.addEventListener('lui-agent:auth-expired', () => {
     clearActiveRuns();
     useAuthStore.setState({ token: null, name: null, role: null, error: '登录已过期，请重新登录' });

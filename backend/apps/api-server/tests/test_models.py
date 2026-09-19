@@ -1,6 +1,6 @@
 from app.core.config import get_settings
 from app.db.base import Base
-from app.db.models import RefreshToken, Thread
+from app.db.models import RefreshToken, Skill, Thread
 
 
 def test_core_models_are_registered() -> None:
@@ -11,8 +11,20 @@ def test_core_models_are_registered() -> None:
         "runs",
         "checkpoints",
         "interrupts",
+        "skills",
     } <= set(Base.metadata.tables)
     assert "messages" not in Base.metadata.tables
+
+
+def test_skill_columns_are_registered() -> None:
+    columns = Base.metadata.tables[Skill.__tablename__].c
+
+    assert columns.name.type.length == 128
+    assert columns.name.nullable is False
+    assert columns.description.nullable is False
+    assert columns.content.nullable is False
+    assert columns.enabled.nullable is False
+
 
 
 def test_refresh_token_columns_are_persisted_safely() -> None:

@@ -252,7 +252,6 @@ class RunService:
             [HumanMessage(content=request.content)],
             run_id=run_id,
             thread_id=thread_id,
-            tools=run_dependencies.default_langchain_tools(),
         ):
             sequence += 1
             yield RuntimeEvent(

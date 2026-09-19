@@ -9,7 +9,54 @@ import styles from './index.module.css';
 
 const remarkPlugins = [remarkGfm];
 
+function renderTextWithSkills(text: string) {
+  // 匹配行首或空格后的 /skill-name 或 $skill-name
+  const regex = /(?:^|\s)([/][a-zA-Z0-9_-]+)/g;
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    const fullMatch = match[0];
+    const token = match[1];
+    const matchStart = match.index + (fullMatch.length - token.length);
+
+    if (matchStart > lastIndex) { // 有普通文字
+      parts.push(text.slice(lastIndex, matchStart));
+    }
+    // skill部分
+    parts.push(
+      <span key={`${matchStart}-${token}`} className={styles.skillTokenHighlight}>
+        {token}
+      </span>,
+    );
+    lastIndex = matchStart + token.length;
+  }
+
+  // 尾部还有普通文字
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : text;
+}
+
 const markdownComponents: Components = {
+  p({ children }) {
+    if (typeof children === 'string') {
+      return <p>{renderTextWithSkills(children)}</p>;
+    }
+    if (Array.isArray(children)) {
+      return (
+        <p>
+          {children.map((child) =>
+            typeof child === 'string' ? renderTextWithSkills(child) : child,
+          )}
+        </p>
+      );
+    }
+    return <p>{children}</p>;
+  },
   code({ className, children, ...props }) {
     const text = Array.isArray(children)
       ? children.filter((child): child is string => typeof child === 'string').join('')

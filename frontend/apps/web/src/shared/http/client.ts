@@ -7,7 +7,37 @@ import {
   saveAuthSession,
 } from '@/shared/session/authSession';
 
-export const API_ROOT = import.meta.env.VITE_API_ROOT ?? 'http://localhost:8000/api';
+declare global {
+  interface Window {
+    __OPEN_AGENT_CONFIG__?: {
+      apiRoot?: string;
+      streamUrl?: string;
+    };
+    __LUI_CONFIG__?: {
+      apiRoot?: string;
+      streamUrl?: string;
+    };
+  }
+}
+
+export function getApiRoot(): string {
+  if (typeof window !== 'undefined') {
+    if (window.__OPEN_AGENT_CONFIG__?.apiRoot) {
+      return window.__OPEN_AGENT_CONFIG__.apiRoot.replace(/\/+$/, '');
+    }
+    const stored = localStorage.getItem('open-agent:api-root')
+    if (stored) {
+      return stored.replace(/\/+$/, '');
+    }
+  }
+  const envRoot = import.meta.env.OPEN_AGENT_API_ROOT ?? import.meta.env.VITE_API_ROOT;
+  if (envRoot) {
+    return envRoot.replace(/\/+$/, '');
+  }
+  return '/api';
+}
+
+export const API_ROOT = getApiRoot();
 
 let refreshPromise: Promise<string | null> | null = null;
 
@@ -24,7 +54,7 @@ export async function refreshAccessToken(): Promise<string | null> {
 
   refreshPromise = (async () => {
     try {
-      const response = await fetch(`${API_ROOT}/auth/refresh`, {
+      const response = await fetch(`${getApiRoot()}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: refreshToken }),
@@ -69,14 +99,14 @@ export async function fetchWithAuth(
 }
 
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetchWithAuth(`${API_ROOT}${path}`, init, !path.startsWith('/auth/'));
+  const response = await fetchWithAuth(`${getApiRoot()}${path}`, init, !path.startsWith('/auth/'));
   if (!response.ok) throw new Error(`请求失败（${response.status}）`);
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
 export async function authRequest<T>(path: string, init: RequestInit): Promise<T> {
-  const response = await fetch(`${API_ROOT}${path}`, {
+  const response = await fetch(`${getApiRoot()}${path}`, {
     ...init,
     headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
   });

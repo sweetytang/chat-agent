@@ -24,6 +24,7 @@ export interface paths {
   };
   "/api/auth/me": {
     get: operations["me_api_auth_me_get"];
+    patch: operations["update_profile_api_auth_me_patch"];
   };
   "/api/auth/refresh": {
     post: operations["refresh_api_auth_refresh_post"];
@@ -40,11 +41,8 @@ export interface paths {
     patch: operations["update_thread_api_threads__thread_id__patch"];
     delete: operations["delete_thread_api_threads__thread_id__delete"];
   };
-  "/api/threads/{thread_id}/messages": {
-    get: operations["list_messages_api_threads__thread_id__messages_get"];
-  };
-  "/api/threads/{thread_id}/history": {
-    get: operations["get_thread_history_api_threads__thread_id__history_get"];
+  "/api/threads/{thread_id}/timeline": {
+    get: operations["get_thread_timeline_api_threads__thread_id__timeline_get"];
   };
   "/api/interrupts": {
     post: operations["create_interrupt_api_interrupts_post"];
@@ -59,46 +57,41 @@ export interface paths {
     get: operations["get_pending_interrupt_api_threads__thread_id__interrupts_pending_get"];
   };
   "/api/threads/{thread_id}/checkpoints": {
-    post: operations["create_checkpoint_api_threads__thread_id__checkpoints_post"];
     get: operations["list_checkpoints_api_threads__thread_id__checkpoints_get"];
   };
   "/api/threads/{thread_id}/checkpoints/{checkpoint_id}/switch": {
     post: operations["switch_checkpoint_api_threads__thread_id__checkpoints__checkpoint_id__switch_post"];
   };
-  "/api/mcp/stdio/definitions": {
-    get: operations["list_stdio_definitions_api_mcp_stdio_definitions_get"];
-  };
   "/api/mcp/servers": {
-    get: operations["list_servers_api_mcp_servers_get"];
-    post: operations["create_server_api_mcp_servers_post"];
-  };
-  "/api/mcp/servers/{server_id}": {
-    patch: operations["update_server_api_mcp_servers__server_id__patch"];
-    delete: operations["delete_server_api_mcp_servers__server_id__delete"];
-  };
-  "/api/mcp/admin/servers": {
-    get: operations["list_admin_servers_api_mcp_admin_servers_get"];
+    get: operations["list_user_mcp_servers_api_mcp_servers_get"];
+    post: operations["create_user_mcp_server_api_mcp_servers_post"];
   };
   "/api/mcp/servers/{server_id}/tools": {
-    get: operations["list_server_tools_api_mcp_servers__server_id__tools_get"];
+    get: operations["list_server_live_tools_api_mcp_servers__server_id__tools_get"];
   };
-  "/api/mcp/servers/{server_id}/enabled": {
-    post: operations["set_server_enabled_api_mcp_servers__server_id__enabled_post"];
+  "/api/mcp/servers/{server_id}": {
+    patch: operations["update_user_mcp_server_api_mcp_servers__server_id__patch"];
+    delete: operations["delete_user_mcp_server_api_mcp_servers__server_id__delete"];
   };
-  "/api/mcp/servers/{server_id}/refresh": {
-    post: operations["refresh_server_api_mcp_servers__server_id__refresh_post"];
+  "/api/mcp/config": {
+    put: operations["sync_mcp_json_config_api_mcp_config_put"];
   };
-  "/api/mcp/tools/{tool_id}/enabled": {
-    post: operations["set_tool_enabled_api_mcp_tools__tool_id__enabled_post"];
+  "/api/skills": {
+    get: operations["list_skills_api_skills_get"];
+    post: operations["create_skill_api_skills_post"];
+  };
+  "/api/skills/import": {
+    post: operations["import_skill_file_api_skills_import_post"];
+  };
+  "/api/skills/{skill_id}": {
+    get: operations["get_skill_api_skills__skill_id__get"];
+    patch: operations["patch_skill_api_skills__skill_id__patch"];
+    delete: operations["remove_skill_api_skills__skill_id__delete"];
   };
 }
 
 export interface components {
   schemas: {
-    AuthRequest: {
-      email: string;
-      password: string;
-    };
     AuthResponse: {
       access_token: string;
       token_type?: string;
@@ -114,11 +107,6 @@ export interface components {
       state: Record<string, unknown>;
       branch_name: string | null;
     };
-    CreateCheckpointRequest: {
-      state?: Record<string, unknown>;
-      parent_id?: string | null;
-      branch_name?: string | null;
-    };
     CreateInterruptRequest: {
       run_id: string;
       request_id: string;
@@ -129,72 +117,54 @@ export interface components {
     CreateThreadRequest: {
       title?: string | null;
     };
+    ErrorItemResponse: {
+      id: string;
+      kind: string;
+      run_id: string | null;
+      sequence: number;
+      checkpoint_id?: string | null;
+      parent_checkpoint_id?: string | null;
+      branch_options?: Array<components["schemas"]["BranchOptionResponse"]>;
+      branch_index?: number | null;
+      message: string;
+      status: string;
+    };
+    GenerativeUiItemResponse: {
+      id: string;
+      kind: string;
+      run_id: string | null;
+      sequence: number;
+      checkpoint_id?: string | null;
+      parent_checkpoint_id?: string | null;
+      branch_options?: Array<components["schemas"]["BranchOptionResponse"]>;
+      branch_index?: number | null;
+      value: unknown;
+      status: "streaming" | "completed" | "failed" | "cancelled";
+    };
     HTTPValidationError: {
       detail?: Array<components["schemas"]["ValidationError"]>;
     };
-    HistoryMessageResponse: {
+    LoginRequest: {
+      email: string;
+      password: string;
+    };
+    McpConfigSyncRequest: {
+      mcpServers: Record<string, Record<string, unknown>>;
+    };
+    MessageItemResponse: {
       id: string;
-      role: string;
-      content: string;
-      checkpoint_id: string | null;
-      parent_checkpoint_id: string | null;
+      kind: string;
+      run_id: string | null;
+      sequence: number;
+      checkpoint_id?: string | null;
+      parent_checkpoint_id?: string | null;
       branch_options?: Array<components["schemas"]["BranchOptionResponse"]>;
       branch_index?: number | null;
-    };
-    McpScope: "PRIVATE" | "SHARED";
-    McpServerCreate: {
-      name: string;
-      scope?: components["schemas"]["McpScope"];
-      transport?: components["schemas"]["McpTransport"];
-      endpoint?: string | null;
-      headers?: Record<string, string>;
-      bearer_token?: string | null;
-      command?: string | null;
-      args?: Array<string>;
-      env?: Record<string, string>;
-    };
-    McpServerResponse: {
-      id: string;
-      name: string;
-      scope: components["schemas"]["McpScope"];
-      transport: components["schemas"]["McpTransport"];
-      endpoint: string | null;
-      status: string;
-      enabled?: boolean;
-      last_error?: string | null;
-      credential_configured: boolean;
-      security_version: number;
-      command?: string | null;
-      args?: Array<string>;
-      env?: Record<string, string>;
-    };
-    McpServerUpdate: {
-      name?: string | null;
-      transport?: components["schemas"]["McpTransport"] | null;
-      endpoint?: string | null;
-      headers?: Record<string, string> | null;
-      bearer_token?: string | null;
-      command?: string | null;
-      args?: Array<string> | null;
-      env?: Record<string, string> | null;
-    };
-    McpToolResponse: {
-      id: string;
-      remote_name: string;
-      internal_name: string;
-      description: string | null;
-      compatibility: string;
-      is_present: boolean;
-      enabled?: boolean;
-    };
-    McpTransport: "STREAMABLE_HTTP" | "STDIO";
-    MessageResponse: {
-      id: string;
-      thread_id: string;
-      run_id: string | null;
-      checkpoint_id: string | null;
-      role: string;
-      content: Record<string, unknown>;
+      logical_message_id: string;
+      role: "user" | "assistant";
+      content: string;
+      status: "streaming" | "completed" | "failed" | "cancelled";
+      terminal_segment: boolean;
     };
     PendingInterruptResponse: {
       request_id: string;
@@ -203,8 +173,25 @@ export interface components {
       tool: string | null;
       payload: Record<string, unknown>;
     };
+    ReasoningItemResponse: {
+      id: string;
+      kind: string;
+      run_id: string | null;
+      sequence: number;
+      checkpoint_id?: string | null;
+      parent_checkpoint_id?: string | null;
+      branch_options?: Array<components["schemas"]["BranchOptionResponse"]>;
+      branch_index?: number | null;
+      content: string;
+      status: "streaming" | "completed" | "failed" | "cancelled";
+    };
     RefreshRequest: {
       refresh_token: string;
+    };
+    RegisterRequest: {
+      email: string;
+      password: string;
+      name?: string | null;
     };
     ResolveInterruptRequest: {
       decision: string;
@@ -220,11 +207,49 @@ export interface components {
       content: string;
       checkpoint_id?: string | null;
       mode?: string;
+      model?: string | null;
+      skill_id?: string | null;
+      skill_ids?: Array<string>;
     };
-    ThreadHistoryResponse: {
-      thread_id: string;
-      current_checkpoint_id: string | null;
-      messages?: Array<components["schemas"]["HistoryMessageResponse"]>;
+    SkillCreate: {
+      name: string;
+      description: string;
+      content: string;
+      enabled?: boolean;
+    };
+    SkillImportRequest: {
+      raw_content: string;
+      name?: string | null;
+      description?: string | null;
+      enabled?: boolean;
+    };
+    SkillResponse: {
+      name: string;
+      description: string;
+      content: string;
+      enabled?: boolean;
+      id: string;
+      user_id: string;
+      created_at: string;
+      updated_at: string;
+    };
+    SkillUpdate: {
+      name?: string | null;
+      description?: string | null;
+      content?: string | null;
+      enabled?: boolean | null;
+    };
+    StructuredOutputItemResponse: {
+      id: string;
+      kind: string;
+      run_id: string | null;
+      sequence: number;
+      checkpoint_id?: string | null;
+      parent_checkpoint_id?: string | null;
+      branch_options?: Array<components["schemas"]["BranchOptionResponse"]>;
+      branch_index?: number | null;
+      value: unknown;
+      status: "streaming" | "completed" | "failed" | "cancelled";
     };
     ThreadResponse: {
       id: string;
@@ -232,12 +257,71 @@ export interface components {
       is_pinned: boolean;
       current_checkpoint_id: string | null;
     };
-    TogglePayload: {
-      enabled: boolean;
+    ThreadTimelineResponse: {
+      thread_id: string;
+      current_checkpoint_id: string | null;
+      timeline: components["schemas"]["TimelineSnapshotResponse"];
+    };
+    TimelineSnapshotResponse: {
+      version: number;
+      items?: Array<components["schemas"]["MessageItemResponse"] | components["schemas"]["ReasoningItemResponse"] | components["schemas"]["ToolItemResponse"] | components["schemas"]["StructuredOutputItemResponse"] | components["schemas"]["GenerativeUiItemResponse"] | components["schemas"]["ErrorItemResponse"]>;
+    };
+    ToolItemResponse: {
+      id: string;
+      kind: string;
+      run_id: string | null;
+      sequence: number;
+      checkpoint_id?: string | null;
+      parent_checkpoint_id?: string | null;
+      branch_options?: Array<components["schemas"]["BranchOptionResponse"]>;
+      branch_index?: number | null;
+      tool: string;
+      arguments?: Record<string, unknown>;
+      request_id?: string | null;
+      result?: unknown;
+      status: "running" | "awaiting_approval" | "completed" | "failed" | "cancelled";
+    };
+    UpdateProfileRequest: {
+      name: string;
     };
     UpdateThreadRequest: {
       title?: string | null;
       is_pinned?: boolean | null;
+    };
+    UserMcpServerCreate: {
+      name: string;
+      transport?: string;
+      endpoint?: string | null;
+      command?: string | null;
+      args?: Array<string>;
+      process_env?: Record<string, string>;
+      request_headers?: Record<string, string>;
+      enabled?: boolean;
+      tool_rules?: Record<string, unknown>;
+    };
+    UserMcpServerResponse: {
+      id: string;
+      name: string;
+      transport: string;
+      endpoint?: string | null;
+      command?: string | null;
+      args?: Array<string>;
+      process_env?: Record<string, string>;
+      request_headers?: Record<string, string>;
+      enabled: boolean;
+      tool_rules?: Record<string, unknown>;
+      last_error?: string | null;
+    };
+    UserMcpServerUpdate: {
+      name?: string | null;
+      transport?: string | null;
+      endpoint?: string | null;
+      command?: string | null;
+      args?: Array<string> | null;
+      process_env?: Record<string, string> | null;
+      request_headers?: Record<string, string> | null;
+      enabled?: boolean | null;
+      tool_rules?: Record<string, unknown> | null;
     };
     ValidationError: {
       loc: Array<string | number>;
@@ -308,7 +392,7 @@ export interface operations {
   register_api_auth_register_post: {
     requestBody: {
       content: {
-        "application/json": components["schemas"]["AuthRequest"];
+        "application/json": components["schemas"]["RegisterRequest"];
       };
     };
     responses: {
@@ -323,7 +407,7 @@ export interface operations {
   login_api_auth_token_post: {
     requestBody: {
       content: {
-        "application/json": components["schemas"]["AuthRequest"];
+        "application/json": components["schemas"]["LoginRequest"];
       };
     };
     responses: {
@@ -338,7 +422,22 @@ export interface operations {
   me_api_auth_me_get: {
     responses: {
       200: {
-        content: { "application/json": Record<string, string> };
+        content: { "application/json": Record<string, unknown> };
+      };
+    };
+  };
+  update_profile_api_auth_me_patch: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateProfileRequest"];
+      };
+    };
+    responses: {
+      200: {
+        content: { "application/json": Record<string, unknown> };
+      };
+      422: {
+        content: { "application/json": components["schemas"]["HTTPValidationError"] };
       };
     };
   };
@@ -442,7 +541,7 @@ export interface operations {
       };
     };
   };
-  list_messages_api_threads__thread_id__messages_get: {
+  get_thread_timeline_api_threads__thread_id__timeline_get: {
     parameters: {
       path: {
         thread_id: string;
@@ -450,22 +549,7 @@ export interface operations {
     };
     responses: {
       200: {
-        content: { "application/json": Array<components["schemas"]["MessageResponse"]> };
-      };
-      422: {
-        content: { "application/json": components["schemas"]["HTTPValidationError"] };
-      };
-    };
-  };
-  get_thread_history_api_threads__thread_id__history_get: {
-    parameters: {
-      path: {
-        thread_id: string;
-      };
-    };
-    responses: {
-      200: {
-        content: { "application/json": components["schemas"]["ThreadHistoryResponse"] };
+        content: { "application/json": components["schemas"]["ThreadTimelineResponse"] };
       };
       422: {
         content: { "application/json": components["schemas"]["HTTPValidationError"] };
@@ -537,26 +621,6 @@ export interface operations {
       };
     };
   };
-  create_checkpoint_api_threads__thread_id__checkpoints_post: {
-    parameters: {
-      path: {
-        thread_id: string;
-      };
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["CreateCheckpointRequest"];
-      };
-    };
-    responses: {
-      201: {
-        content: { "application/json": components["schemas"]["CheckpointResponse"] };
-      };
-      422: {
-        content: { "application/json": components["schemas"]["HTTPValidationError"] };
-      };
-    };
-  };
   list_checkpoints_api_threads__thread_id__checkpoints_get: {
     parameters: {
       path: {
@@ -590,36 +654,44 @@ export interface operations {
       };
     };
   };
-  list_stdio_definitions_api_mcp_stdio_definitions_get: {
+  list_user_mcp_servers_api_mcp_servers_get: {
     responses: {
       200: {
-        content: { "application/json": Array<Record<string, string>> };
+        content: { "application/json": Array<components["schemas"]["UserMcpServerResponse"]> };
       };
     };
   };
-  list_servers_api_mcp_servers_get: {
-    responses: {
-      200: {
-        content: { "application/json": Array<components["schemas"]["McpServerResponse"]> };
-      };
-    };
-  };
-  create_server_api_mcp_servers_post: {
+  create_user_mcp_server_api_mcp_servers_post: {
     requestBody: {
       content: {
-        "application/json": components["schemas"]["McpServerCreate"];
+        "application/json": components["schemas"]["UserMcpServerCreate"];
       };
     };
     responses: {
       201: {
-        content: { "application/json": components["schemas"]["McpServerResponse"] };
+        content: { "application/json": components["schemas"]["UserMcpServerResponse"] };
       };
       422: {
         content: { "application/json": components["schemas"]["HTTPValidationError"] };
       };
     };
   };
-  update_server_api_mcp_servers__server_id__patch: {
+  list_server_live_tools_api_mcp_servers__server_id__tools_get: {
+    parameters: {
+      path: {
+        server_id: string;
+      };
+    };
+    responses: {
+      200: {
+        content: { "application/json": Array<Record<string, unknown>> };
+      };
+      422: {
+        content: { "application/json": components["schemas"]["HTTPValidationError"] };
+      };
+    };
+  };
+  update_user_mcp_server_api_mcp_servers__server_id__patch: {
     parameters: {
       path: {
         server_id: string;
@@ -627,19 +699,19 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["McpServerUpdate"];
+        "application/json": components["schemas"]["UserMcpServerUpdate"];
       };
     };
     responses: {
       200: {
-        content: { "application/json": components["schemas"]["McpServerResponse"] };
+        content: { "application/json": components["schemas"]["UserMcpServerResponse"] };
       };
       422: {
         content: { "application/json": components["schemas"]["HTTPValidationError"] };
       };
     };
   };
-  delete_server_api_mcp_servers__server_id__delete: {
+  delete_user_mcp_server_api_mcp_servers__server_id__delete: {
     parameters: {
       path: {
         server_id: string;
@@ -653,77 +725,101 @@ export interface operations {
       };
     };
   };
-  list_admin_servers_api_mcp_admin_servers_get: {
-    responses: {
-      200: {
-        content: { "application/json": Array<components["schemas"]["McpServerResponse"]> };
-      };
-    };
-  };
-  list_server_tools_api_mcp_servers__server_id__tools_get: {
-    parameters: {
-      path: {
-        server_id: string;
+  sync_mcp_json_config_api_mcp_config_put: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["McpConfigSyncRequest"];
       };
     };
     responses: {
       200: {
-        content: { "application/json": Array<components["schemas"]["McpToolResponse"]> };
+        content: { "application/json": Array<components["schemas"]["UserMcpServerResponse"]> };
       };
       422: {
         content: { "application/json": components["schemas"]["HTTPValidationError"] };
       };
     };
   };
-  set_server_enabled_api_mcp_servers__server_id__enabled_post: {
+  list_skills_api_skills_get: {
+    responses: {
+      200: {
+        content: { "application/json": Array<components["schemas"]["SkillResponse"]> };
+      };
+    };
+  };
+  create_skill_api_skills_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SkillCreate"];
+      };
+    };
+    responses: {
+      201: {
+        content: { "application/json": components["schemas"]["SkillResponse"] };
+      };
+      422: {
+        content: { "application/json": components["schemas"]["HTTPValidationError"] };
+      };
+    };
+  };
+  import_skill_file_api_skills_import_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SkillImportRequest"];
+      };
+    };
+    responses: {
+      201: {
+        content: { "application/json": components["schemas"]["SkillResponse"] };
+      };
+      422: {
+        content: { "application/json": components["schemas"]["HTTPValidationError"] };
+      };
+    };
+  };
+  get_skill_api_skills__skill_id__get: {
     parameters: {
       path: {
-        server_id: string;
+        skill_id: string;
+      };
+    };
+    responses: {
+      200: {
+        content: { "application/json": components["schemas"]["SkillResponse"] };
+      };
+      422: {
+        content: { "application/json": components["schemas"]["HTTPValidationError"] };
+      };
+    };
+  };
+  patch_skill_api_skills__skill_id__patch: {
+    parameters: {
+      path: {
+        skill_id: string;
       };
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["TogglePayload"];
+        "application/json": components["schemas"]["SkillUpdate"];
       };
     };
     responses: {
       200: {
-        content: { "application/json": Record<string, boolean> };
+        content: { "application/json": components["schemas"]["SkillResponse"] };
       };
       422: {
         content: { "application/json": components["schemas"]["HTTPValidationError"] };
       };
     };
   };
-  refresh_server_api_mcp_servers__server_id__refresh_post: {
+  remove_skill_api_skills__skill_id__delete: {
     parameters: {
       path: {
-        server_id: string;
+        skill_id: string;
       };
     };
     responses: {
-      200: {
-        content: { "application/json": components["schemas"]["McpServerResponse"] };
-      };
-      422: {
-        content: { "application/json": components["schemas"]["HTTPValidationError"] };
-      };
-    };
-  };
-  set_tool_enabled_api_mcp_tools__tool_id__enabled_post: {
-    parameters: {
-      path: {
-        tool_id: string;
-      };
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["TogglePayload"];
-      };
-    };
-    responses: {
-      200: {
-        content: { "application/json": Record<string, boolean> };
+      204: {
       };
       422: {
         content: { "application/json": components["schemas"]["HTTPValidationError"] };
