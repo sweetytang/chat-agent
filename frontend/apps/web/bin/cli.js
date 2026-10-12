@@ -40,7 +40,7 @@ function parseArgs() {
       process.env.OPEN_AGENT_API_URL ||
       process.env.LUI_API_URL ||
       'https://agent.tenasourcing.com',
-    port: parseInt(process.env.PORT || '8001', 10),
+    port: parseInt(process.env.PORT || '10001', 10),
     host: process.env.HOST || '127.0.0.1',
     open: true,
   };
@@ -57,7 +57,7 @@ Open Agent - 本地启动工具
 
 选项:
   -a, --api <url>     云端后端服务地址 (默认: https://agent.tenasourcing.com，或读取环境变量 OPEN_AGENT_API_URL)
-  -p, --port <port>   本地服务端口 (默认: 8001，若被占用自动顺延)
+  -p, --port <port>   本地服务端口 (默认: 10001，若被占用自动顺延)
   -H, --host <host>   本地绑定主机 (默认: 127.0.0.1)
   --no-open           启动后不自动打开浏览器
   -h, --help          查看帮助信息
@@ -190,7 +190,7 @@ async function main() {
       if (fs.existsSync(filePath)) {
         stat = fs.statSync(filePath);
       }
-    } catch {}
+    } catch { }
 
     // 如果不是文件（或者是目录），返回 index.html
     if (!stat || !stat.isFile()) {

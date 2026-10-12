@@ -12,7 +12,7 @@ echo ">> 数据库迁移完成！"
 
 # 启动 uvicorn 生产服务
 WORKERS="${OPEN_AGENT_WORKERS:-${LUI_AGENT_WORKERS:-2}}"
-PORT="${PORT:-8000}"
+PORT="${PORT:-10000}"
 
 echo ">> 正在启动 Uvicorn 服务 (端口: ${PORT}, Workers: ${WORKERS})..."
 exec uvicorn app.main:app \

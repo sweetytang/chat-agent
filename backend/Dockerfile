@@ -5,7 +5,7 @@ FROM python:3.14-slim AS runner
 ENV PYTHONUNBUFFERED=1 \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
-    PORT=8000 \
+    PORT=10000 \
     PATH="/app/.venv/bin:$PATH"
 
 WORKDIR /app
@@ -44,10 +44,10 @@ RUN uv sync --frozen --no-dev --all-packages
 COPY backend/scripts/start-prod.sh ./scripts/start-prod.sh
 RUN chmod +x ./scripts/start-prod.sh
 
-EXPOSE 8000
+EXPOSE 10000
 
 # 使用 Python 内置 urllib 进行健康检查，零外部依赖
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')" || exit 1
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:10000/health')" || exit 1
 
 ENTRYPOINT ["./scripts/start-prod.sh"]

@@ -7,10 +7,10 @@ help: ## 可用命令列表
 	@awk 'BEGIN {FS = ":.*## "; printf "可用任务:\n"} /^[a-zA-Z_-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 prod-up: ## 在生产环境启动 Docker 容器组 (后台 + PostgreSQL)
-	docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+	docker compose --env-file .env -f docker-compose.prod.yml up -d --build
 
 prod-down: ## 停止生产环境 Docker 容器组
-	docker compose --env-file .env.production -f docker-compose.prod.yml down
+	docker compose --env-file .env -f docker-compose.prod.yml down
 
 publish-frontend: build-frontend ## 构建并发布前端至 npm
 	cd $(FRONTEND_DIR)/apps/web && npm publish
@@ -37,7 +37,7 @@ dev: db-up ## 启动数据库，并行启动后端和前端
 	$(MAKE) -j2 dev-backend dev-frontend
 
 dev-backend: db-migrate ## 启动 FastAPI 后端
-	cd $(BACKEND_DIR) && uv run uvicorn app.main:app --app-dir apps/api-server --port 8000 --reload
+	cd $(BACKEND_DIR) && uv run uvicorn app.main:app --app-dir apps/api-server --port 10000 --reload
 
 dev-frontend: ## 启动 Vite 前端
 	cd $(FRONTEND_DIR) && pnpm dev

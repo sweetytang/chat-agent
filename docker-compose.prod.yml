@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-open_agent}
       POSTGRES_USER: ${POSTGRES_USER:-open_agent}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 .env.production 中设置 POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 .env 中设置 POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -27,11 +27,11 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "${API_PORT:-10000}:10000"
     environment:
       OPEN_AGENT_ENVIRONMENT: production
       OPEN_AGENT_DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-open_agent}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-open_agent}"
-      OPEN_AGENT_JWT_SECRET: ${OPEN_AGENT_JWT_SECRET:?请在 .env.production 中设置 OPEN_AGENT_JWT_SECRET}
+      OPEN_AGENT_JWT_SECRET: ${OPEN_AGENT_JWT_SECRET:?请在 .env 中设置 OPEN_AGENT_JWT_SECRET}
       OPEN_AGENT_MCP_ENCRYPTION_KEY: ${OPEN_AGENT_MCP_ENCRYPTION_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
       OPEN_AGENT_PROVIDER: ${OPEN_AGENT_PROVIDER:-openai-compatible}
       OPEN_AGENT_API_KEY: ${OPEN_AGENT_API_KEY}

@@ -1,10 +1,9 @@
-import os
 from functools import lru_cache
+import os
 from typing import Any
 
 from pydantic import PostgresDsn, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 DEFAULT_ALLOWED_LOCAL_COMMANDS: list[str] = [
     "npx",
@@ -15,6 +14,10 @@ DEFAULT_ALLOWED_LOCAL_COMMANDS: list[str] = [
 ]
 
 DEFAULT_CORS_ORIGINS: list[str] = [
+    "http://localhost:10001",
+    "http://127.0.0.1:10001",
+    "http://localhost:10000",
+    "http://127.0.0.1:10000",
     "http://localhost:8001",
     "http://127.0.0.1:8001",
     "http://localhost:3000",

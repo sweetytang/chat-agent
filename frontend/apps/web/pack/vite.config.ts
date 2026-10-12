@@ -9,7 +9,7 @@ export default defineConfig({
   envPrefix: ['VITE_', 'OPEN_AGENT_'],
   plugins: [react()],
   resolve: { alias: { '@': path.resolve(projectDir, 'src') } },
-  server: { host: '0.0.0.0', port: 8001, open: false },
+  server: { host: '0.0.0.0', port: 10001, open: false },
   build: { outDir: path.resolve(projectDir, 'dist'), emptyOutDir: true },
   optimizeDeps: {
     exclude: ['@lui-agent/api-types'],
